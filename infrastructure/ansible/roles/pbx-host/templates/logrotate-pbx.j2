@@ -1,0 +1,29 @@
+{{ pbx_log_root }}/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 {{ pbx_app_user }} {{ pbx_app_group }}
+}
+
+{{ pbx_log_root }}/asterisk/*.log {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 {{ pbx_app_user }} {{ pbx_app_group }}
+}
+
+{{ pbx_log_root }}/caddy/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root root
+}

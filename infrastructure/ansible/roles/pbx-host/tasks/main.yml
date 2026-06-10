@@ -1,0 +1,220 @@
+---
+- name: Verify supported Ubuntu LTS
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == "Ubuntu"
+      - ansible_distribution_version is version('22.04', '>=')
+    fail_msg: "Unsupported OS — Ubuntu 22.04 LTS or newer required"
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - jq
+      - logrotate
+      - nftables
+      - fail2ban
+      - chrony
+      - ufw
+      - acl
+      - openssl
+      - rsync
+      - gzip
+      - zstd
+    state: present
+    update_cache: true
+
+- name: Ensure chrony is running
+  ansible.builtin.service:
+    name: chrony
+    state: started
+    enabled: true
+
+- name: Create pbx group
+  ansible.builtin.group:
+    name: "{{ pbx_app_group }}"
+    system: true
+
+- name: Create pbx application user
+  ansible.builtin.user:
+    name: "{{ pbx_app_user }}"
+    group: "{{ pbx_app_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ pbx_install_root }}"
+    create_home: false
+
+- name: Create directory layout
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default(pbx_app_user) }}"
+    group: "{{ item.group | default(pbx_app_group) }}"
+    mode: "{{ item.mode | default('0750') }}"
+  loop:
+    - { path: "{{ pbx_install_root }}", owner: root, group: root, mode: "0755" }
+    - { path: "{{ pbx_data_root }}/postgres" }
+    - { path: "{{ pbx_data_root }}/redis" }
+    - { path: "{{ pbx_data_root }}/nats" }
+    - { path: "{{ pbx_data_root }}/minio" }
+    - { path: "{{ pbx_data_root }}/recordings" }
+    - { path: "{{ pbx_data_root }}/voicemail" }
+    - { path: "{{ pbx_data_root }}/asterisk/generated" }
+    - { path: "{{ pbx_data_root }}/asterisk/logs" }
+    - { path: "{{ pbx_data_root }}/backups/staging" }
+    - { path: "{{ pbx_data_root }}/caddy/data" }
+    - { path: "{{ pbx_data_root }}/caddy/config" }
+    - { path: "{{ pbx_log_root }}" }
+    - { path: "{{ pbx_log_root }}/asterisk" }
+    - { path: "{{ pbx_log_root }}/caddy" }
+
+- name: Mount block storage when enabled
+  when: block_storage_enabled | bool
+  block:
+    - name: Ensure block volume mount point exists
+      ansible.builtin.file:
+        path: "{{ block_storage_mount }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Mount block storage (operator may format volume on first boot)
+      ansible.builtin.mount:
+        path: "{{ block_storage_mount }}"
+        src: "{{ block_storage_device }}"
+        fstype: ext4
+        opts: defaults,nofail
+        state: mounted
+
+- name: Install Docker GPG key
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: "0644"
+
+- name: Add Docker apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+    filename: docker
+
+- name: Install Docker Engine and Compose plugin
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+
+- name: Add pbx user to docker group
+  ansible.builtin.user:
+    name: "{{ pbx_app_user }}"
+    groups: docker
+    append: true
+
+- name: Configure Docker daemon logging and limits
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    mode: "0644"
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "{{ docker_log_max_size }}",
+          "max-file": "{{ docker_log_max_file }}"
+        },
+        "live-restore": true,
+        "userland-proxy": false
+      }
+  notify: Restart docker
+
+- name: Configure system limits for telephony workloads
+  ansible.builtin.copy:
+    dest: /etc/security/limits.d/99-pbx.conf
+    mode: "0644"
+    content: |
+      * soft nofile 65536
+      * hard nofile 65536
+
+- name: Deploy host nftables policy
+  ansible.builtin.template:
+    src: pbx-production.nft.j2
+    dest: /etc/nftables.d/pbx-production.nft
+    mode: "0640"
+  notify: Reload nftables
+
+- name: Include PBX nftables rules
+  ansible.builtin.lineinfile:
+    path: /etc/nftables.conf
+    line: 'include "/etc/nftables.d/pbx-production.nft"'
+    create: true
+    state: present
+  notify: Reload nftables
+
+- name: Configure fail2ban for SSH
+  when: fail2ban_enabled | bool
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.d/pbx-sshd.local
+    mode: "0644"
+    content: |
+      [sshd]
+      enabled = true
+      maxretry = 5
+      findtime = 600
+      bantime = 3600
+  notify: Restart fail2ban
+
+- name: Deploy logrotate configuration
+  ansible.builtin.template:
+    src: logrotate-pbx.j2
+    dest: /etc/logrotate.d/pbx-platform
+    mode: "0644"
+
+- name: Install systemd unit for PBX stack
+  ansible.builtin.template:
+    src: pbx-platform.service.j2
+    dest: /etc/systemd/system/pbx-platform.service
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Install backup timer
+  when: backup_enabled | bool
+  block:
+    - name: Backup service unit
+      ansible.builtin.template:
+        src: pbx-backup.service.j2
+        dest: /etc/systemd/system/pbx-backup.service
+        mode: "0644"
+    - name: Backup timer unit
+      ansible.builtin.template:
+        src: pbx-backup.timer.j2
+        dest: /etc/systemd/system/pbx-backup.timer
+        mode: "0644"
+      notify: Reload systemd
+
+- name: Install health-check timer
+  block:
+    - name: Health check service unit
+      ansible.builtin.template:
+        src: pbx-healthcheck.service.j2
+        dest: /etc/systemd/system/pbx-healthcheck.service
+        mode: "0644"
+    - name: Health check timer unit
+      ansible.builtin.template:
+        src: pbx-healthcheck.timer.j2
+        dest: /etc/systemd/system/pbx-healthcheck.timer
+        mode: "0644"
+      notify: Reload systemd
+
+- name: Enable PBX platform service
+  ansible.builtin.systemd:
+    name: pbx-platform.service
+    enabled: true
+    daemon_reload: true

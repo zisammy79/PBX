@@ -1,0 +1,10 @@
+[Unit]
+Description=PBX Platform encrypted backup
+After=docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory={{ pbx_install_root }}
+EnvironmentFile={{ pbx_env_file }}
+ExecStart={{ pbx_install_root }}/scripts/backup-production.sh --apply

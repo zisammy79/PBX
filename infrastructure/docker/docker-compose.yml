@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pbx-postgres
+    environment:
+      POSTGRES_USER: pbx
+      POSTGRES_PASSWORD: pbx_dev_password
+      POSTGRES_DB: pbx
+    ports:
+      - '5433:5432'
+    volumes:
+      - pbx_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pbx -d pbx']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pbx-internal
+
+  redis:
+    image: redis:7-alpine
+    container_name: pbx-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - pbx_redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - pbx-internal
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: pbx-nats
+    command: ['-js', '-m', '8222']
+    ports:
+      - '4222:4222'
+      - '8222:8222'
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://localhost:8222/healthz']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - pbx-internal
+
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    container_name: pbx-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: pbx_minio
+      MINIO_ROOT_PASSWORD: pbx_minio_secret
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - pbx_minio_data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - pbx-internal
+
+networks:
+  pbx-internal:
+    name: pbx-internal
+    driver: bridge
+
+volumes:
+  pbx_postgres_data:
+  pbx_redis_data:
+  pbx_minio_data:

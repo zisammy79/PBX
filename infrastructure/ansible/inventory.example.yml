@@ -1,0 +1,12 @@
+---
+# Copy to inventory.yml and replace placeholders. Do not commit real IPs or secrets.
+
+all:
+  children:
+    pbx_production:
+      hosts:
+        pbx-prod-01:
+          ansible_host: REPLACE_WITH_DROPLET_OR_RESERVED_IP
+          ansible_user: root
+      vars:
+        ansible_python_interpreter: /usr/bin/python3

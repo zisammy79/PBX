@@ -1,0 +1,1759 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Authentication successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Authenticate user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/change-password": {
+      "post": {
+        "operationId": "AuthController_changePassword",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Change authenticated user password",
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "AuthController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Current user profile"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Get current authenticated user and tenant memberships",
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "operationId": "HealthController_health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/api/v1/health/live": {
+      "get": {
+        "operationId": "HealthController_liveness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "healthy"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Health"
+        ],
+        "summary": "Liveness probe — process alive"
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "operationId": "HealthController_readiness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Health"
+        ],
+        "summary": "Readiness probe — fails when required dependencies are unavailable"
+      }
+    },
+    "/api/v1/tenants": {
+      "post": {
+        "operationId": "TenantsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tenants"
+        ],
+        "summary": "Create tenant and owner membership",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantRequest"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "TenantsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tenants"
+        ],
+        "summary": "List tenants (platform permission required)",
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}": {
+      "get": {
+        "operationId": "TenantsController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tenants"
+        ],
+        "summary": "Get tenant by ID",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/extensions": {
+      "post": {
+        "operationId": "ExtensionsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Extension created; SIP secret returned once",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionCreateResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Extensions"
+        ],
+        "summary": "Create extension with one-time SIP credential secret",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExtensionRequest"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "ExtensionsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Extensions"
+        ],
+        "summary": "List extensions without SIP secrets",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/extensions/{extensionId}": {
+      "get": {
+        "operationId": "ExtensionsController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionReadResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Extensions"
+        ],
+        "summary": "Get extension metadata without SIP secret",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ]
+      }
+    },
+    "/api/v1/calls": {
+      "get": {
+        "operationId": "CallsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Calls"
+        ]
+      }
+    },
+    "/api/v1/calls/active": {
+      "get": {
+        "operationId": "CallsController_listActive",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Calls"
+        ]
+      }
+    },
+    "/api/v1/calls/{id}": {
+      "get": {
+        "operationId": "CallsController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Calls"
+        ]
+      }
+    },
+    "/api/v1/extensions/{id}/registration": {
+      "get": {
+        "operationId": "CallsController_registration",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Calls"
+        ]
+      }
+    },
+    "/api/v1/telephony/configuration/validate": {
+      "post": {
+        "operationId": "TelephonyController_validate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Telephony"
+        ]
+      }
+    },
+    "/api/v1/telephony/configuration/activate": {
+      "post": {
+        "operationId": "TelephonyController_activate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Telephony"
+        ]
+      }
+    },
+    "/api/v1/ai/provider-connections": {
+      "post": {
+        "summary": "Create AI provider connection (credentials stored encrypted; external verification NOT_TESTED)",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      },
+      "get": {
+        "summary": "List AI provider connections (no credential secrets returned)",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/v1/ai/provider-connections/{id}": {
+      "get": {
+        "summary": "Get AI provider connection",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      },
+      "patch": {
+        "summary": "Update AI provider connection",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      },
+      "delete": {
+        "summary": "Disable AI provider connection",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/v1/ai/provider-connections/{id}/test": {
+      "post": {
+        "summary": "External validation deferred — returns NOT_TESTED",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/v1/ai/agents": {
+      "post": {
+        "summary": "Create AI agent with immutable version 1",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      },
+      "get": {
+        "summary": "List AI agents",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/v1/ai/agents/{id}": {
+      "get": {
+        "summary": "Get AI agent",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      },
+      "patch": {
+        "summary": "Update AI agent (creates new version when config changes)",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/v1/ai/agents/{id}/activate": {
+      "post": {
+        "summary": "Activate AI agent route",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/v1/ai/agents/{id}/disable": {
+      "post": {
+        "summary": "Disable AI agent",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/v1/ai/agents/{id}/versions": {
+      "get": {
+        "summary": "List immutable AI agent versions",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/v1/ai/sessions": {
+      "get": {
+        "summary": "List AI sessions",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/v1/ai/sessions/{id}": {
+      "get": {
+        "summary": "Get AI session",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/v1/ai/sessions/{id}/diagnostics": {
+      "get": {
+        "summary": "Get AI session diagnostics",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/v1/ai/sessions/{id}/tools": {
+      "get": {
+        "operationId": "AiSessionsController_tools",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AiSessions"
+        ]
+      }
+    },
+    "/api/v1/ai/tools": {
+      "post": {
+        "operationId": "AiToolsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AiTools"
+        ]
+      },
+      "get": {
+        "operationId": "AiToolsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AiTools"
+        ]
+      }
+    },
+    "/api/v1/ai/tools/{id}": {
+      "get": {
+        "operationId": "AiToolsController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AiTools"
+        ]
+      },
+      "patch": {
+        "operationId": "AiToolsController_update",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AiTools"
+        ]
+      },
+      "delete": {
+        "operationId": "AiToolsController_remove",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AiTools"
+        ]
+      }
+    },
+    "/api/v1/ai/usage": {
+      "get": {
+        "operationId": "AiUsageController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AiUsage"
+        ]
+      }
+    },
+    "/api/v1/billing/subscription": {
+      "get": {
+        "operationId": "BillingController_getSubscription",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Current tenant subscription and plan entitlements",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ]
+      }
+    },
+    "/api/v1/plans": {
+      "get": {
+        "summary": "List subscription plans",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      },
+      "post": {
+        "summary": "Create plan (platform billing admin)",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/plans/{id}": {
+      "get": {
+        "summary": "Get plan with entitlements",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      },
+      "patch": {
+        "summary": "Update plan",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/prices": {
+      "get": {
+        "summary": "List versioned meter prices",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      },
+      "post": {
+        "summary": "Create price version",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/prices/{id}": {
+      "get": {
+        "summary": "Get price",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      },
+      "patch": {
+        "summary": "Update price (creates new version when unit amount changes)",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/usage": {
+      "get": {
+        "summary": "List normalized usage events",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/rated-usage": {
+      "get": {
+        "summary": "List rated usage with meter metadata",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/billing/rate": {
+      "post": {
+        "summary": "Run rating pipeline for tenant (idempotent)",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/credits": {
+      "get": {
+        "summary": "List append-only credit ledger entries",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/credits/adjustments": {
+      "post": {
+        "summary": "Apply manual credit or debit adjustment (Idempotency-Key supported)",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/invoices": {
+      "get": {
+        "summary": "List tenant invoices",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/invoices/preview": {
+      "post": {
+        "summary": "Preview invoice for billing period (Stripe DISABLED)",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/invoices/generate": {
+      "post": {
+        "summary": "Generate draft invoice with idempotency key",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/invoices/{id}": {
+      "get": {
+        "summary": "Get invoice with immutable line snapshots",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/invoices/{id}/finalize": {
+      "post": {
+        "summary": "Finalize invoice and apply credits",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/invoices/{id}/void": {
+      "post": {
+        "summary": "Void draft or finalized invoice (not paid)",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/dashboard": {
+      "get": {
+        "operationId": "DashboardController_tenantDashboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Dashboard"
+        ],
+        "summary": "Tenant operational dashboard summary",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/dashboard": {
+      "get": {
+        "operationId": "DashboardController_platformDashboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Dashboard"
+        ],
+        "summary": "Platform admin global dashboard summary",
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/api-applications": {
+      "post": {
+        "summary": "Create API application",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "API Keys"
+        ]
+      },
+      "get": {
+        "summary": "List API applications",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "API Keys"
+        ]
+      }
+    },
+    "/api/v1/api-applications/{id}": {
+      "get": {
+        "summary": "Get API application",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "API Keys"
+        ]
+      },
+      "patch": {
+        "summary": "Update API application",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "API Keys"
+        ]
+      },
+      "delete": {
+        "summary": "Delete API application",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "API Keys"
+        ]
+      }
+    },
+    "/api/v1/api-applications/{id}/keys": {
+      "post": {
+        "summary": "Create API key — secret returned once",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "API Keys"
+        ]
+      },
+      "get": {
+        "summary": "List API keys (no secrets)",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "API Keys"
+        ]
+      }
+    },
+    "/api/v1/api-applications/{id}/keys/{keyId}/rotate": {
+      "post": {
+        "summary": "Rotate API key (Idempotency-Key supported)",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "API Keys"
+        ]
+      }
+    },
+    "/api/v1/api-applications/{id}/keys/{keyId}/revoke": {
+      "post": {
+        "summary": "Revoke API key",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "API Keys"
+        ]
+      }
+    },
+    "/api/v1/webhooks": {
+      "post": {
+        "summary": "Create webhook endpoint — signing secret returned once",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      },
+      "get": {
+        "summary": "List webhook endpoints",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    },
+    "/api/v1/webhooks/{id}": {
+      "get": {
+        "summary": "Get webhook endpoint",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      },
+      "patch": {
+        "summary": "Update webhook endpoint",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      },
+      "delete": {
+        "summary": "Delete webhook endpoint",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    },
+    "/api/v1/webhooks/{id}/rotate-secret": {
+      "post": {
+        "summary": "Rotate webhook signing secret",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    },
+    "/api/v1/webhooks/{id}/deliveries": {
+      "get": {
+        "summary": "List webhook deliveries",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    },
+    "/api/v1/webhooks/{id}/deliveries/{deliveryId}": {
+      "get": {
+        "summary": "Get webhook delivery",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    },
+    "/api/v1/webhooks/{id}/deliveries/{deliveryId}/redeliver": {
+      "post": {
+        "summary": "Manual redelivery (Idempotency-Key supported)",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "PBX Platform API",
+    "description": "Multi-tenant virtual PBX control plane API. Tenant-scoped routes require Bearer JWT and X-Tenant-Id header.",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      },
+      "tenant": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Tenant-Id"
+      },
+      "apiKeyAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Tenant API key: Authorization: Bearer pbx_live_<prefix>_<secret>"
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error",
+          "message",
+          "statusCode"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "validation_error"
+          },
+          "message": {
+            "type": "string",
+            "example": "Request validation failed"
+          },
+          "statusCode": {
+            "type": "integer",
+            "example": 400
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "correlationId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "owner@tenant.test"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "example": "SecurePass123!"
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "tokenType": {
+            "type": "string",
+            "example": "Bearer"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "example": 900
+          },
+          "mustChangePassword": {
+            "type": "boolean",
+            "example": false
+          },
+          "user": {
+            "type": "object"
+          }
+        }
+      },
+      "CreateTenantRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "slug",
+          "ownerEmail",
+          "ownerDisplayName"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Acme Corp"
+          },
+          "slug": {
+            "type": "string",
+            "example": "acme-corp"
+          },
+          "ownerEmail": {
+            "type": "string",
+            "format": "email",
+            "example": "owner@acme.test"
+          },
+          "ownerDisplayName": {
+            "type": "string",
+            "example": "Acme Owner"
+          },
+          "planId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        }
+      },
+      "CreateExtensionRequest": {
+        "type": "object",
+        "required": [
+          "extensionNumber",
+          "displayName"
+        ],
+        "properties": {
+          "extensionNumber": {
+            "type": "string",
+            "example": "1001"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Front Desk"
+          }
+        }
+      },
+      "ExtensionCreateResponse": {
+        "type": "object",
+        "description": "SIP credential secret is returned only on create. Read/list/get responses never include plaintext secrets.",
+        "properties": {
+          "extension": {
+            "type": "object"
+          },
+          "sipCredential": {
+            "type": "object",
+            "properties": {
+              "username": {
+                "type": "string",
+                "example": "acme_1001"
+              },
+              "secret": {
+                "type": "string",
+                "description": "Plaintext SIP password — only present on create",
+                "example": "generated-secret-once"
+              },
+              "domain": {
+                "type": "string",
+                "example": "acme-corp.pbx.local"
+              }
+            }
+          }
+        }
+      },
+      "ExtensionReadResponse": {
+        "type": "object",
+        "properties": {
+          "extension": {
+            "type": "object"
+          },
+          "sipCredential": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "username": {
+                "type": "string"
+              },
+              "secretVersion": {
+                "type": "integer"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "degraded",
+              "unhealthy"
+            ]
+          },
+          "version": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "healthy",
+                    "degraded",
+                    "unhealthy"
+                  ]
+                },
+                "latencyMs": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ReadinessResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/HealthResponse"
+          }
+        ],
+        "properties": {
+          "ready": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "WebhookEventEnvelope": {
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "apiVersion",
+          "tenantId",
+          "createdAt",
+          "data"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "example": "call.completed"
+          },
+          "apiVersion": {
+            "type": "string",
+            "example": "v1"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "correlationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "data": {
+            "type": "object"
+          }
+        }
+      },
+      "RateLimitedResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ErrorResponse"
+          }
+        ],
+        "description": "429 with Retry-After header when rate limited"
+      },
+      "InvoicePreview": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "PREVIEW"
+          },
+          "subtotal": {
+            "type": "string",
+            "example": "29.00"
+          },
+          "tax": {
+            "type": "string",
+            "example": "5.80"
+          },
+          "creditApplied": {
+            "type": "string",
+            "example": "0.00"
+          },
+          "total": {
+            "type": "string",
+            "example": "34.80"
+          },
+          "currency": {
+            "type": "string",
+            "example": "USD"
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "stripeStatus": {
+                "type": "string",
+                "enum": [
+                  "DISABLED"
+                ],
+                "example": "DISABLED"
+              },
+              "providerCostStatus": {
+                "type": "string",
+                "enum": [
+                  "UNAVAILABLE"
+                ],
+                "example": "UNAVAILABLE"
+              },
+              "lateUsagePolicy": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "AiProviderConnection": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "providerType": {
+            "type": "string",
+            "enum": [
+              "openai",
+              "gemini",
+              "azure_openai",
+              "anthropic",
+              "custom",
+              "deterministic-test"
+            ]
+          },
+          "externalValidationStatus": {
+            "type": "string",
+            "enum": [
+              "NOT_TESTED"
+            ],
+            "example": "NOT_TESTED"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

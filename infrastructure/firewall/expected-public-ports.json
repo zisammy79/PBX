@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "description": "Expected public host ports — synchronized across Terraform, host firewall, Compose, and Asterisk",
+  "ssh": {
+    "protocol": "tcp",
+    "port": 22,
+    "source": "admin_cidrs"
+  },
+  "http": {
+    "protocol": "tcp",
+    "port": 80
+  },
+  "https": {
+    "protocol": "tcp",
+    "port": 443
+  },
+  "sip_udp": {
+    "protocol": "udp",
+    "port": 5060,
+    "enabled_var": "SIP_UDP_ENABLED"
+  },
+  "sip_tcp": {
+    "protocol": "tcp",
+    "port": 5060,
+    "enabled_var": "SIP_TCP_ENABLED"
+  },
+  "sip_tls": {
+    "protocol": "tcp",
+    "port": 5061,
+    "enabled_var": "SIP_TLS_ENABLED"
+  },
+  "rtp": {
+    "protocol": "udp",
+    "start_var": "RTP_PORT_START",
+    "end_var": "RTP_PORT_END",
+    "default_start": 10000,
+    "default_end": 10099
+  },
+  "internal_only": [
+    { "name": "postgresql", "port": 5432 },
+    { "name": "redis", "port": 6379 },
+    { "name": "nats-client", "port": 4222 },
+    { "name": "nats-monitor", "port": 8222 },
+    { "name": "minio-api", "port": 9000 },
+    { "name": "minio-console", "port": 9001 },
+    { "name": "asterisk-ari", "port": 8088 },
+    { "name": "telephony-controller", "port": 8090 },
+    { "name": "ai-media-gateway", "port": 8091 },
+    { "name": "rating-engine", "port": 8092 },
+    { "name": "api-direct", "port": 3001 },
+    { "name": "web-direct", "port": 3000 },
+    { "name": "prometheus", "port": 9090 },
+    { "name": "grafana", "port": 3005 }
+  ],
+  "turn_deferred": [
+    { "name": "turn-udp", "port": 3478 },
+    { "name": "turn-tcp", "port": 3478 },
+    { "name": "turn-tls", "port": 5349 }
+  ]
+}

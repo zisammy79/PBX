@@ -1,0 +1,19 @@
+[Unit]
+Description=PBX Platform production stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User={{ pbx_app_user }}
+Group={{ pbx_app_group }}
+WorkingDirectory={{ pbx_install_root }}
+EnvironmentFile={{ pbx_env_file }}
+ExecStart=/usr/bin/docker compose -f {{ pbx_compose_file }} up -d --remove-orphans
+ExecStop=/usr/bin/docker compose -f {{ pbx_compose_file }} down
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

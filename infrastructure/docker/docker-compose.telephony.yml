@@ -1,0 +1,58 @@
+services:
+  asterisk:
+    build:
+      context: ../asterisk
+      dockerfile: Dockerfile
+    container_name: pbx-asterisk
+    environment:
+      ASTERISK_ARI_USERNAME: ${ASTERISK_ARI_USERNAME:-pbx_ari}
+      ASTERISK_ARI_PASSWORD: ${ASTERISK_ARI_PASSWORD:-pbx_ari_dev_password}
+    volumes:
+      - ../asterisk/generated:/etc/asterisk/pbx-generated
+    ports:
+      - '127.0.0.1:5062:5060/udp'
+      - '127.0.0.1:18088:8088'
+      - '10000-10099:10000-10099/udp'
+    networks:
+      - pbx-internal
+    healthcheck:
+      test: ['CMD', '/healthcheck.sh']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+
+  telephony-controller:
+    build:
+      context: ../../services/telephony-controller
+      dockerfile: Dockerfile
+    container_name: pbx-telephony-controller
+    environment:
+      TELEPHONY_CONTROLLER_PORT: '8090'
+      DATABASE_URL: postgresql://pbx:pbx_dev_password@postgres:5432/pbx?sslmode=disable
+      NATS_URL: nats://nats:4222
+      ASTERISK_ARI_URL: http://asterisk:8088/asterisk/ari
+      ASTERISK_ARI_USERNAME: ${ASTERISK_ARI_USERNAME:-pbx_ari}
+      ASTERISK_ARI_PASSWORD: ${ASTERISK_ARI_PASSWORD:-pbx_ari_dev_password}
+      STASIS_APP: pbx-platform
+      AI_MEDIA_GATEWAY_URL: http://ai-media-gateway:8091
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - '127.0.0.1:8090:8090'
+    networks:
+      - pbx-internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      asterisk:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  pbx-internal:
+    external: true
+    name: pbx-internal

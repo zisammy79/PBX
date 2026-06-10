@@ -1,0 +1,23 @@
+services:
+  ai-media-gateway:
+    build:
+      context: ../../services/ai-media-gateway
+      dockerfile: Dockerfile
+    container_name: pbx-ai-media-gateway
+    environment:
+      AI_MEDIA_GATEWAY_PORT: '8091'
+      RTP_BIND_HOST: '0.0.0.0'
+      RTP_ADVERTISE_HOST: ai-media-gateway
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
+      TELEPHONY_CONTROLLER_URL: http://telephony-controller:8090
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - '127.0.0.1:8091:8091'
+    networks:
+      - pbx-internal
+    restart: unless-stopped
+
+networks:
+  pbx-internal:
+    external: true
+    name: pbx-internal

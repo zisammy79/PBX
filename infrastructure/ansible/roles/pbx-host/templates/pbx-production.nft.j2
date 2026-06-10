@@ -1,0 +1,41 @@
+#!/usr/sbin/nft -f
+# PBX production host firewall — keep synchronized with Terraform Cloud Firewall
+flush ruleset
+
+table inet pbx {
+  chain input {
+    type filter hook input priority 0; policy drop;
+
+    iif "lo" accept
+    ct state established,related accept
+
+    # SSH — administrator CIDRs only
+{% for cidr in admin_cidrs %}
+    tcp dport 22 ip saddr {{ cidr }} accept
+{% endfor %}
+
+    tcp dport { 80, 443 } accept
+
+{% if sip_udp_enabled | bool %}
+    udp dport 5060 accept
+{% endif %}
+{% if sip_tcp_enabled | bool %}
+    tcp dport 5060 accept
+{% endif %}
+{% if sip_tls_enabled | bool %}
+    tcp dport 5061 accept
+{% endif %}
+
+    udp dport {{ rtp_port_start }}-{{ rtp_port_end }} accept
+
+    counter drop
+  }
+
+  chain forward {
+    type filter hook forward priority 0; policy drop;
+  }
+
+  chain output {
+    type filter hook output priority 0; policy accept;
+  }
+}

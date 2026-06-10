@@ -1,0 +1,6 @@
+---
+- name: PBX production host bootstrap
+  hosts: pbx_production
+  become: true
+  roles:
+    - pbx-host

@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1780848701805,
+      "tag": "0000_nervous_hobgoblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780934000000,
+      "tag": "0002_stage8_ai",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781020000000,
+      "tag": "0003_billing_slice_d",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781020001000,
+      "tag": "0004_billing_slice_d_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781100000000,
+      "tag": "0005_slice_f_api_webhooks",
+      "breakpoints": true
+    }
+  ]
+}

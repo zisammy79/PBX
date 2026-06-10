@@ -1,0 +1,9 @@
+[Unit]
+Description=PBX Platform periodic health checks
+
+[Timer]
+OnCalendar={{ health_check_schedule }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

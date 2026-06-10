@@ -1,0 +1,86 @@
+{
+  email {$TLS_EMAIL}
+}
+
+:80 {
+  respond /health 200
+  redir https://{host}{uri} permanent
+}
+
+{$WEB_DOMAIN} {
+  encode gzip zstd
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    X-Content-Type-Options nosniff
+    X-Frame-Options DENY
+    Referrer-Policy strict-origin-when-cross-origin
+    -Server
+  }
+  request_body {
+    max_size 10MB
+  }
+  reverse_proxy web:3000 {
+    header_up X-Forwarded-Proto {scheme}
+    header_up X-Real-IP {remote_host}
+    transport http {
+      read_timeout 60s
+      write_timeout 60s
+    }
+  }
+  log {
+    output file /var/log/caddy/web-access.log {
+      roll_size 50mb
+      roll_keep 5
+    }
+    format filter {
+      wrap json
+      fields {
+        request>headers>Authorization replace REDACTED
+        request>headers>Cookie replace REDACTED
+      }
+    }
+  }
+}
+
+{$API_DOMAIN} {
+  encode gzip zstd
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    X-Content-Type-Options nosniff
+    X-Frame-Options DENY
+    Referrer-Policy strict-origin-when-cross-origin
+    -Server
+  }
+  request_body {
+    max_size 5MB
+  }
+  @websockets {
+    header Connection *Upgrade*
+    header Upgrade websocket
+  }
+  reverse_proxy @websockets api:3001 {
+    header_up X-Forwarded-Proto {scheme}
+    header_up X-Real-IP {remote_host}
+  }
+  reverse_proxy api:3001 {
+    header_up X-Forwarded-Proto {scheme}
+    header_up X-Real-IP {remote_host}
+    transport http {
+      read_timeout 120s
+      write_timeout 120s
+    }
+  }
+  log {
+    output file /var/log/caddy/api-access.log {
+      roll_size 50mb
+      roll_keep 5
+    }
+    format filter {
+      wrap json
+      fields {
+        request>headers>Authorization replace REDACTED
+        request>headers>Cookie replace REDACTED
+      }
+    }
+  }
+}

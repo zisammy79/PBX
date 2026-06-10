@@ -1,0 +1,78 @@
+{
+  "releaseId": "pbx-non-ai-20260609T193647Z",
+  "timestampUtc": "2026-06-09T19:36:47Z",
+  "platform": {
+    "os": "linux",
+    "node": "v26.2.0",
+    "pnpm": "9.15.0",
+    "typescript": "5.7.2"
+  },
+  "asteriskVersion": "Asterisk 20.19.0",
+  "databaseMigrations": [
+    "0000_nervous_hobgoblin.sql",
+    "0001_rls_and_app_role.sql",
+    "0002_stage8_ai.sql",
+    "0003_billing_slice_d.sql",
+    "0004_billing_slice_d_schema.sql",
+    "0005_slice_f_api_webhooks.sql"
+  ],
+  "containerImages": {
+    "postgres": "postgres:16-alpine",
+    "redis": "redis:7-alpine",
+    "nats": "nats:2.10-alpine",
+    "minio": "minio/minio:RELEASE.2024-12-18T13-15-44Z",
+    "caddy": "caddy:2.8-alpine",
+    "prometheus": "prom/prometheus:v2.55.1",
+    "grafana": "grafana/grafana:11.3.0",
+    "asterisk": "docker-asterisk:latest (built locally)",
+    "telephony-controller": "docker-telephony-controller:latest (built locally)",
+    "ai-media-gateway": "docker-ai-media-gateway:latest (built locally)"
+  },
+  "checksums": {
+    "openapiJson": "fc9147ec8af1af86ed471e2185f8795ed90093bed9e8541219c2de5452183a04",
+    "dockerComposeProduction": "3882f3ffc7e205c712e531f4fab2e914da469e69a81cf3bd4da4867dd47ed281",
+    "terraformDigitalOceanMain": "f94dc3891a4b6795c378630c30944ab040a92d64e0aaa2ecbb8fcc96369acc55",
+    "sourceArchive": "97d7dc23ba3524f102789fe0ab87555cb0bebe19c37ee16923a349dc424b0e7e"
+  },
+  "sourceArchive": {
+    "path": "/home/media/Downloads/.pbx-releases/pbx-non-ai-20260609T193647Z.tar.zst",
+    "checksumPath": "/home/media/Downloads/.pbx-releases/pbx-non-ai-20260609T193647Z.tar.zst.sha256"
+  },
+  "verificationCommands": [
+    "make foundation-verify",
+    "bash scripts/stage7-sip-live-test.sh",
+    "bash scripts/stage7-isolation-test.sh",
+    "bash scripts/stage7-verify.sh",
+    "bash scripts/stage8-sip-ai-deterministic-test.sh",
+    "bash scripts/stage8-sip-ai-behavior-test.sh",
+    "RUN_INTEGRATION_TESTS=true pnpm --filter @pbx/api test:integration",
+    "bash scripts/secret-scan.sh",
+    "make deploy-validate",
+    "bash scripts/create-release-archive.sh"
+  ],
+  "testResults": {
+    "foundationVerification": "PASS",
+    "stage7Telephony": "PASS",
+    "stage8DeterministicAi": "PASS",
+    "stage8BehaviorBargeInTransfer": "PASS",
+    "apiUnitTests": "PASS",
+    "apiIntegrationTests": "PASS (29/29)",
+    "databaseRlsIntegration": "PASS (10/10)",
+    "workerTests": "PASS",
+    "webTestsLintTypecheckBuild": "PASS",
+    "goServicesTests": "PASS (via golang:1.24-alpine)",
+    "secretScan": "PASS",
+    "deploymentValidation": "PASS"
+  },
+  "knownLimitations": "docs/KNOWN_LIMITATIONS.md",
+  "deferredFunctionality": {
+    "externalAiConnection": "DEFERRED",
+    "externalAiVerification": "NOT_TESTED",
+    "stripeStatus": "DISABLED",
+    "paymentCollection": "NOT_IMPLEMENTED",
+    "digitalOceanDeployment": "NOT_PERFORMED",
+    "pstnProductionVerification": "NOT_PERFORMED",
+    "highAvailability": "NOT_IMPLEMENTED",
+    "webrtc": "DEFERRED"
+  }
+}

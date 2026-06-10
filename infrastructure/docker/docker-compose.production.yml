@@ -1,0 +1,414 @@
+# Production stack — single-node DigitalOcean deployment.
+# Secrets via .env.production (never commit). Validate before deploy:
+#   scripts/validate-production-env.sh
+#   docker compose -f infrastructure/docker/docker-compose.production.yml config
+
+name: pbx-production
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
+x-security: &default-security
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    <<: *default-security
+    logging: *default-logging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+      POSTGRES_DB: ${POSTGRES_DB:?required}
+    volumes:
+      - pbx_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 10s
+      timeout: 5s
+      retries: 8
+    networks:
+      - pbx-internal
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+
+  redis:
+    image: redis:7-alpine
+    <<: *default-security
+    logging: *default-logging
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?required}", "--appendonly", "yes"]
+    volumes:
+      - pbx_redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD:?required}', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 8
+    networks:
+      - pbx-internal
+    restart: unless-stopped
+
+  nats:
+    image: nats:2.10-alpine
+    <<: *default-security
+    logging: *default-logging
+    command:
+      - -js
+      - -m
+      - "8222"
+      - --user
+      - ${NATS_USER:?required}
+      - --pass
+      - ${NATS_PASSWORD:?required}
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:8222/healthz']
+      interval: 10s
+      timeout: 3s
+      retries: 8
+    networks:
+      - pbx-internal
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    <<: *default-security
+    logging: *default-logging
+    profiles: ["local-object-storage"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?required}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?required}
+    volumes:
+      - pbx_minio_data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://127.0.0.1:9000/minio/health/live']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pbx-internal
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/build/api/Dockerfile
+    <<: *default-security
+    logging: *default-logging
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?required}
+    command: ["node", "packages/database/dist/migrate.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pbx-internal
+    restart: "no"
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/build/api/Dockerfile
+    <<: *default-security
+    logging: *default-logging
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      API_PORT: "3001"
+      DATABASE_URL: ${DATABASE_URL:?required}
+      DATABASE_APP_URL: ${DATABASE_APP_URL:?required}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?required}@redis:6379
+      NATS_URL: nats://${NATS_USER:?required}:${NATS_PASSWORD:?required}@nats:4222
+      JWT_SECRET: ${JWT_SECRET:?required}
+      ENCRYPTION_MASTER_KEY: ${ENCRYPTION_MASTER_KEY:?required}
+      S3_ENDPOINT: ${S3_ENDPOINT:?required}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?required}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?required}
+      S3_BUCKET: ${S3_BUCKET:?required}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      PUBLIC_API_URL: https://${API_DOMAIN:?required}
+      PUBLIC_WEB_URL: https://${WEB_DOMAIN:?required}
+      ALLOW_DEV_SEED: "false"
+      TELEPHONY_ENABLED: ${TELEPHONY_ENABLED:-true}
+      ASTERISK_ARI_URL: http://asterisk:8088/asterisk/ari
+      ASTERISK_ARI_USERNAME: ${ASTERISK_ARI_USERNAME:?required}
+      ASTERISK_ARI_PASSWORD: ${ASTERISK_ARI_PASSWORD:?required}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3001/api/v1/health/ready']
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 45s
+    networks:
+      - pbx-internal
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/build/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://${API_DOMAIN:?required}
+    <<: *default-security
+    logging: *default-logging
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      BACKEND_API_URL: http://api:3001
+      NEXT_PUBLIC_API_URL: https://${API_DOMAIN:?required}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/']
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 60s
+    networks:
+      - pbx-internal
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/build/worker/Dockerfile
+    <<: *default-security
+    logging: *default-logging
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${DATABASE_APP_URL:?required}
+      NATS_URL: nats://${NATS_USER:?required}:${NATS_PASSWORD:?required}@nats:4222
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?required}
+      WEBHOOK_SIGNING_SECRET: ${WEBHOOK_SIGNING_SECRET:?required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', 'pgrep', '-f', 'node apps/worker/dist/main.js']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - pbx-internal
+    restart: unless-stopped
+
+  asterisk:
+    build:
+      context: ../asterisk
+      dockerfile: Dockerfile
+    <<: *default-security
+    logging: *default-logging
+    environment:
+      PBX_ENV: production
+      ASTERISK_ARI_USERNAME: ${ASTERISK_ARI_USERNAME:?required}
+      ASTERISK_ARI_PASSWORD: ${ASTERISK_ARI_PASSWORD:?required}
+      RTP_START: ${RTP_PORT_START:?required}
+      RTP_END: ${RTP_PORT_END:?required}
+      SIP_EXTERNAL_IP: ${PUBLIC_IP:?required}
+    volumes:
+      - pbx_asterisk_generated:/etc/asterisk/pbx-generated
+      - pbx_asterisk_logs:/var/log/asterisk
+      - ../asterisk/config/production:/opt/pbx-asterisk/production:ro
+    ports:
+      - "${SIP_UDP_PUBLISH:-5060}:5060/udp"
+      - "${SIP_TCP_PUBLISH:-5060}:5060/tcp"
+      - "${RTP_PORT_START:?required}-${RTP_PORT_END:?required}:${RTP_PORT_START:?required}-${RTP_PORT_END:?required}/udp"
+    networks:
+      - pbx-internal
+    healthcheck:
+      test: ['CMD', '/healthcheck.sh']
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 60s
+    restart: unless-stopped
+
+  telephony-controller:
+    build:
+      context: ../../services/telephony-controller
+      dockerfile: Dockerfile
+    <<: *default-security
+    logging: *default-logging
+    environment:
+      TELEPHONY_CONTROLLER_PORT: "8090"
+      DATABASE_URL: ${DATABASE_APP_URL:?required}
+      NATS_URL: nats://${NATS_USER:?required}:${NATS_PASSWORD:?required}@nats:4222
+      ASTERISK_ARI_URL: http://asterisk:8088/asterisk/ari
+      ASTERISK_ARI_USERNAME: ${ASTERISK_ARI_USERNAME:?required}
+      ASTERISK_ARI_PASSWORD: ${ASTERISK_ARI_PASSWORD:?required}
+      STASIS_APP: pbx-platform
+      AI_MEDIA_GATEWAY_URL: http://ai-media-gateway:8091
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?required}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      asterisk:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8090/health/live']
+      interval: 15s
+      timeout: 5s
+      retries: 8
+    networks:
+      - pbx-internal
+    restart: unless-stopped
+
+  ai-media-gateway:
+    build:
+      context: ../../services/ai-media-gateway
+      dockerfile: Dockerfile
+    <<: *default-security
+    logging: *default-logging
+    environment:
+      AI_MEDIA_GATEWAY_PORT: "8091"
+      RTP_BIND_HOST: "0.0.0.0"
+      RTP_ADVERTISE_HOST: ai-media-gateway
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?required}
+      TELEPHONY_CONTROLLER_URL: http://telephony-controller:8090
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      telephony-controller:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8091/health/live']
+      interval: 15s
+      timeout: 5s
+      retries: 8
+    networks:
+      - pbx-internal
+    restart: unless-stopped
+
+  rating-engine:
+    build:
+      context: ../../services/rating-engine
+      dockerfile: Dockerfile
+    <<: *default-security
+    logging: *default-logging
+    environment:
+      RATING_ENGINE_PORT: "8092"
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8092/health/live']
+      interval: 30s
+      timeout: 3s
+      retries: 5
+    networks:
+      - pbx-internal
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.8-alpine
+    <<: *default-security
+    logging: *default-logging
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      WEB_DOMAIN: ${WEB_DOMAIN:?required}
+      API_DOMAIN: ${API_DOMAIN:?required}
+      TLS_EMAIL: ${TLS_EMAIL:?required}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - pbx_caddy_data:/data
+      - pbx_caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:80/health']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pbx-internal
+      - pbx-edge
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    <<: *default-security
+    logging: *default-logging
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.listen-address=127.0.0.1:9090
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - pbx_prometheus_data:/prometheus
+    network_mode: host
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    <<: *default-security
+    logging: *default-logging
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?required}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?required}
+      GF_SERVER_HTTP_ADDR: 127.0.0.1
+      GF_SERVER_HTTP_PORT: 3005
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - pbx_grafana_data:/var/lib/grafana
+    network_mode: host
+    restart: unless-stopped
+
+networks:
+  pbx-internal:
+    name: pbx-production-internal
+    driver: bridge
+  pbx-edge:
+    name: pbx-production-edge
+    driver: bridge
+
+volumes:
+  pbx_postgres_data:
+  pbx_redis_data:
+  pbx_minio_data:
+  pbx_asterisk_generated:
+  pbx_asterisk_logs:
+  pbx_caddy_data:
+  pbx_caddy_config:
+  pbx_prometheus_data:
+  pbx_grafana_data:

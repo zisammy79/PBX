@@ -1,0 +1,71 @@
+{
+  "stage": "7",
+  "milestone": "telephony-vertical-slice",
+  "completionTimestamp": "2026-06-08T15:38:54Z",
+  "verdict": "STAGE7_CLOSEOUT_GATE: PASS",
+  "asteriskVersion": "20.19.0",
+  "applicationVersions": {
+    "pbx-platform": "0.1.0",
+    "telephony-controller": "go1.24",
+    "asteriskImage": "docker-asterisk:latest"
+  },
+  "files": [
+    {
+      "path": "services/telephony-controller/internal/controller/controller.go",
+      "sha256": "89210cde7a71cbbbabc4193eca03f264d664b99530f777e5c9ba48067d355aab"
+    },
+    {
+      "path": "services/telephony-controller/internal/controller/join.go",
+      "role": "join arg parsing"
+    },
+    {
+      "path": "services/telephony-controller/internal/calls/registry.go",
+      "role": "active call registry + HadCalleeLeg"
+    },
+    {
+      "path": "scripts/stage7-sip-live-test.sh",
+      "sha256": "a08aacecce9e42acc6ce779a0423adf826dff3b9313473d393d23094d87dc197"
+    },
+    {
+      "path": "scripts/stage7-isolation-test.sh",
+      "sha256": "51933ae3fa47034ba04ec64efa35281da4f53e77748dc568011acec6ec004fdf"
+    },
+    {
+      "path": "scripts/stage7-verify.sh",
+      "sha256": "a6122614cc5b1ed2c97c212e356658e2919a3cc795f4022485978525296b961c"
+    },
+    {
+      "path": "packages/telephony-config/src/generator.ts",
+      "sha256": "cc88cc2df525a2815e3d0e30a9fc3732b806ae8850b449e3f87922b4e795234a"
+    },
+    {
+      "path": "docs/STAGE7_TELEPHONY_VERTICAL_SLICE.md",
+      "sha256": "340cf5eee1dfcb972207a39bd813ae3ce25ff5a9972c56d410dca3d976d745fa"
+    },
+    {
+      "path": "docs/STAGE7_FINAL_EVIDENCE.md",
+      "role": "closeout evidence"
+    }
+  ],
+  "verificationCommands": [
+    "bash scripts/stage7-sip-live-test.sh",
+    "bash scripts/stage7-isolation-test.sh",
+    "bash scripts/stage7-verify.sh",
+    "npx pnpm@9.15.0 --filter @pbx/telephony-config test"
+  ],
+  "testStatus": {
+    "stage7-sip-live-test.sh": "PASS",
+    "stage7-isolation-test.sh": "PASS",
+    "stage7-verify.sh": "PARTIAL — foundation PASS; provision requires DEV_ADMIN_PASSWORD after seed",
+    "finalCallId": "4f8e1e02-9046-450a-beb7-626042150e58",
+    "lifecycleEvents": ["CREATED", "RINGING", "ANSWERED", "BRIDGED", "COMPLETED"],
+    "callLegs": 2,
+    "usageEvents": 1
+  },
+  "knownLimitations": [
+    "Callee channel ID may remain ARI local-channel form",
+    "RTP counter polling timing sensitivity",
+    "Bootstrap admin password rotation on db:seed",
+    "Host sipp port conflicts on 5071-5073"
+  ]
+}

@@ -1,0 +1,45 @@
+---
+# Copy to group_vars/all.yml or use Ansible Vault for secrets. Placeholders only.
+
+pbx_environment: production
+pbx_app_user: pbx
+pbx_app_group: pbx
+pbx_install_root: /opt/pbx
+pbx_data_root: /var/lib/pbx
+pbx_log_root: /var/log/pbx
+pbx_compose_file: "{{ pbx_install_root }}/infrastructure/docker/docker-compose.production.yml"
+pbx_env_file: "{{ pbx_install_root }}/.env.production"
+
+# Administrator SSH restriction (must match Terraform admin_cidrs / Cloud Firewall)
+admin_cidrs:
+  - 203.0.113.10/32
+
+# SIP / RTP (must match Terraform, Asterisk, and Compose)
+sip_udp_enabled: true
+sip_tcp_enabled: true
+sip_tls_enabled: false
+rtp_port_start: 10000
+rtp_port_end: 10099
+
+# Block storage mount (when DO volume attached)
+block_storage_enabled: true
+block_storage_device: /dev/disk/by-id/scsi-0DO_Volume_pbx-platform-prod-data
+block_storage_mount: "{{ pbx_data_root }}"
+
+# Backup timer
+backup_enabled: true
+backup_schedule: "0 3 * * *"
+
+# Health check timer
+health_check_schedule: "*/5 * * * *"
+
+# Docker
+docker_log_max_size: 50m
+docker_log_max_file: "5"
+
+# Fail2ban
+fail2ban_enabled: true
+
+# Secrets — inject via vault or environment at runtime; never commit real values
+# vault_jwt_secret: REPLACE
+# vault_encryption_master_key: REPLACE

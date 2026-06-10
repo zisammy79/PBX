@@ -1,0 +1,82 @@
+groups:
+  - name: pbx-platform
+    rules:
+      - alert: ServiceUnavailable
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Target {{ $labels.job }} unavailable"
+
+      - alert: DiskNearlyFull
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Root filesystem below 10% free space"
+
+      - alert: DatabaseUnavailable
+        expr: pg_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL exporter reports database down"
+
+      - alert: AsteriskUnavailable
+        expr: asterisk_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Asterisk health probe failing"
+
+      - alert: ARI disconnected
+        expr: pbx_ari_connected == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Telephony controller lost ARI connection"
+
+      - alert: HighCallFailureRate
+        expr: rate(pbx_calls_failed_total[5m]) / rate(pbx_calls_total[5m]) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Call failure rate above 20%"
+
+      - alert: WebhookDeadLetters
+        expr: increase(pbx_webhook_dead_letters_total[1h]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Webhook dead-letter count increasing"
+
+      - alert: BackupStale
+        expr: time() - pbx_backup_last_success_timestamp > 86400 * 2
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "No successful backup in 48 hours"
+
+      - alert: TLSExpirySoon
+        expr: (pbx_tls_cert_expiry_timestamp - time()) < 86400 * 14
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "TLS certificate expires within 14 days"
+
+      - alert: RepeatedAuthenticationFailures
+        expr: increase(pbx_auth_failures_total[15m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated authentication failure rate"

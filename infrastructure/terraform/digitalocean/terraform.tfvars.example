@@ -1,0 +1,41 @@
+# Copy to terraform.tfvars and fill with real values. Never commit terraform.tfvars.
+
+do_token = "REPLACE_WITH_DIGITALOCEAN_API_TOKEN"
+
+region       = "nyc3"
+droplet_size = "s-4vcpu-8gb"
+ubuntu_image = "ubuntu-24-04-x64"
+droplet_name = "pbx-platform-prod"
+
+ssh_key_ids = ["REPLACE_WITH_SSH_KEY_ID"]
+
+# Restrict SSH to operator networks
+admin_cidrs = ["203.0.113.10/32"]
+
+domain_name = "example.com"
+web_domain  = "app.example.com"
+api_domain  = "api.example.com"
+
+reserved_ip_enabled     = true
+block_storage_enabled   = true
+block_storage_size_gb   = 200
+spaces_enabled          = false
+spaces_region           = "nyc3"
+
+monitoring_enabled = true
+backups_enabled    = true
+project_id         = ""
+
+# SIP surface — configure provider CIDRs at deploy time (not hard-coded)
+sip_udp_enabled   = true
+sip_tcp_enabled   = true
+sip_tls_enabled   = false
+sip_allowed_cidrs = ["0.0.0.0/0"]
+
+# Must match Asterisk rtp.conf, host firewall, and Compose RTP publish range
+rtp_port_start = 10000
+rtp_port_end   = 10099
+
+turn_enabled = false
+
+tags = ["pbx-platform", "production", "slice-g"]
