@@ -36,14 +36,14 @@ ensure_api_running() {
       return 0
     fi
     if ! kill -0 "$ENSURE_API_PID" 2>/dev/null; then
-      echo "FAIL: API process exited before becoming ready at ${api_url}"
-      exit 1
+      echo "FAIL: API process exited before becoming ready at ${api_url}" >&2
+      return 1
     fi
     sleep 0.5
   done
 
-  echo "FAIL: API did not become ready at ${api_url}"
-  exit 1
+  echo "FAIL: API did not become ready at ${api_url}" >&2
+  return 1
 }
 
 api_ready() {

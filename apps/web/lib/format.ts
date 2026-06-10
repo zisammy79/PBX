@@ -37,6 +37,8 @@ export function demoAiModeLabel(mode?: string | null): string {
 }
 
 export function stripeStatusLabel(status?: string | null): string {
+  if (status === 'TEST') return 'Stripe test mode';
+  if (status === 'LIVE') return 'Stripe live mode';
   return status === 'DISABLED' ? 'Payment integration — Disabled' : `Payment integration — ${status ?? 'Unknown'}`;
 }
 

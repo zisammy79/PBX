@@ -52,7 +52,7 @@ func TestDecodeCreateRequestRejectsMissingRequired(t *testing.T) {
 func TestDecodeCreateRequestRejectsUnsupportedProvider(t *testing.T) {
 	body := bytes.NewBufferString(`{
 		"sessionId":"s1","tenantId":"t1","callId":"c1","correlationId":"r1",
-		"agentId":"a1","agentVersionId":"v1","provider":"openai","audioFormat":"ulaw"
+		"agentId":"a1","agentVersionId":"v1","provider":"gemini","audioFormat":"ulaw"
 	}`)
 	_, err := DecodeCreateRequest(body)
 	verr, ok := err.(*ValidationError)
@@ -67,5 +67,26 @@ func TestDecodeCreateRequestRejectsUnsupportedProvider(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected provider validation error, got %+v", verr.Fields)
+	}
+}
+
+func TestDecodeCreateRequestOpenAIRequiresCredentials(t *testing.T) {
+	body := bytes.NewBufferString(`{
+		"sessionId":"s1","tenantId":"t1","callId":"c1","correlationId":"r1",
+		"agentId":"a1","agentVersionId":"v1","provider":"openai","audioFormat":"ulaw"
+	}`)
+	_, err := DecodeCreateRequest(body)
+	verr, ok := err.(*ValidationError)
+	if !ok {
+		t.Fatalf("expected ValidationError, got %v", err)
+	}
+	found := false
+	for _, f := range verr.Fields {
+		if f.Field == "credentialsEncrypted" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected credentialsEncrypted validation error, got %+v", verr.Fields)
 	}
 }

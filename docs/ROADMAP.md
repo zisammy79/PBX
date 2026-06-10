@@ -42,6 +42,18 @@
 4. Route call to AI agent
 5. Barge-in and transfer to extension
 
+## Production V1 (in progress)
+
+| Item | Status |
+|------|--------|
+| OpenAI Realtime adapter | Implemented — contract tests pass |
+| Generic SIP/PSTN trunk | Implemented — config validation passes |
+| Stripe test mode | Implemented — contract tests pass |
+| Production safeguards | Validated |
+| Live integration | **Requires local secrets** |
+
+See [PRODUCTION_V1_CLOSEOUT_PLAN.md](./PRODUCTION_V1_CLOSEOUT_PLAN.md).
+
 ## Stage 9 — Usage and billing vertical slice
 
 1. Usage event ingestion worker

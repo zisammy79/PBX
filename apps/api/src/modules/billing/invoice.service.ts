@@ -17,6 +17,7 @@ import {
   roundMoney,
   subDecimal,
 } from './money.js';
+import { resolveStripeStatusFromEnv } from './stripe-status.js';
 import {
   assertCurrencyMatch,
   getCreditBalance,
@@ -194,7 +195,7 @@ export async function buildInvoiceLines(
     taxRate,
     taxInclusive,
     metadata: {
-      stripeStatus: 'DISABLED',
+      stripeStatus: resolveStripeStatusFromEnv(),
       providerCostStatus: 'UNAVAILABLE',
       lateUsagePolicy:
         'Late-arriving usage with event_timestamp in a closed period is billed in the next period as adjustment lines.',

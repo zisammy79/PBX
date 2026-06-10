@@ -1359,6 +1359,172 @@
           "Webhooks"
         ]
       }
+    },
+    "/api/v1/pstn/trunks": {
+      "post": {
+        "operationId": "PstnController_createTrunk",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Pstn"
+        ]
+      },
+      "get": {
+        "operationId": "PstnController_listTrunks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Pstn"
+        ]
+      }
+    },
+    "/api/v1/pstn/validate": {
+      "get": {
+        "operationId": "PstnController_validate",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Pstn"
+        ]
+      }
+    },
+    "/api/v1/pstn/normalize": {
+      "post": {
+        "operationId": "PstnController_normalize",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Pstn"
+        ]
+      }
+    },
+    "/api/v1/pstn/inbound-routes": {
+      "post": {
+        "operationId": "PstnController_createInbound",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Pstn"
+        ]
+      }
+    },
+    "/api/v1/pstn/outbound-routes": {
+      "post": {
+        "operationId": "PstnController_createOutbound",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Pstn"
+        ]
+      }
+    },
+    "/api/v1/stripe/status": {
+      "get": {
+        "operationId": "StripeController_status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Stripe"
+        ]
+      }
+    },
+    "/api/v1/stripe/contract": {
+      "get": {
+        "operationId": "StripeController_contract",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Stripe"
+        ]
+      }
+    },
+    "/api/v1/stripe/connect": {
+      "post": {
+        "operationId": "StripeController_connect",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Stripe"
+        ]
+      }
+    },
+    "/api/v1/stripe/reconcile": {
+      "post": {
+        "operationId": "StripeController_reconcile",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Stripe"
+        ]
+      }
+    },
+    "/api/v1/stripe/test-payment": {
+      "post": {
+        "operationId": "StripeController_testPayment",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Stripe"
+        ]
+      }
+    },
+    "/api/v1/stripe/webhook": {
+      "post": {
+        "operationId": "StripeController_webhook",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Stripe"
+        ]
+      }
     }
   },
   "info": {

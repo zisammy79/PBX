@@ -50,8 +50,8 @@ assert_fail "rejects weak jwt" bash "${ROOT}/scripts/validate-production-env.sh"
 
 TMP3="$(mktemp)"
 cp "$FIXTURE" "$TMP3"
-echo 'STRIPE_SECRET_KEY=sk_test_x' >> "$TMP3"
-assert_fail "rejects stripe" bash "${ROOT}/scripts/validate-production-env.sh" "$TMP3"
+echo 'STRIPE_SECRET_KEY=sk_live_x' >> "$TMP3"
+assert_fail "rejects stripe live keys" bash "${ROOT}/scripts/validate-production-env.sh" "$TMP3"
 
 rm -f "$TMP" "$TMP2" "$TMP3"
 

@@ -9,6 +9,13 @@ import (
 	"github.com/pbx-platform/ai-media-gateway/internal/provider"
 )
 
+const OpenAIProviderID = provider.OpenAIProviderID
+
+var allowedProviders = map[string]struct{}{
+	provider.DeterministicProviderID: {},
+	provider.OpenAIProviderID:        {},
+}
+
 var allowedAudioFormats = map[string]struct{}{
 	"ulaw": {},
 	"alaw": {},
@@ -98,8 +105,10 @@ func (r CreateRequest) Validate() error {
 	}
 	if strings.TrimSpace(r.Provider) == "" {
 		add("provider", "required")
-	} else if r.Provider != provider.DeterministicProviderID {
+	} else if _, ok := allowedProviders[r.Provider]; !ok {
 		add("provider", fmt.Sprintf("unsupported provider %q", r.Provider))
+	} else if r.Provider == OpenAIProviderID && strings.TrimSpace(r.CredentialsEncrypted) == "" {
+		add("credentialsEncrypted", "required for openai provider")
 	}
 	format := strings.ToLower(strings.TrimSpace(r.AudioFormat))
 	if format == "" {

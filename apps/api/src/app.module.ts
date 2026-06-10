@@ -15,6 +15,8 @@ import { RedisModule } from './redis/redis.module.js';
 import { ApiApplicationsModule } from './modules/api-applications/api-applications.module.js';
 import { WebhooksModule } from './modules/webhooks/webhooks.module.js';
 import { EventsModule } from './modules/events/events.module.js';
+import { PstnModule } from './modules/pstn/pstn.module.js';
+import { StripeModule } from './modules/stripe/stripe.module.js';
 
 @Module({})
 export class AppModule {
@@ -37,6 +39,8 @@ export class AppModule {
         ApiApplicationsModule,
         WebhooksModule,
         EventsModule,
+        PstnModule,
+        StripeModule,
       ],
     };
   }

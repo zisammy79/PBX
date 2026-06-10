@@ -18,6 +18,7 @@ import { DATABASE } from '../../common/tokens.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
 import { HealthService } from '../health/health.service.js';
 import { previewInvoice } from '../billing/invoice.service.js';
+import { resolveStripeStatusFromEnv } from '../billing/stripe-status.js';
 import { resolveTenantBillingContext } from '../billing/rating.service.js';
 
 const ACTIVE_CALL_STATUSES = ['initiating', 'ringing', 'answered', 'held'] as const;
@@ -164,7 +165,7 @@ export class DashboardService {
           ? {
               previewTotal: invoicePreview.total,
               currency: invoicePreview.currency,
-              stripeStatus: 'DISABLED',
+              stripeStatus: resolveStripeStatusFromEnv(),
               providerCostStatus: 'UNAVAILABLE',
             }
           : null,
@@ -269,7 +270,7 @@ export class DashboardService {
             invoiceStatusRows.map((r) => [r.status, Number(r.total)]),
           ),
           ratedRevenueTotal: ratedRevenueRow?.total ?? '0',
-          stripeStatus: 'DISABLED',
+          stripeStatus: resolveStripeStatusFromEnv(),
         },
         health: {
           status: this.healthService.aggregateStatus(dependencies),

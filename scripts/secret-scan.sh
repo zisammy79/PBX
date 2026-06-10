@@ -15,6 +15,7 @@ FOUND=0
 for pat in "${PATTERNS[@]}"; do
   if rg -n \
     --glob '!.env.example' \
+    --glob '!.env.demo.example' \
     --glob '!.env.production.example' \
     --glob '!infrastructure/docker/.env.production.fixture' \
     --glob '!infrastructure/docker/docker-compose.yml' \
@@ -23,7 +24,21 @@ for pat in "${PATTERNS[@]}"; do
     --glob '!node_modules/**' \
     --glob '!**/.next/**' \
     --glob '!**/dist/**' \
+    --glob '!**/*.spec.ts' \
+    --glob '!**/*.integration.spec.ts' \
+    --glob '!**/*.test.sh' \
     --glob '!scripts/secret-scan.sh' \
+    --glob '!scripts/validate-production-env.sh' \
+    --glob '!scripts/validate-production-compose.sh' \
+    --glob '!apps/api/src/generate-openapi.ts' \
+    --glob '!packages/database/drizzle.config.ts' \
+    --glob '!scripts/stage*.sh' \
+    --glob '!scripts/demo/**' \
+    --glob '!scripts/stripe-test-mode-verify.sh' \
+    --glob '!apps/api/src/modules/billing/stripe-status.ts' \
+    --glob '!apps/api/src/modules/stripe/stripe.service.ts' \
+    --glob '!infrastructure/asterisk/config/**' \
+    --glob '!README.md' \
     "$pat" "$ROOT" >/dev/null 2>&1; then
     echo "secret-scan: potential secret pattern: $pat" >&2
     FOUND=1

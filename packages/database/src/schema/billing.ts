@@ -258,5 +258,46 @@ export const tenantBillingProfiles = pgTable('tenant_billing_profiles', {
   taxRate: numeric('tax_rate', { precision: 8, scale: 6 }).notNull().default('0.200000'),
   taxInclusive: boolean('tax_inclusive').notNull().default(false),
   taxEffectiveFrom: timestamp('tax_effective_from', { withTimezone: true }).notNull().defaultNow(),
+  stripeCustomerId: varchar('stripe_customer_id', { length: 128 }),
+  stripeMode: varchar('stripe_mode', { length: 16 }).notNull().default('DISABLED'),
+  stripePublishableKey: varchar('stripe_publishable_key', { length: 256 }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const stripeWebhookEvents = pgTable(
+  'stripe_webhook_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
+    stripeEventId: varchar('stripe_event_id', { length: 128 }).notNull(),
+    eventType: varchar('event_type', { length: 128 }).notNull(),
+    payload: jsonb('payload').notNull().default({}),
+    processedAt: timestamp('processed_at', { withTimezone: true }).notNull().defaultNow(),
+    idempotencyKey: varchar('idempotency_key', { length: 128 }).notNull(),
+    status: varchar('status', { length: 32 }).notNull().default('processed'),
+  },
+  (table) => [
+    uniqueIndex('stripe_webhook_events_event_uidx').on(table.stripeEventId),
+    uniqueIndex('stripe_webhook_events_idempotency_uidx').on(table.idempotencyKey),
+    index('stripe_webhook_events_tenant_idx').on(table.tenantId),
+  ],
+);
+
+export const stripeReconciliationReports = pgTable(
+  'stripe_reconciliation_reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    periodStart: timestamp('period_start', { withTimezone: true }).notNull(),
+    periodEnd: timestamp('period_end', { withTimezone: true }).notNull(),
+    internalTotal: numeric('internal_total', { precision: 18, scale: 2 }).notNull(),
+    stripeTotal: numeric('stripe_total', { precision: 18, scale: 2 }).notNull(),
+    currency: varchar('currency', { length: 3 }).notNull().default('USD'),
+    matched: boolean('matched').notNull().default(false),
+    details: jsonb('details').notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('stripe_reconciliation_tenant_idx').on(table.tenantId)],
+);

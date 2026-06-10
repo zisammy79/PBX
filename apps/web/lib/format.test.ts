@@ -16,6 +16,10 @@ describe('status labels', () => {
     expect(externalValidationLabel('NOT_TESTED')).toBe('External AI verification — Not tested');
   });
 
+  it('shows stripe test mode', () => {
+    expect(stripeStatusLabel('TEST')).toBe('Stripe test mode');
+  });
+
   it('shows stripe disabled', () => {
     expect(stripeStatusLabel('DISABLED')).toBe('Payment integration — Disabled');
   });

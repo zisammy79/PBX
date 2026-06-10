@@ -8,6 +8,10 @@ coverage
 .env
 .env.*
 !.env.example
+!.env.demo.example
+!.env.production.example
+!.env.production.local.example
+.env.production.local
 .local
 packages/database/.local
 **/.local
@@ -16,3 +20,10 @@ infrastructure/asterisk/secrets
 *.log
 recordings
 uploads
+transcripts
+backups
+.pbx-releases
+var
+*.pcap
+*.pcapng
+.terraform

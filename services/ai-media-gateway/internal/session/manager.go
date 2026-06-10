@@ -52,12 +52,14 @@ type liveSession struct {
 	bridge      *media.RTPBridge
 	prov        *provider.DeterministicProvider
 	sess        *provider.Session
+	openai      *openaiRuntime
 	cancel      context.CancelFunc
 	ctx         context.Context
 	createdAt   time.Time
 	connected   bool
 	behavior    *behaviorRuntime
 	diagnostics map[string]any
+	createReq   CreateRequest
 }
 
 func NewManager(token string) *Manager {
@@ -109,6 +111,8 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (*CreateRespons
 			cancel()
 			return nil, err
 		}
+	} else if req.Provider == provider.OpenAIProviderID {
+		// OpenAI session starts after RTP bridge is ready (SetPeer).
 	}
 
 	ls := &liveSession{
@@ -124,9 +128,14 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (*CreateRespons
 		ctx:         sCtx,
 		createdAt:   time.Now().UTC(),
 		diagnostics: map[string]any{},
+		createReq:   req,
 	}
 	var bridge *media.RTPBridge
 	bridge, err = media.NewRTPBridge(m.rtpBindHost, 0, func(payload []byte) {
+		if ls.provider == provider.OpenAIProviderID {
+			m.handleOpenAIInbound(ls, payload)
+			return
+		}
 		if ls.sess == nil {
 			return
 		}
@@ -166,6 +175,12 @@ func (m *Manager) SetPeer(sessionID, peerAddress string) error {
 		return err
 	}
 	ls.bridge.SetRemote(addr)
+	if ls.provider == provider.OpenAIProviderID {
+		if err := m.startOpenAISession(ls, ls.createReq); err != nil {
+			return err
+		}
+		return nil
+	}
 	if ls.sess == nil {
 		return nil
 	}
@@ -240,6 +255,7 @@ func (m *Manager) Close(sessionID string) {
 		return
 	}
 	m.StopBehaviorOutput(sessionID)
+	m.closeOpenAI(ls)
 	ls.cancel()
 	if ls.bridge != nil {
 		ls.bridge.Close()

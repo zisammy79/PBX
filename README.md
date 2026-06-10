@@ -4,7 +4,12 @@ Multi-tenant AI-native virtual PBX SaaS platform.
 
 ## Status
 
-**Non-AI platform at 92%.** Slices A–G complete including DigitalOcean deployment and operations assets. Next: Slice H (final security and release-readiness verification).
+**Non-AI platform:** complete — `READY_FOR_CONTROLLED_STAGING_DEPLOYMENT`  
+**Production V1:** non-secret implementation complete — `PRODUCTION_V1_EXTERNAL_GATE: READY_FOR_LOCAL_SECRETS`
+
+Contract tests: `make stage8-openai-contract-test`, `make pstn-config-validate`, `make stripe-contract-test`, `make production-v1-safeguards`
+
+Live verification requires local secrets — see [docs/PRODUCTION_V1_RELEASE_READINESS.md](docs/PRODUCTION_V1_RELEASE_READINESS.md).
 
 ## Quick start
 

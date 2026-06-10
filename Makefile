@@ -1,4 +1,4 @@
-.PHONY: help install dev-up dev-down db-migrate db-seed verify foundation-verify lint test build clean telephony-up telephony-down telephony-validate telephony-activate telephony-test stage7-verify ai-up ai-down ai-test stage8-test-deterministic stage8-test-live stage8-verify deploy-validate deploy-dry-run demo-local-up demo-local-seed demo-local-smoke demo-local-status demo-local-reset demo-local-down
+.PHONY: help install dev-up dev-down db-migrate db-seed verify foundation-verify lint test build clean telephony-up telephony-down telephony-validate telephony-activate telephony-test stage7-verify ai-up ai-down ai-test stage8-test-deterministic stage8-test-live stage8-verify stage8-openai-contract-test stage8-openai-live-test pstn-config-validate pstn-outbound-test pstn-inbound-test stripe-contract-test stripe-test-mode-verify production-v1-safeguards production-v1-verify deploy-validate deploy-dry-run demo-local-up demo-local-seed demo-local-smoke demo-local-status demo-local-reset demo-local-down
 
 help:
 	@echo "PBX Platform — available targets:"
@@ -89,6 +89,33 @@ stage8-test-live:
 
 stage8-verify:
 	bash scripts/stage8-verify.sh
+
+stage8-openai-contract-test:
+	bash scripts/stage8-openai-contract-test.sh
+
+stage8-openai-live-test:
+	bash scripts/stage8-openai-live-test.sh
+
+pstn-config-validate:
+	bash scripts/pstn-config-validate.sh
+
+pstn-outbound-test:
+	bash scripts/pstn-outbound-test.sh
+
+pstn-inbound-test:
+	bash scripts/pstn-inbound-test.sh
+
+stripe-contract-test:
+	bash scripts/stripe-contract-test.sh
+
+stripe-test-mode-verify:
+	bash scripts/stripe-test-mode-verify.sh
+
+production-v1-safeguards:
+	bash scripts/validate-production-safeguards.sh
+
+production-v1-verify:
+	bash scripts/production-v1-verify.sh
 
 deploy-validate:
 	bash scripts/validate-deployment-assets.sh

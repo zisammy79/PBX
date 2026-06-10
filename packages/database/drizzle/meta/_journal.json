@@ -36,6 +36,13 @@
       "when": 1781100000000,
       "tag": "0005_slice_f_api_webhooks",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781200000000,
+      "tag": "0006_production_v1_stripe",
+      "breakpoints": true
     }
   ]
 }

@@ -86,7 +86,12 @@ if [[ -n "${OPENAI_API_KEY:-}" || -n "${GOOGLE_AI_API_KEY:-}" ]]; then
 fi
 
 if [[ -n "${STRIPE_SECRET_KEY:-}" || -n "${STRIPE_WEBHOOK_SECRET:-}" ]]; then
-  fail "Stripe variables must remain unset (DISABLED)"
+  if [[ "${STRIPE_SECRET_KEY:-}" == sk_live_* ]]; then
+    fail "Stripe live keys are not permitted in controlled production deployment templates"
+  fi
+  if [[ "${STRIPE_MODE:-TEST}" != "TEST" && "${NODE_ENV:-}" == "production" ]]; then
+    fail "Stripe must remain DISABLED or TEST mode in production template validation"
+  fi
 fi
 
 pass "environment contract satisfied"

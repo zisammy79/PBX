@@ -104,6 +104,14 @@ func main() {
 		}
 	})
 
+	mux.HandleFunc("/internal/v1/providers/openai/contract", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		writeJSON(w, http.StatusOK, provider.ContractTestManifest())
+	})
+
 	mux.HandleFunc("/internal/v1/test/conversation", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
