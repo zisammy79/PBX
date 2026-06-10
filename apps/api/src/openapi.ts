@@ -122,6 +122,7 @@ function enrichOpenApiDocument(document: OpenAPIObject): OpenAPIObject {
   };
 
   const bearerTenantSecurity = [{ bearer: [] as string[] }, { tenant: [] as string[] }];
+  const bearerPlatformSecurity = [{ bearer: [] as string[] }];
 
   const patch = (
     path: string,
@@ -443,6 +444,45 @@ function enrichOpenApiDocument(document: OpenAPIObject): OpenAPIObject {
         tags: ['Webhooks'],
       },
     },
+    '/api/v1/platform/integrations': {
+      get: { summary: 'List platform integrations (no secrets)', security: bearerPlatformSecurity, tags: ['Platform Integrations'] },
+      post: { summary: 'Create platform integration — secrets encrypted, never returned on read', security: bearerPlatformSecurity, tags: ['Platform Integrations'] },
+    },
+    '/api/v1/platform/integrations/audit': {
+      get: { summary: 'Integration audit history', security: bearerPlatformSecurity, tags: ['Platform Integrations'] },
+    },
+    '/api/v1/platform/integrations/credential-status': {
+      get: { summary: 'Resolve credential configuration status without secrets', security: bearerPlatformSecurity, tags: ['Platform Integrations'] },
+    },
+    '/api/v1/platform/integrations/{id}': {
+      get: { summary: 'Get platform integration', security: bearerPlatformSecurity, tags: ['Platform Integrations'] },
+      patch: { summary: 'Update platform integration — blank secret fields preserve existing', security: bearerPlatformSecurity, tags: ['Platform Integrations'] },
+    },
+    '/api/v1/platform/integrations/{id}/replace-credential': {
+      post: { summary: 'Replace integration credential (requires confirmReplace)', security: bearerPlatformSecurity, tags: ['Platform Integrations'] },
+    },
+    '/api/v1/platform/integrations/{id}/rotate': {
+      post: { summary: 'Rotate integration credential', security: bearerPlatformSecurity, tags: ['Platform Integrations'] },
+    },
+    '/api/v1/platform/integrations/{id}/enable': {
+      post: { summary: 'Enable integration', security: bearerPlatformSecurity, tags: ['Platform Integrations'] },
+    },
+    '/api/v1/platform/integrations/{id}/disable': {
+      post: { summary: 'Disable integration', security: bearerPlatformSecurity, tags: ['Platform Integrations'] },
+    },
+    '/api/v1/platform/integrations/{id}/validate': {
+      post: { summary: 'Validate integration connection', security: bearerPlatformSecurity, tags: ['Platform Integrations'] },
+    },
+    '/api/v1/platform/integrations/{id}/audit': {
+      get: { summary: 'Integration audit events', security: bearerPlatformSecurity, tags: ['Platform Integrations'] },
+    },
+    '/api/v1/platform/integrations/{id}/assignments': {
+      get: { summary: 'List tenant assignments', security: bearerPlatformSecurity, tags: ['Platform Integrations'] },
+      post: { summary: 'Assign integration to tenant', security: bearerPlatformSecurity, tags: ['Platform Integrations'] },
+    },
+    '/api/v1/platform/integrations/{id}/assignments/{assignmentId}': {
+      delete: { summary: 'Remove tenant assignment', security: bearerPlatformSecurity, tags: ['Platform Integrations'] },
+    },
   };
   for (const [path, methods] of Object.entries(sliceFPaths)) {
     document.paths[path] = { ...document.paths[path], ...methods };
@@ -495,6 +535,30 @@ function enrichOpenApiDocument(document: OpenAPIObject): OpenAPIObject {
       externalValidationStatus: { type: 'string', enum: ['NOT_TESTED'], example: 'NOT_TESTED' },
       configured: { type: 'boolean' },
       enabled: { type: 'boolean' },
+    },
+  };
+
+  document.components!.schemas!.IntegrationConnection = {
+    type: 'object',
+    description: 'Platform integration connection — secrets never returned on read',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      integrationType: { type: 'string', enum: ['ai', 'sip_carrier', 'stripe'] },
+      provider: { type: 'string' },
+      scopeType: { type: 'string', enum: ['platform', 'tenant'] },
+      environment: { type: 'string', enum: ['default', 'test', 'live'] },
+      displayName: { type: 'string' },
+      enabled: { type: 'boolean' },
+      isDefault: { type: 'boolean' },
+      credentialConfigured: { type: 'boolean', description: 'True when encrypted credential exists' },
+      credentialVersion: { type: 'integer' },
+      validationStatus: {
+        type: 'string',
+        enum: ['NOT_CONFIGURED', 'CONFIGURED_NOT_TESTED', 'VALID', 'INVALID', 'DISABLED', 'ROTATION_REQUIRED'],
+      },
+      lastValidatedAt: { type: 'string', format: 'date-time', nullable: true },
+      sanitizedValidationError: { type: 'string', nullable: true },
+      tenantAssignmentCount: { type: 'integer' },
     },
   };
 

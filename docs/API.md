@@ -134,3 +134,27 @@ See [WEBHOOKS.md](./WEBHOOKS.md).
 - `X-Tenant-Id: {uuid}` — validated against membership (API keys ignore override)
 - `X-Correlation-Id` — echoed in response (malformed values replaced)
 - `Idempotency-Key` — write idempotency for supported routes
+
+## Platform integrations (Platform Owner)
+
+Requires platform permissions: `platform.integrations.read`, `platform.integrations.manage`, `platform.integrations.validate`, `platform.integrations.assign`, `platform.integrations.audit`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /platform/integrations | List platform integrations (no secrets) |
+| POST | /platform/integrations | Create integration — secrets encrypted, never returned |
+| GET | /platform/integrations/:id | Get integration metadata |
+| PATCH | /platform/integrations/:id | Update — blank credential fields preserve existing |
+| POST | /platform/integrations/:id/replace-credential | Replace credential (`confirmReplace: true`) |
+| POST | /platform/integrations/:id/rotate | Rotate credential |
+| POST | /platform/integrations/:id/enable | Enable |
+| POST | /platform/integrations/:id/disable | Disable |
+| POST | /platform/integrations/:id/validate | Test connection |
+| GET | /platform/integrations/:id/audit | Audit history |
+| GET | /platform/integrations/:id/assignments | Tenant assignments |
+| POST | /platform/integrations/:id/assignments | Assign to tenant |
+| DELETE | /platform/integrations/:id/assignments/:assignmentId | Remove assignment |
+
+Internal (trusted service token only): `POST /internal/integrations/resolve` — returns decrypted secrets for verification scripts; never exposed to tenant users.
+
+See [INTEGRATION_CREDENTIAL_MANAGEMENT.md](./INTEGRATION_CREDENTIAL_MANAGEMENT.md).

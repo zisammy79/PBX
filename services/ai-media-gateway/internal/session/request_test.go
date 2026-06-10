@@ -70,10 +70,11 @@ func TestDecodeCreateRequestRejectsUnsupportedProvider(t *testing.T) {
 	}
 }
 
-func TestDecodeCreateRequestOpenAIRequiresCredentials(t *testing.T) {
+func TestDecodeCreateRequestOpenAIRejectsInlineCredentials(t *testing.T) {
 	body := bytes.NewBufferString(`{
 		"sessionId":"s1","tenantId":"t1","callId":"c1","correlationId":"r1",
-		"agentId":"a1","agentVersionId":"v1","provider":"openai","audioFormat":"ulaw"
+		"agentId":"a1","agentVersionId":"v1","provider":"openai","audioFormat":"ulaw",
+		"credentialsEncrypted":"v1:abc:def:ghi"
 	}`)
 	_, err := DecodeCreateRequest(body)
 	verr, ok := err.(*ValidationError)
@@ -87,6 +88,20 @@ func TestDecodeCreateRequestOpenAIRequiresCredentials(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("expected credentialsEncrypted validation error, got %+v", verr.Fields)
+		t.Fatalf("expected credentialsEncrypted rejection, got %+v", verr.Fields)
+	}
+}
+
+func TestDecodeCreateRequestOpenAIWithoutInlineCredentials(t *testing.T) {
+	body := bytes.NewBufferString(`{
+		"sessionId":"s1","tenantId":"t1","callId":"c1","correlationId":"r1",
+		"agentId":"a1","agentVersionId":"v1","provider":"openai","audioFormat":"ulaw"
+	}`)
+	req, err := DecodeCreateRequest(body)
+	if err != nil {
+		t.Fatalf("expected valid openai request without inline credentials: %v", err)
+	}
+	if req.Provider != OpenAIProviderID {
+		t.Fatalf("unexpected provider %q", req.Provider)
 	}
 }

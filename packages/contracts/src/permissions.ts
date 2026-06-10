@@ -9,6 +9,11 @@ export const Permission = {
   PLATFORM_BILLING_READ: 'platform:billing:read',
   PLATFORM_AUDIT_READ: 'platform:audit:read',
   PLATFORM_HEALTH_READ: 'platform:health:read',
+  PLATFORM_INTEGRATIONS_READ: 'platform:integrations:read',
+  PLATFORM_INTEGRATIONS_MANAGE: 'platform:integrations:manage',
+  PLATFORM_INTEGRATIONS_VALIDATE: 'platform:integrations:validate',
+  PLATFORM_INTEGRATIONS_ASSIGN: 'platform:integrations:assign',
+  PLATFORM_INTEGRATIONS_AUDIT: 'platform:integrations:audit',
 
   // Tenant administration
   TENANT_READ: 'tenant:read',

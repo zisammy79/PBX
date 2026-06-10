@@ -28,6 +28,18 @@
 | Cross-tenant denial | billing.integration.spec.ts | Pass |
 | Decimal money helpers | money.spec.ts | Pass |
 
+## Runtime credential tests
+
+| Case | Location | Status |
+|------|----------|--------|
+| Environment fallback disabled by default | credential-runtime.contract.spec.ts | Pass |
+| Environment fallback when enabled | credential-resolver.unit.spec.ts | Pass |
+| Secret redaction in audit metadata | credential-runtime.contract.spec.ts | Pass |
+| SIP configuration validation | sip-network-validator.ts | Pass |
+| AI gateway rejects inline credentials | request_test.go | Pass |
+| AI gateway resolver client | credentials/resolver_test.go | Pass |
+| Full runtime contract suite | `make credential-runtime-contract-test` | Pass |
+
 ## Vertical slice tests (future)
 
 - SIPp extension-to-extension call

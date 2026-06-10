@@ -19,7 +19,19 @@ curl -fsS https://${API_DOMAIN}/api/v1/health/ready
 | Grafana | SSH tunnel: `ssh -L 3005:127.0.0.1:3005 admin@${PUBLIC_IP}` |
 | Prometheus | SSH tunnel: `ssh -L 9090:127.0.0.1:9090 admin@${PUBLIC_IP}` |
 
-Grafana and Prometheus are **not** publicly exposed.
+## Credential configuration
+
+External integrations (OpenAI, SIP carriers, Stripe) are configured in **Platform Administration → Integrations** after bootstrap. Bootstrap secrets (`DATABASE_URL`, `JWT_SECRET`, `ENCRYPTION_MASTER_KEY`, `INTERNAL_SERVICE_TOKEN`, ARI) remain in environment/KMS only.
+
+Live verification scripts resolve credentials via the internal resolver when `INTERNAL_SERVICE_TOKEN` is set:
+
+```bash
+make stage8-openai-live-test    # credentialSource: PLATFORM_UI | ENVIRONMENT_FALLBACK | ...
+make pstn-outbound-test
+make stripe-test-mode-verify
+```
+
+See [INTEGRATION_CREDENTIAL_MANAGEMENT.md](./INTEGRATION_CREDENTIAL_MANAGEMENT.md).
 
 ## Persistent storage layout
 

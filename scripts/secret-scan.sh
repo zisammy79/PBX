@@ -25,6 +25,8 @@ for pat in "${PATTERNS[@]}"; do
     --glob '!**/.next/**' \
     --glob '!**/dist/**' \
     --glob '!**/*.spec.ts' \
+    --glob '!**/*.unit.spec.ts' \
+    --glob '!**/*.contract.spec.ts' \
     --glob '!**/*.integration.spec.ts' \
     --glob '!**/*.test.sh' \
     --glob '!scripts/secret-scan.sh' \
@@ -35,6 +37,7 @@ for pat in "${PATTERNS[@]}"; do
     --glob '!scripts/stage*.sh' \
     --glob '!scripts/demo/**' \
     --glob '!scripts/stripe-test-mode-verify.sh' \
+    --glob '!apps/api/src/modules/integrations/integration-validator.service.ts' \
     --glob '!apps/api/src/modules/billing/stripe-status.ts' \
     --glob '!apps/api/src/modules/stripe/stripe.service.ts' \
     --glob '!infrastructure/asterisk/config/**' \

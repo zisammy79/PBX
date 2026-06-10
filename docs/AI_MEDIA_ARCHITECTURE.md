@@ -58,9 +58,23 @@ Tenant-scoped tools with JSON schema, timeouts, auth config, audit logging, secr
 - Prompt injection mitigations documented in THREAT_MODEL.md
 - Cost ceilings and spending limits per agent/tenant
 
+## Runtime credential resolution
+
+External runtime credentials are resolved at session creation by the AI media gateway via the internal integration resolver (`POST /api/v1/internal/integrations/resolve`). The telephony controller never passes plaintext or encrypted credentials in session requests.
+
+```text
+Telephony controller (trusted session state: tenantId, provider)
+  → AI media gateway /internal/v1/sessions
+  → API internal integration resolve (INTERNAL_SERVICE_TOKEN)
+  → decrypted credential in gateway process memory only
+  → OpenAI Realtime WebSocket adapter
+```
+
+Secrets must not appear in ARI appArgs, NATS events, logs, or session diagnostics. Sanitized metadata includes `integrationId`, `credentialSource`, and `credentialVersion`. Active sessions pin the credential version they started with; rotation applies to new sessions only.
+
 ## Foundation stage status
 
-Interface definitions and database schema (`ai_agents`, `ai_agent_versions`, `ai_sessions`, etc.) are in place. Go gateway service handles deterministic External Media sessions; OpenAI adapter not yet wired.
+Interface definitions and database schema (`ai_agents`, `ai_agent_versions`, `ai_sessions`, etc.) are in place. Go gateway service handles deterministic External Media sessions and OpenAI Realtime via runtime credential resolution.
 
 ## External Media RTP flow (implemented)
 

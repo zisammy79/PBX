@@ -13,3 +13,4 @@ export * from './api-keys.js';
 export * from './webhooks.js';
 export * from './pstn.js';
 export * from './stripe.js';
+export * from './integrations.js';

@@ -11,7 +11,11 @@ export const PLATFORM_ROLE_PERMISSIONS: Record<PlatformRole, readonly Permission
     Permission.PLATFORM_BILLING_READ,
     Permission.PLATFORM_AUDIT_READ,
     Permission.PLATFORM_HEALTH_READ,
-    // Super admin also gets all tenant permissions when impersonating
+    Permission.PLATFORM_INTEGRATIONS_READ,
+    Permission.PLATFORM_INTEGRATIONS_MANAGE,
+    Permission.PLATFORM_INTEGRATIONS_VALIDATE,
+    Permission.PLATFORM_INTEGRATIONS_ASSIGN,
+    Permission.PLATFORM_INTEGRATIONS_AUDIT,
   ],
   platform_support_operator: [
     Permission.PLATFORM_TENANT_READ,

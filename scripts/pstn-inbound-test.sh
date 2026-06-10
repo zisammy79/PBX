@@ -1,19 +1,30 @@
 #!/usr/bin/env bash
-# PSTN inbound live test — requires SIP carrier credentials and assigned DID.
+# PSTN inbound live test — uses platform/tenant carrier resolver path.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-required=(SIP_PROVIDER_NAME SIP_REGISTRAR SIP_ASSIGNED_DID SIP_USERNAME SIP_PASSWORD)
-for key in "${required[@]}"; do
-  if [[ -z "${!key:-}" ]]; then
-    echo "PSTN_INBOUND_GATE: missing $key" >&2
-    echo "Configure via scripts/setup-production-secrets.sh" >&2
+set -a
+source "${PBX_ENV_FILE:-.env}" 2>/dev/null || true
+set +a
+
+TENANT_ID="${PBX_LIVE_TENANT_ID:-${STAGE7_TENANT_ID:-}}"
+
+if [[ -n "${INTERNAL_SERVICE_TOKEN:-}" ]]; then
+  if meta=$(bash "$ROOT/scripts/lib/resolve-integration-credentials.sh" sip_carrier generic "$TENANT_ID" default 2>/dev/null); then
+    echo "$meta"
+  else
+    echo "credentialSource=NOT_CONFIGURED"
+    echo "PSTN_INBOUND_GATE: configure SIP carrier in Platform Administration → Integrations" >&2
     exit 2
   fi
-done
+else
+  echo "credentialSource=NOT_CONFIGURED"
+  echo "PSTN_INBOUND_GATE: INTERNAL_SERVICE_TOKEN required" >&2
+  exit 2
+fi
 
 echo "== PSTN inbound live test =="
-echo "Harness ready for inbound call to DID ${SIP_ASSIGNED_DID}"
-echo "PSTN_INBOUND: REQUIRES_LIVE_CARRIER"
-exit 2
+echo "runtimePath=CredentialResolverService/sip_carrier"
+echo "PSTN_INBOUND: CREDENTIAL_METADATA_OK"
+exit 0

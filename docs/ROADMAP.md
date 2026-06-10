@@ -50,7 +50,7 @@
 | Generic SIP/PSTN trunk | Implemented — config validation passes |
 | Stripe test mode | Implemented — contract tests pass |
 | Production safeguards | Validated |
-| Live integration | **Requires local secrets** |
+| Live integration | **Configure in Platform Owner UI** or optional env fallback |
 
 See [PRODUCTION_V1_CLOSEOUT_PLAN.md](./PRODUCTION_V1_CLOSEOUT_PLAN.md).
 

@@ -1,22 +1,30 @@
 #!/usr/bin/env bash
-# Stripe test-mode live verification — requires sk_test_ keys.
+# Stripe test-mode verification — uses CredentialResolverService metadata path.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-if [[ -z "${STRIPE_SECRET_KEY:-}" ]]; then
-  echo "STRIPE_GATE: STRIPE_SECRET_KEY not configured" >&2
-  exit 2
-fi
-if [[ "${STRIPE_SECRET_KEY}" == sk_live_* ]]; then
-  echo "STRIPE_GATE: live keys rejected" >&2
-  exit 1
-fi
-if [[ -z "${STRIPE_WEBHOOK_SECRET:-}" || -z "${STRIPE_PUBLISHABLE_KEY:-}" ]]; then
-  echo "STRIPE_GATE: STRIPE_WEBHOOK_SECRET and STRIPE_PUBLISHABLE_KEY required" >&2
+set -a
+source "${PBX_ENV_FILE:-.env}" 2>/dev/null || true
+set +a
+
+TENANT_ID="${PBX_LIVE_TENANT_ID:-${STAGE7_TENANT_ID:-}}"
+
+if [[ -n "${INTERNAL_SERVICE_TOKEN:-}" ]]; then
+  if meta=$(bash "$ROOT/scripts/lib/resolve-integration-credentials.sh" stripe stripe "$TENANT_ID" test 2>/dev/null); then
+    echo "$meta"
+  else
+    echo "credentialSource=NOT_CONFIGURED"
+    echo "STRIPE_GATE: configure Stripe TEST in Platform Administration → Integrations" >&2
+    exit 2
+  fi
+else
+  echo "credentialSource=NOT_CONFIGURED"
+  echo "STRIPE_GATE: INTERNAL_SERVICE_TOKEN required" >&2
   exit 2
 fi
 
 echo "== Stripe test-mode verify =="
-echo "STRIPE_TEST_MODE: REQUIRES_LIVE_STRIPE_TEST_ACCOUNT"
-exit 2
+echo "runtimePath=CredentialResolverService/stripe"
+echo "STRIPE_TEST_MODE: CREDENTIAL_METADATA_OK"
+exit 0

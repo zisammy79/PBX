@@ -20,6 +20,16 @@ bash scripts/validate-public-ports.sh .env.production
 - Rotate on compromise: JWT, ENCRYPTION_MASTER_KEY, ARI, DB, S3, BACKUP_ENCRYPTION_KEY
 - `scripts/secret-scan.sh` in CI
 
+### Bootstrap secrets (environment/KMS only — not UI-managed)
+
+`DATABASE_URL`, database passwords, `ENCRYPTION_MASTER_KEY`, JWT signing secret, `INTERNAL_SERVICE_TOKEN`, ARI administrative credentials, backup encryption root key, Docker/host credentials, Terraform bootstrap credentials.
+
+### External integration credentials (Platform Owner UI)
+
+Configure OpenAI, SIP carriers, and Stripe in **Platform Administration → Integrations**. Credentials are envelope-encrypted in the database; read APIs never return plaintext. See [INTEGRATION_CREDENTIAL_MANAGEMENT.md](./INTEGRATION_CREDENTIAL_MANAGEMENT.md).
+
+Optional environment fallback: set `ALLOW_INTEGRATION_ENV_FALLBACK=true` and populate `.env.production.local` — not recommended for production.
+
 ## TLS
 
 - Caddy automatic certificates

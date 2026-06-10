@@ -107,8 +107,10 @@ func (r CreateRequest) Validate() error {
 		add("provider", "required")
 	} else if _, ok := allowedProviders[r.Provider]; !ok {
 		add("provider", fmt.Sprintf("unsupported provider %q", r.Provider))
-	} else if r.Provider == OpenAIProviderID && strings.TrimSpace(r.CredentialsEncrypted) == "" {
-		add("credentialsEncrypted", "required for openai provider")
+	} else if r.Provider == OpenAIProviderID {
+		if strings.TrimSpace(r.CredentialsEncrypted) != "" {
+			add("credentialsEncrypted", "must not be supplied; credentials are resolved internally")
+		}
 	}
 	format := strings.ToLower(strings.TrimSpace(r.AudioFormat))
 	if format == "" {

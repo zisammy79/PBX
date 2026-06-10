@@ -35,6 +35,9 @@ run_or_gate "pstn-outbound" make pstn-outbound-test
 run_or_gate "pstn-inbound" make pstn-inbound-test
 run_or_gate "stripe-test-mode" make stripe-test-mode-verify
 
+make credential-runtime-contract-test
+bash scripts/verify-integration-migration.sh
+
 make stage8-openai-contract-test
 make pstn-config-validate
 make stripe-contract-test

@@ -15,29 +15,42 @@ import {
 import { CONFIG, DATABASE } from '../../common/tokens.js';
 import type { AppConfig } from '../../config.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
+import { CredentialResolverService } from '../integrations/credential-resolver.service.js';
 
 export type StripeMode = 'DISABLED' | 'TEST' | 'LIVE';
 
 @Injectable()
 export class StripeService {
-  private readonly secretKey = process.env.STRIPE_SECRET_KEY?.trim() ?? '';
-  private readonly webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim() ?? '';
-  private readonly publishableKey = process.env.STRIPE_PUBLISHABLE_KEY?.trim() ?? '';
-
   constructor(
     @Inject(CONFIG) private readonly config: AppConfig,
     @Inject(DATABASE) private readonly database: ReturnType<typeof import('@pbx/database').createDatabase>,
+    private readonly credentialResolver: CredentialResolverService,
   ) {}
 
-  mode(): StripeMode {
-    if (!this.secretKey) return 'DISABLED';
-    if (this.secretKey.startsWith('sk_live_')) return 'LIVE';
-    if (this.secretKey.startsWith('sk_test_')) return 'TEST';
+  async resolveStripeCredentials(tenantId?: string, environment: 'test' | 'live' = 'test') {
+    try {
+      return await this.credentialResolver.resolve({
+        integrationType: 'stripe',
+        provider: 'stripe',
+        ...(tenantId ? { tenantId } : {}),
+        environment,
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  async mode(tenantId?: string): Promise<StripeMode> {
+    const resolved = await this.resolveStripeCredentials(tenantId, 'test');
+    const secretKey = resolved?.secrets.secretKey?.trim() ?? '';
+    if (!secretKey) return 'DISABLED';
+    if (secretKey.startsWith('sk_live_')) return 'LIVE';
+    if (secretKey.startsWith('sk_test_')) return 'TEST';
     return 'DISABLED';
   }
 
-  assertTestModeOnly() {
-    const mode = this.mode();
+  async assertTestModeOnly(tenantId?: string) {
+    const mode = await this.mode(tenantId);
     if (mode === 'LIVE') {
       throw validationError({ stripe: 'Live Stripe keys are not permitted in test-mode verification' });
     }
@@ -46,8 +59,8 @@ export class StripeService {
     }
   }
 
-  statusLabel(): string {
-    const mode = this.mode();
+  async statusLabel(tenantId?: string): Promise<string> {
+    const mode = await this.mode(tenantId);
     if (mode === 'TEST') return 'Stripe test mode';
     if (mode === 'LIVE') return 'Stripe live mode';
     return 'Payment integration — Disabled';
@@ -101,11 +114,13 @@ export class StripeService {
     });
   }
 
-  async verifyWebhookSignature(payload: string, signature: string): Promise<boolean> {
-    if (!this.webhookSecret || !signature) return false;
+  async verifyWebhookSignature(payload: string, signature: string, tenantId?: string): Promise<boolean> {
+    const resolved = await this.resolveStripeCredentials(tenantId, 'test');
+    const webhookSecret = resolved?.secrets.webhookSecret?.trim() ?? '';
+    if (!webhookSecret || !signature) return false;
     // Contract-compatible HMAC check without Stripe SDK in contract tests.
     const { createHmac, timingSafeEqual } = await import('node:crypto');
-    const expected = createHmac('sha256', this.webhookSecret).update(payload).digest('hex');
+    const expected = createHmac('sha256', webhookSecret).update(payload).digest('hex');
     try {
       return timingSafeEqual(Buffer.from(expected), Buffer.from(expected));
     } catch {
@@ -138,7 +153,7 @@ export class StripeService {
 
   async reconcileTenant(actor: AuthenticatedUser, tenantId: string, periodStart: string, periodEnd: string) {
     await this.assertTenantAccess(actor, tenantId);
-    this.assertTestModeOnly();
+    await this.assertTestModeOnly(tenantId);
 
     return withTenantContext(this.database.db, tenantId, async (db) => {
       const tenantInvoices = await db
@@ -175,7 +190,7 @@ export class StripeService {
 
   async simulateTestPayment(actor: AuthenticatedUser, tenantId: string, simulateFailure: boolean) {
     await this.assertTenantAccess(actor, tenantId);
-    this.assertTestModeOnly();
+    await this.assertTestModeOnly(tenantId);
 
     return withTenantContext(this.database.db, tenantId, async (db) => {
       const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.tenantId, tenantId)).limit(1);
@@ -198,9 +213,9 @@ export class StripeService {
     });
   }
 
-  contractManifest() {
+  async contractManifest() {
     return {
-      mode: this.mode(),
+      mode: await this.mode(),
       features: [
         'tenant_customer_mapping',
         'subscription_mapping',

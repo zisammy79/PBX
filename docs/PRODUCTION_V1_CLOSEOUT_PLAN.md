@@ -28,6 +28,7 @@
 | 3 | Stripe test-mode payment lifecycle (ledger remains source of truth) | Billing | `make stripe-contract-test`, `make stripe-test-mode-verify` |
 | 4 | Production configuration safeguards | Ops / API config | `scripts/validate-production-safeguards.sh` |
 | 5 | Full end-to-end regression and release artifacts | Slice H extension | `make production-v1-verify` |
+| 6 | Platform Owner integration credential management | Platform admin UI + API | Platform Administration → Integrations; see `docs/INTEGRATION_CREDENTIAL_MANAGEMENT.md` |
 
 ### P0 exclusions (explicitly deferred)
 

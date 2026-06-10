@@ -2,12 +2,14 @@ package session
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"net"
 	"os"
 	"sync"
 	"time"
 
+	"github.com/pbx-platform/ai-media-gateway/internal/credentials"
 	"github.com/pbx-platform/ai-media-gateway/internal/media"
 	"github.com/pbx-platform/ai-media-gateway/internal/provider"
 )
@@ -40,6 +42,7 @@ type Manager struct {
 	token         string
 	rtpBindHost   string
 	rtpAdvertHost string
+	resolver      *credentials.Resolver
 }
 
 type liveSession struct {
@@ -53,6 +56,7 @@ type liveSession struct {
 	prov        *provider.DeterministicProvider
 	sess        *provider.Session
 	openai      *openaiRuntime
+	credential  *credentials.Resolved
 	cancel      context.CancelFunc
 	ctx         context.Context
 	createdAt   time.Time
@@ -77,6 +81,7 @@ func NewManager(token string) *Manager {
 		token:         token,
 		rtpBindHost:   bind,
 		rtpAdvertHost: advert,
+		resolver:      credentials.NewResolverFromEnv(),
 	}
 }
 
@@ -88,7 +93,15 @@ func (m *Manager) Authorize(header string) bool {
 	if len(header) <= len(prefix) || header[:len(prefix)] != prefix {
 		return false
 	}
-	return header[len(prefix):] == m.token
+	provided := header[len(prefix):]
+	return subtle.ConstantTimeCompare([]byte(provided), []byte(m.token)) == 1
+}
+
+func (m *Manager) ResolverHealth(ctx context.Context) error {
+	if m.resolver == nil {
+		return fmt.Errorf("credential resolver not configured")
+	}
+	return m.resolver.Health(ctx)
 }
 
 func (m *Manager) Create(ctx context.Context, req CreateRequest) (*CreateResponse, error) {
@@ -176,6 +189,9 @@ func (m *Manager) SetPeer(sessionID, peerAddress string) error {
 	}
 	ls.bridge.SetRemote(addr)
 	if ls.provider == provider.OpenAIProviderID {
+		if err := m.resolveOpenAICredential(ls, ls.createReq); err != nil {
+			return err
+		}
 		if err := m.startOpenAISession(ls, ls.createReq); err != nil {
 			return err
 		}

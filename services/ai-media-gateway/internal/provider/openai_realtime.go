@@ -80,6 +80,65 @@ func supportedOpenAIModels() []string {
 	return []string{"gpt-4o-realtime-preview", "gpt-4o-mini-realtime-preview"}
 }
 
+func (p *OpenAIRealtimeProvider) ConnectFromResolved(
+	ctx context.Context,
+	secrets map[string]string,
+	model, voice, realtimeURL, instructions, opening string,
+	allowedTools []string,
+	tenantID, platformSessionID, callID string,
+	onAudio func([]byte),
+	onSpeech func(),
+	onTool func(*ToolInvocation),
+	onError func(string),
+) (*OpenAIRealtimeSession, error) {
+	apiKey := strings.TrimSpace(secrets["apiKey"])
+	if apiKey == "" {
+		apiKey = strings.TrimSpace(secrets["api_key"])
+	}
+	if apiKey == "" {
+		return nil, fmt.Errorf("provider authentication failed")
+	}
+	if strings.TrimSpace(model) == "" {
+		if v := secrets["model"]; strings.TrimSpace(v) != "" {
+			model = v
+		} else {
+			model = strings.TrimSpace(os.Getenv("OPENAI_REALTIME_MODEL"))
+		}
+		if model == "" {
+			return nil, fmt.Errorf("model required")
+		}
+	}
+	if strings.TrimSpace(voice) == "" {
+		if v := secrets["voice"]; strings.TrimSpace(v) != "" {
+			voice = v
+		} else {
+			voice = strings.TrimSpace(os.Getenv("OPENAI_REALTIME_VOICE"))
+		}
+		if voice == "" {
+			voice = "alloy"
+		}
+	}
+	if strings.TrimSpace(realtimeURL) == "" {
+		realtimeURL = strings.TrimSpace(os.Getenv("OPENAI_REALTIME_URL"))
+		if realtimeURL == "" {
+			realtimeURL = "wss://api.openai.com/v1/realtime"
+		}
+	}
+	cfg := OpenAIRealtimeConfig{
+		APIKey:             apiKey,
+		Model:              model,
+		Voice:              voice,
+		RealtimeURL:        realtimeURL,
+		SystemInstructions: instructions,
+		OpeningMessage:     opening,
+		AllowedTools:       allowedTools,
+		TenantID:           tenantID,
+		PlatformSessionID:  platformSessionID,
+		CallID:             callID,
+	}
+	return p.connect(ctx, cfg, onAudio, onSpeech, onTool, onError)
+}
+
 func (p *OpenAIRealtimeProvider) ConnectFromRequest(
 	ctx context.Context,
 	encryptedCreds string,

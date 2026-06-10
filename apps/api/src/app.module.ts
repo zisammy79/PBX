@@ -17,6 +17,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module.js';
 import { EventsModule } from './modules/events/events.module.js';
 import { PstnModule } from './modules/pstn/pstn.module.js';
 import { StripeModule } from './modules/stripe/stripe.module.js';
+import { IntegrationsModule } from './modules/integrations/integrations.module.js';
 
 @Module({})
 export class AppModule {
@@ -41,6 +42,7 @@ export class AppModule {
         EventsModule,
         PstnModule,
         StripeModule,
+        IntegrationsModule,
       ],
     };
   }

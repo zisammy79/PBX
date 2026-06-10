@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pbx-platform/ai-media-gateway/internal/credentials"
 	"github.com/pbx-platform/ai-media-gateway/internal/media"
 	"github.com/pbx-platform/ai-media-gateway/internal/provider"
 )
@@ -18,7 +19,12 @@ type openaiRuntime struct {
 }
 
 func (m *Manager) startOpenAISession(ls *liveSession, req CreateRequest) error {
+	if ls.credential == nil {
+		return &credentials.ResolveError{Category: credentials.FailureNotConfigured, Message: "integration credential not configured"}
+	}
+	res := ls.credential
 	oai := provider.NewOpenAIRealtimeProvider()
+
 	rt := &openaiRuntime{}
 	ls.openai = rt
 
@@ -57,11 +63,29 @@ func (m *Manager) startOpenAISession(ls *liveSession, req CreateRequest) error {
 		ls.diagnostics["openaiError"] = msg
 	}
 
-	sess, err := oai.ConnectFromRequest(
+	model := req.Model
+	if model == "" {
+		if v, ok := res.Config["model"].(string); ok {
+			model = v
+		}
+	}
+	voice := req.Voice
+	if voice == "" {
+		if v, ok := res.Config["voice"].(string); ok {
+			voice = v
+		}
+	}
+	realtimeURL := ""
+	if v, ok := res.Config["realtimeUrl"].(string); ok {
+		realtimeURL = v
+	}
+
+	sess, err := oai.ConnectFromResolved(
 		ls.ctx,
-		req.CredentialsEncrypted,
-		req.Model,
-		req.Voice,
+		res.Secrets,
+		model,
+		voice,
+		realtimeURL,
 		req.SystemInstructions,
 		req.OpeningMessage,
 		req.AllowedTools,
@@ -83,7 +107,22 @@ func (m *Manager) startOpenAISession(ls *liveSession, req CreateRequest) error {
 		}
 	})
 	rt.pacer.Start(ls.ctx)
-	ls.diagnostics["openai"] = map[string]any{"connectedAt": time.Now().UTC().Format(time.RFC3339Nano)}
+	diag := credentials.CredentialMeta(res)
+	diag["connectedAt"] = time.Now().UTC().Format(time.RFC3339Nano)
+	ls.diagnostics["openai"] = diag
+	ls.diagnostics["credential"] = credentials.CredentialMeta(res)
+	return nil
+}
+
+func (m *Manager) resolveOpenAICredential(ls *liveSession, req CreateRequest) error {
+	if m.resolver == nil {
+		return &credentials.ResolveError{Category: credentials.FailureResolverUnavailable, Message: "credential resolver not configured"}
+	}
+	res, err := m.resolver.ResolveAI(ls.ctx, req.TenantID, "openai", "default")
+	if err != nil {
+		return err
+	}
+	ls.credential = res
 	return nil
 }
 
@@ -110,4 +149,5 @@ func (m *Manager) closeOpenAI(ls *liveSession) {
 	if len(ls.openai.usage) > 0 {
 		ls.diagnostics["openaiUsage"] = ls.openai.usage
 	}
+	ls.credential = nil
 }

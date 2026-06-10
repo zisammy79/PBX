@@ -11,10 +11,10 @@ export class StripeController {
   constructor(@Inject(StripeService) private readonly service: StripeService) {}
 
   @Get('status')
-  status() {
+  async status() {
     return {
-      mode: this.service.mode(),
-      label: this.service.statusLabel(),
+      mode: await this.service.mode(),
+      label: await this.service.statusLabel(),
     };
   }
 
@@ -55,15 +55,15 @@ export class StripeController {
     @Body() body: Record<string, unknown>,
   ) {
     const raw = typeof req.rawBody === 'string' ? req.rawBody : JSON.stringify(body);
-    const valid = await this.service.verifyWebhookSignature(raw, signature ?? '');
-    if (!valid && this.service.mode() === 'TEST') {
+    const tenantId = typeof body.metadata === 'object' && body.metadata && 'tenantId' in body.metadata
+      ? String((body.metadata as Record<string, unknown>).tenantId)
+      : null;
+    const valid = await this.service.verifyWebhookSignature(raw, signature ?? '', tenantId ?? undefined);
+    if (!valid && (await this.service.mode(tenantId ?? undefined)) === 'TEST') {
       return { received: false, reason: 'invalid_signature' };
     }
     const eventId = String(body.id ?? `evt_${Date.now()}`);
     const eventType = String(body.type ?? 'unknown');
-    const tenantId = typeof body.metadata === 'object' && body.metadata && 'tenantId' in body.metadata
-      ? String((body.metadata as Record<string, unknown>).tenantId)
-      : null;
     return this.service.processWebhookEvent(tenantId, eventId, eventType, body);
   }
 }

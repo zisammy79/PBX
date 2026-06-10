@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pbx-platform/ai-media-gateway/internal/credentials"
 	"github.com/pbx-platform/ai-media-gateway/internal/provider"
 	"github.com/pbx-platform/ai-media-gateway/internal/session"
 )
@@ -29,8 +30,16 @@ func main() {
 	mux.HandleFunc("/health/live", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"status": "healthy"})
 	})
-	mux.HandleFunc("/health/ready", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{"ready": true, "transport": "ari_external_media_rtp"})
+	mux.HandleFunc("/health/ready", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		ready := map[string]any{"ready": true, "transport": "ari_external_media_rtp"}
+		if err := mgr.ResolverHealth(ctx); err != nil {
+			ready["credentialResolver"] = "unavailable"
+		} else {
+			ready["credentialResolver"] = "available"
+		}
+		writeJSON(w, http.StatusOK, ready)
 	})
 
 	mux.HandleFunc("/internal/v1/sessions", func(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +66,14 @@ func main() {
 		}
 		resp, err := mgr.Create(r.Context(), req)
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+			if re, ok := err.(*credentials.ResolveError); ok {
+				writeJSON(w, http.StatusFailedDependency, map[string]any{
+					"error":   re.Category,
+					"message": re.Message,
+				})
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "session_create_failed"})
 			return
 		}
 		writeJSON(w, http.StatusOK, resp)

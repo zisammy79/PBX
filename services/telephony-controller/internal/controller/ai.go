@@ -115,7 +115,6 @@ func (c *Controller) onAiStasisStart(ctx context.Context, channelID, tenantSlug,
 	_ = c.repo.InsertCallEvent(ctx, fromExt.TenantID, callID, "CREATED", map[string]any{"source": "asterisk", "aiRoute": routeNumber})
 	_ = c.repo.InsertCallEvent(ctx, fromExt.TenantID, callID, "RINGING", map[string]any{"source": "asterisk"})
 
-	credsEnc, _, _ := c.repo.GetProviderCredentialsEncrypted(ctx, agent.TenantID, agent.ProviderConnectionID)
 	_ = c.repo.CreateAiSession(ctx, repository.AiSessionRecord{
 		ID:                   sessionID,
 		TenantID:             agent.TenantID,
@@ -165,8 +164,7 @@ func (c *Controller) onAiStasisStart(ctx context.Context, channelID, tenantSlug,
 		Language:             agent.Language,
 		SystemInstructions:   agent.SystemInstructions,
 		OpeningMessage:       agent.OpeningMessage,
-		AllowedTools:         agent.AllowedTools,
-		CredentialsEncrypted: credsEnc,
+		AllowedTools:       agent.AllowedTools,
 		TransferExtension:    agent.TransferNumber,
 		AudioFormat:          "ulaw",
 	})

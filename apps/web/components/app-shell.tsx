@@ -91,6 +91,7 @@ export function AppShell({
     { href: '/platform/billing/plans', label: 'Plans', show: isPlatformAdmin(user) },
     { href: '/platform/billing/prices', label: 'Prices', show: isPlatformAdmin(user) },
     { href: '/platform/health', label: 'Health', show: isPlatformAdmin(user) },
+    { href: '/platform/integrations', label: 'Integrations', show: isPlatformAdmin(user) },
   ];
 
   const nav = mode === 'platform' ? platformNav : tenantNav;

@@ -20,8 +20,10 @@ See [AI_MEDIA_ARCHITECTURE.md](./AI_MEDIA_ARCHITECTURE.md).
 
 ### Realtime voice (priority)
 
-- OpenAI Realtime
-- Google Gemini Live
+- OpenAI Realtime — runtime credential resolution via AI media gateway + internal integration resolver
+- Google Gemini Live (planned)
+
+**Status:** OpenAI Realtime wired with runtime resolver; Gemini not implemented.
 
 ### Cascaded pipeline providers
 

@@ -7,3 +7,4 @@ export * from './ai';
 export * from './billing';
 export * from './api';
 export * from './audit';
+export * from './integrations';
