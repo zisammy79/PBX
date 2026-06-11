@@ -1,8 +1,27 @@
 # QA Report — PBX Final Closeout
 
 **Date:** 2026-06-11
-**Commit baseline:** `f81cd73` + closeout session changes
-**Status:** `BLOCKED_ON_EXTERNAL_CREDENTIALS` (repository work complete; live gates pending Platform Owner configuration)
+**Commit baseline:** `9a3e471` + live closeout session
+**Status:** `BLOCKED_ON_EXTERNAL_CREDENTIALS` (foundation gate fixed; live integrations not configured in Platform Owner UI)
+
+## Foundation gate (live closeout)
+
+| Run | Command | Result | Duration |
+|-----|---------|--------|----------|
+| 1 | `make foundation-verify` | PASS (exit 0) | ~66s |
+| 2 | `make foundation-verify` | PASS (exit 0) | ~68s |
+
+Fix: bounded timeouts, non-interactive CI env, build output to `.local/foundation-verify/*.log` (prevents pipe stall), API smoke test reuses healthy API or starts bounded child only.
+
+## Platform Owner integrations (Demo Company)
+
+| Integration | Configured | Assignment |
+|-------------|------------|------------|
+| OpenAI | NO | — |
+| SIP carrier | NO | — |
+| Stripe TEST | NO | — |
+
+`INTEGRATION_COUNT: 0` via `GET /api/v1/platform/integrations` as Platform Owner.
 
 ## Deterministic telephony and AI (Phase 3)
 
