@@ -1,0 +1,9 @@
+# PLAN — PBX Final Closeout
+
+Execution plan and gates: [docs/PRODUCTION_V1_CLOSEOUT_PLAN.md](docs/PRODUCTION_V1_CLOSEOUT_PLAN.md).
+
+**Current gate:** `PRODUCTION_V1_EXTERNAL_GATE: READY_FOR_PLATFORM_OWNER_CONFIGURATION`
+
+**Remaining P0:** Platform Owner credentials for OpenAI Realtime, SIP carrier (PSTN), Stripe test mode; then live verification scripts and `make production-v1-verify`.
+
+**Verification ladder:** [README.md](README.md#verification-commands), [docs/TEST_PLAN.md](docs/TEST_PLAN.md).

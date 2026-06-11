@@ -1,7 +1,7 @@
 # Production V1 Release Readiness
 
 **Program:** PBX Production-v1 Closeout  
-**Gate:** `PRODUCTION_V1_EXTERNAL_GATE: READY_FOR_LOCAL_SECRETS`
+**Gate:** `PRODUCTION_V1_EXTERNAL_GATE: READY_FOR_PLATFORM_OWNER_CONFIGURATION`
 
 ## Verdict
 

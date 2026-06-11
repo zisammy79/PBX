@@ -1,9 +1,7 @@
 import { describe, expect, it, beforeAll } from 'vitest';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolveAdminEmail, resolveAdminPassword } from './admin-auth.js';
 
 const API_URL = process.env.PUBLIC_API_URL ?? 'http://localhost:3001';
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const describeIntegration = process.env.RUN_INTEGRATION_TESTS === 'true' ? describe : describe.skip;
 
 async function api(path: string, init: RequestInit = {}) {
@@ -20,17 +18,8 @@ describeIntegration('tenant AI management APIs', () => {
   let agentId: string;
 
   beforeAll(async () => {
-    const { readFile } = await import('node:fs/promises');
-    const bootstrapPath = join(REPO_ROOT, 'packages/database/.local/bootstrap-admin.json');
-    const bootstrap = await readFile(bootstrapPath, 'utf8').catch(() => null);
-    let adminPassword = process.env.DEV_ADMIN_PASSWORD;
-    if (!adminPassword && bootstrap) {
-      adminPassword = JSON.parse(bootstrap).password;
-    }
-    if (!adminPassword) {
-      throw new Error('Set DEV_ADMIN_PASSWORD or run db:seed');
-    }
-    const adminEmail = process.env.DEV_ADMIN_EMAIL ?? 'admin@pbx.local';
+    const adminPassword = await resolveAdminPassword();
+    const adminEmail = resolveAdminEmail();
 
     const login = await api('/auth/login', {
       method: 'POST',

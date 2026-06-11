@@ -1,0 +1,3 @@
+# Security Model
+
+See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md), [docs/SECURITY_OPERATIONS.md](docs/SECURITY_OPERATIONS.md), [docs/SECURITY_VERIFICATION.md](docs/SECURITY_VERIFICATION.md).
