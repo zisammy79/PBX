@@ -66,8 +66,18 @@ export default function CallDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeRecordingId, setActiveRecordingId] = useState<string | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [playbackLoading, setPlaybackLoading] = useState(false);
+  const [loadingRecordingId, setLoadingRecordingId] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (playbackUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(playbackUrl);
+      }
+    };
+  }, [playbackUrl]);
 
   const loadRecordings = useCallback(async () => {
     const rows = await api.get<RecordingItem[]>(
@@ -91,6 +101,16 @@ export default function CallDetailPage() {
     return () => window.clearInterval(timer);
   }, [loadRecordings]);
 
+  function playbackErrorMessage(err: unknown): string {
+    if (!(err instanceof Error)) return 'Playback unavailable';
+    if (err.message.includes('401') || err.message === 'Unauthorized') return 'Unauthorized';
+    if (err.message.includes('404')) return 'Recording file unavailable';
+    if (err.message.includes('Unexpected recording content type')) return 'Invalid audio response';
+    if (err.message.includes('not a valid RIFF/WAVE')) return 'Invalid audio response';
+    if (err.message.includes('Recording playback failed')) return 'Playback failed';
+    return err.message;
+  }
+
   async function playRecording(recording: RecordingItem) {
     setPlaybackError(null);
     if (activeRecordingId === recording.id) {
@@ -100,6 +120,8 @@ export default function CallDetailPage() {
       setPlaybackUrl(null);
       return;
     }
+    setPlaybackLoading(true);
+    setLoadingRecordingId(recording.id);
     try {
       const blobUrl = await api.fetchBlob(
         `tenants/${tenantId}/recordings/${recording.id}/content`,
@@ -109,7 +131,12 @@ export default function CallDetailPage() {
       setPlaybackUrl(blobUrl);
       setActiveRecordingId(recording.id);
     } catch (err) {
-      setPlaybackError(err instanceof Error ? err.message : 'Playback unavailable');
+      setPlaybackError(playbackErrorMessage(err));
+      setActiveRecordingId(null);
+      setPlaybackUrl(null);
+    } finally {
+      setPlaybackLoading(false);
+      setLoadingRecordingId(null);
     }
   }
 
@@ -176,9 +203,14 @@ export default function CallDetailPage() {
                         <button
                           type="button"
                           className="btn btn-secondary"
+                          disabled={playbackLoading && loadingRecordingId !== row.id}
                           onClick={() => void playRecording(row)}
                         >
-                          {activeRecordingId === row.id ? 'Stop' : 'Play'}
+                          {loadingRecordingId === row.id
+                            ? 'Loading…'
+                            : activeRecordingId === row.id
+                              ? 'Stop'
+                              : 'Play'}
                         </button>
                       ) : (
                         <span className="muted">
@@ -194,6 +226,7 @@ export default function CallDetailPage() {
             </table>
           </div>
         )}
+        {playbackLoading ? <p className="muted">Loading recording…</p> : null}
         {playbackUrl ? (
           <audio
             ref={audioRef}

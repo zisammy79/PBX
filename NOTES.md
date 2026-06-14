@@ -68,15 +68,16 @@ Router forwarding required: WAN UDP `5060` and `10000-10099` → PBX host. CGNAT
 
 Operator script: `bash scripts/check-extension-registration.sh demo-company 1003`
 
-## Browser recording playback defect (2026-06-14)
+## Browser recording playback fix (2026-06-14)
 
 | Finding | Evidence |
 |---------|----------|
-| Capture + finalize | PASS — real WAV on disk (RIFF/WAVE PCM 16-bit mono 8000 Hz) |
-| API `/content` direct download | PASS — authenticated curl returns valid WAV matching source hash |
-| Browser playback | **FAIL** — Firefox `NS_ERROR_DOM_MEDIA_METADATA_ERR`; blob could not be decoded |
-| Suspected root cause | Next.js `/api/backend` proxy reads all responses as UTF-8 text, corrupting binary WAV |
-| Fix scope | Web proxy binary passthrough + frontend `arrayBuffer` RIFF validation |
+| Root cause | Next.js `/api/backend` proxy used `res.text()` for all responses, corrupting binary WAV |
+| Fix | Proxy binary passthrough for `/recordings/*/content`; frontend `arrayBuffer` + RIFF/WAVE validation |
+| API direct download | PASS — hash matches source WAV |
+| Proxy download | PASS — hash matches source WAV |
+| Firefox call-details Play | PASS — duration ~10.8s, seek to 2s, no `NS_ERROR_DOM_MEDIA_METADATA_ERR` |
+| Checkpoint commit | `987855d` |
 
 ## Git checkpoint (2026-06-14)
 

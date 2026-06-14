@@ -11,9 +11,13 @@
 - Recording metadata in call-details and extension UI
 - Authenticated API byte-range streaming (`GET .../recordings/:id/content`)
 
+### Verified (2026-06-14 update)
+
+- Browser call-details audio playback (Firefox; proxy binary passthrough fix)
+
 ### Under repair
 
-- Browser call-details audio playback (Next.js proxy binary passthrough)
+- _(none — playback fix merged)_
 
 ### External gates (unchanged)
 

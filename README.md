@@ -25,7 +25,7 @@ Branch: `feature/pbx-multitenant-closeout`
 | **Recording finalization and persistent local WAV storage** | **PASS** |
 | Recording metadata in UI (call details, extension list) | PASS |
 | **Authenticated API byte-range streaming (`/content`)** | **PASS** |
-| **Browser call-details audio playback** | **UNDER REPAIR** — see playback section |
+| **Browser call-details audio playback** | **PASS** |
 | Deterministic realtime AI media | PASS |
 | Barge-in, tool invocation, human transfer | PASS |
 | Usage metering, rating, internal invoices | PASS |
@@ -127,12 +127,23 @@ Lifecycle: `starting → recording → processing → available | failed`. Stale
 
 1. UI loads recording metadata via `GET /api/v1/tenants/:tenantId/calls/:callId/recordings`
 2. Play fetches binary content via Next.js proxy → `GET /api/v1/tenants/:tenantId/recordings/:recordingId/content`
-3. Frontend validates RIFF/WAVE headers, creates `audio/wav` Blob URL for `<audio>` element
-4. API supports `Accept-Ranges: bytes` and HTTP 206 for seek
+3. Frontend validates RIFF/WAVE headers via `arrayBuffer`, creates `audio/wav` Blob URL for `<audio>` element
+4. API supports `Accept-Ranges: bytes` and HTTP 206 for seek; proxy passes binary responses without text conversion
 
-**Known limitation:** browser playback via the web UI proxy is under active repair; direct authenticated API download of the WAV is verified.
+**Verified:** Firefox and authenticated API download; pause, seek, and duration display on call-details page.
 
 Supported format: Microsoft PCM WAV, 16-bit mono 8000 Hz (Asterisk default).
+
+Troubleshooting:
+
+```bash
+# Direct API bytes (replace token via login — do not commit)
+curl -fsS -H "Authorization: Bearer <token>" -H "X-Tenant-Id: <tenantId>" \
+  "http://127.0.0.1:3001/api/v1/tenants/<tenantId>/recordings/<recordingId>/content" \
+  -o /tmp/test.wav && file /tmp/test.wav && xxd -l 16 /tmp/test.wav
+
+bash scripts/validate-recording-finalize-e2e.sh
+```
 
 ## Required environment variables
 
@@ -464,7 +475,7 @@ PostgreSQL, Redis, NATS, Asterisk ARI, MinIO administration, API internal port, 
 - Live OpenAI verification pending
 - SIP carrier inbound/outbound verification pending
 - Stripe test-mode verification pending
-- **Browser call-details recording playback under repair** (API streaming verified)
+- **Browser call-details recording playback** — verified (2026-06-14)
 - SIP network validation currently supports UDP; TCP/TLS validation remains pending
 - DigitalOcean deployment not performed
 - High availability not implemented

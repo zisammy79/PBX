@@ -27,8 +27,8 @@
 | R8 | Playback Range | API | `validate-recording-finalize-e2e.sh` | 206 Partial Content (100 bytes) | PASS |
 | R9 | Org settings toggle | Web | `settings/telephony` | persist + notice | Code complete |
 | R10 | Extension tri-state | Web | extension detail | inherit/on/off + effective | Code complete |
-| R11 | Call-details player | Web | `calls/[callId]` | status + blob playback | **FAIL** — proxy text corruption; fix in progress |
-| R12 | Live capture + playback | Operator | softphones + validate script | ready WAV + audio seek | Capture PASS; browser playback FAIL |
+| R11 | Call-details player | Web | `calls/[callId]` | status + blob playback | PASS |
+| R12 | Live capture + playback | Operator | softphones + validate script | ready WAV + audio seek | Capture PASS; Firefox playback PASS |
 | R15 | Shared recording mount | Compose | `validate-telephony-compose.sh` | same host source, distinct container targets | PASS |
 | R16 | Stale row reconcile | Controller | `reconcile-stale-recordings.sh` | terminal call + missing file → `failed` | PASS |
 | R17 | Finalize + restart | Script | `validate-recording-finalize-e2e.sh` | `available` + playback after controller restart | PASS |

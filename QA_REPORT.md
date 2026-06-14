@@ -171,17 +171,21 @@ Configure credentials in **Platform Administration → Integrations**. See [docs
 | Live softphone 1004↔1005 | operator registered endpoints | **Not performed** — no reachable contacts during session; prior real bridged call evidence retained |
 | git diff --check | whitespace | PASS |
 
-Status: `PASS_WITH_LIMITATIONS` — shared recording volume, lifecycle, finalize, and authenticated API byte-range streaming verified; browser playback via web UI proxy fails due to binary response corruption (fix in progress).
+Status: `PASS` — shared recording volume, lifecycle, finalize, authenticated API streaming, and browser call-details playback verified.
 
-## Browser recording playback defect (2026-06-14)
+## Browser recording playback fix (2026-06-14)
 
 | Check | Command | Result |
 |-------|---------|--------|
-| Source WAV | `file var/recordings/.../43d4b07c-....wav` | RIFF/WAVE PCM 16-bit mono 8000 Hz, 172844 bytes |
-| API direct download | authenticated `GET .../content` | Valid RIFF/WAVE; hash matches source |
-| Browser playback | Firefox call-details Play | **FAIL** — `NS_ERROR_DOM_MEDIA_METADATA_ERR` |
-| Root cause | `apps/web/app/api/backend/[...path]/route.ts` | Proxy uses `res.text()` for all responses, corrupting binary |
-| Backend streaming | Fastify `reply.send(stream)` for `/content` | PASS (200/206, correct headers) |
+| Root cause | `apps/web/app/api/backend/[...path]/route.ts` | Proxy `res.text()` corrupted binary WAV |
+| Fix | Binary passthrough + `lib/recording-playback.ts` | `arrayBuffer`, RIFF/WAVE validation, `audio/wav` Blob |
+| API direct download | authenticated `GET .../content` | 200, `audio/wav`, hash matches source |
+| Proxy download | `GET /api/backend/.../content` with session cookie | 200, valid RIFF/WAVE, hash matches |
+| Frontend tests | `recording-playback.test.ts` | PASS (9 tests) |
+| Backend range tests | `local-recording-storage.service.spec.ts` | PASS (4 tests) |
+| Finalize E2E | `validate-recording-finalize-e2e.sh` | PASS |
+| Firefox playback | Playwright headless on call-details | PASS — duration 10.8s, seek 2s, no media errors |
+| Checkpoint commit | `987855d` | pushed |
 
 ## Git checkpoint (2026-06-14)
 

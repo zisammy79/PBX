@@ -29,5 +29,32 @@ describe('LocalRecordingStorageService', () => {
     const result = await svc.openReadStream(key, 'wav', 'bytes=2-5');
     expect(result.contentLength).toBe(4);
     expect(result.contentRange).toEqual({ start: 2, end: 5, total: 10 });
+    expect(result.contentType).toBe('audio/wav');
+  });
+
+  it('returns full file without range', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'pbx-rec-'));
+    const key = 'tenant/2026/06/full.wav';
+    const filePath = path.join(root, 'tenant', '2026', '06', 'full.wav');
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, Buffer.from('0123456789'));
+
+    const svc = service(root);
+    const result = await svc.openReadStream(key, 'wav');
+    expect(result.contentLength).toBe(10);
+    expect(result.contentRange).toBeUndefined();
+    expect(result.contentType).toBe('audio/wav');
+  });
+
+  it('rejects invalid byte ranges', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'pbx-rec-'));
+    const key = 'tenant/2026/06/full.wav';
+    const filePath = path.join(root, 'tenant', '2026', '06', 'full.wav');
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, Buffer.from('0123456789'));
+
+    const svc = service(root);
+    await expect(svc.openReadStream(key, 'wav', 'bytes=50-60')).rejects.toBeInstanceOf(RangeError);
+    await expect(svc.openReadStream(key, 'wav', 'invalid')).rejects.toBeInstanceOf(RangeError);
   });
 });
