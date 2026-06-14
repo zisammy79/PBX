@@ -18,14 +18,8 @@ import type { AuthenticatedUser } from '../auth/auth.service.js';
 import { ObjectStorageService } from '../../common/object-storage.service.js';
 import { LocalRecordingStorageService } from '../../common/local-recording-storage.service.js';
 import { hasAnyPermission, resolveEffectivePermissions } from '@pbx/contracts';
+import type { FastifyReply } from 'fastify';
 import { TenantTelephonySettingsService } from '../telephony/tenant-telephony-settings.service.js';
-
-type StreamResponse = {
-  status(code: number): StreamResponse;
-  setHeader(name: string, value: string | number): void;
-  json(body: unknown): void;
-  end(): void;
-};
 
 @Injectable()
 export class RecordingsService {
@@ -166,16 +160,16 @@ export class RecordingsService {
     tenantId: string,
     recordingId: string,
     rangeHeader: string | undefined,
-    res: StreamResponse,
+    res: FastifyReply,
   ): Promise<void> {
     await this.assertRecordingRead(actor, tenantId);
     const row = await this.loadAuthorizedRecording(actor, tenantId, recordingId);
     if (row.recording.status !== 'available' || !row.recording.storageKey) {
-      res.status(404).json({ message: 'Recording unavailable' });
+      await res.status(404).send({ message: 'Recording unavailable' });
       return;
     }
     if (this.config.callRecordingStorageBackend !== 'local' || !this.localStorage.isActive()) {
-      res.status(501).json({ message: 'Local streaming backend not active' });
+      await res.status(501).send({ message: 'Local streaming backend not active' });
       return;
     }
 
@@ -185,25 +179,25 @@ export class RecordingsService {
         row.recording.format,
         rangeHeader,
       );
-      res.setHeader('Accept-Ranges', 'bytes');
-      res.setHeader('Content-Type', streamResult.contentType);
+      void res.header('Accept-Ranges', 'bytes');
+      void res.header('Content-Type', streamResult.contentType);
       if (streamResult.contentRange) {
-        res.status(206);
-        res.setHeader(
+        void res.status(206);
+        void res.header(
           'Content-Range',
           `bytes ${streamResult.contentRange.start}-${streamResult.contentRange.end}/${streamResult.contentRange.total}`,
         );
       } else {
-        res.status(200);
+        void res.status(200);
       }
-      res.setHeader('Content-Length', String(streamResult.contentLength));
-      streamResult.stream.pipe(res as unknown as NodeJS.WritableStream);
+      void res.header('Content-Length', String(streamResult.contentLength));
+      await res.send(streamResult.stream);
     } catch (err) {
       if (err instanceof RangeError) {
-        res.status(416).end();
+        await res.status(416).send();
         return;
       }
-      res.status(404).json({ message: 'Recording unavailable' });
+      await res.status(404).send({ message: 'Recording unavailable' });
     }
   }
 

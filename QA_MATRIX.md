@@ -16,7 +16,7 @@
 | E12 | UI rotate modal | Web | extension detail page | `OneTimeSecretPanel` | Code complete |
 | E13 | UI recordings empty state | Web | extension detail page | message when no rows | Code complete |
 | E14 | UI delete confirmation | Web | typed extension number | ConfirmDialog | Code complete |
-| E15 | Recording capture | Telephony | ARI bridge record + finalize | one row per call, local WAV | Code complete; live not run |
+| E15 | Recording capture | Telephony | ARI bridge record + finalize | one row per call, local WAV | Volume + lifecycle fixed; live softphone pending operator |
 | R1 | Org default off + inherit | Policy | `recording-policy.spec.ts` | shouldRecord=false | PASS |
 | R2 | Org on + inherit | Policy | `recording-policy.spec.ts` | shouldRecord=true | PASS |
 | R3 | Org on + ext off | Policy | `recording-policy.spec.ts` | shouldRecord=false | PASS |
@@ -24,11 +24,14 @@
 | R5 | Multi-ext any-on | Policy | `recording-policy.spec.ts` | shouldRecord=true | PASS |
 | R6 | Unanswered call | Policy | `recording-policy.spec.ts` | shouldRecord=false | PASS |
 | R7 | Local storage traversal | API | `local-recording-storage.service.spec.ts` | reject `..` keys | PASS |
-| R8 | Playback Range | API | stream endpoint | 206 Partial Content | Code complete; live not run |
+| R8 | Playback Range | API | `validate-recording-finalize-e2e.sh` | 206 Partial Content (100 bytes) | PASS |
 | R9 | Org settings toggle | Web | `settings/telephony` | persist + notice | Code complete |
 | R10 | Extension tri-state | Web | extension detail | inherit/on/off + effective | Code complete |
-| R11 | Call-details player | Web | `calls/[callId]` | status + blob playback | Code complete; live not run |
-| R12 | Live capture + playback | Operator | softphones + validate script | ready WAV + audio seek | **Not performed** |
+| R11 | Call-details player | Web | `calls/[callId]` | status + blob playback | Code complete; finalize E2E playback PASS |
+| R12 | Live capture + playback | Operator | softphones + validate script | ready WAV + audio seek | **Not performed** (SIPp blocked by offline gate) |
+| R15 | Shared recording mount | Compose | `validate-telephony-compose.sh` | same host source, distinct container targets | PASS |
+| R16 | Stale row reconcile | Controller | `reconcile-stale-recordings.sh` | terminal call + missing file → `failed` | PASS |
+| R17 | Finalize + restart | Script | `validate-recording-finalize-e2e.sh` | `available` + playback after controller restart | PASS |
 | P1 | NAT-safe PJSIP generation | telephony-config | `generator.spec.ts` | rewrite_contact=yes, qualify 30/3 | PASS |
 | P2 | Public transport addresses | Asterisk | `pjsip show transport` | no Docker IP in external_* | PASS (46.120.0.73) |
 | P3 | PJSIP originate target | controller | `internal_call_test.go` | `PJSIP/{endpointId}` not bare AOR | PASS |

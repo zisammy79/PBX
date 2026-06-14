@@ -147,31 +147,35 @@ Configure credentials in **Platform Administration → Integrations**. See [docs
 | Operations | [docs/OPERATIONS_RUNBOOK.md](docs/OPERATIONS_RUNBOOK.md) |
 | Gap matrix | [docs/CURRENT_GAP_MATRIX.md](docs/CURRENT_GAP_MATRIX.md) |
 
-## Local call recording (2026-06-14)
+## Local call recording E2E fix (2026-06-14)
 
 | Check | Command | Result |
 |-------|---------|--------|
-| Policy resolver | `npx pnpm --filter @pbx/shared test` (`recording-policy.spec.ts`) | PASS (8 cases) |
-| Go policy mirror | `go test ./...` (telephony-controller) | PASS |
-| API typecheck | `npx pnpm --filter @pbx/api run typecheck` | PASS |
-| Web typecheck | `npx pnpm --filter @pbx/web exec tsc --noEmit` | PASS |
-| Storage safety | `local-recording-storage.service.spec.ts` | PASS (path containment, ranges) |
-| Playback auth | `recordings.service.spec.ts` | PASS (human_agent, billing admin denied) |
-| Migration 0009 | `pnpm db:migrate` | PASS (idempotent re-run) |
-| Compose bind mount | `docker-compose.telephony.yml` | `CALL_RECORDING_LOCAL_ROOT` → host `var/recordings` |
-| Controller capture | ARI `Bridge().Record` + finalize to opaque storage key | Code complete |
-| Org settings API/UI | `PATCH tenants/:id/settings/telephony` | Code complete |
-| Extension tri-state | `PATCH .../recording-policy` + effective display | Code complete |
-| Call-details playback | `GET .../calls/:callId/recordings` + authenticated blob stream | Code complete |
-| Live policy Test A (off) | `bash scripts/validate-call-recording.sh` | **Blocked** — SIPp callee contact `Unavail`; originate 500 |
-| Live policy Test B (on) | same script | **Not reached** |
-| Live audio capture | operator softphone 1003↔1004 | **Not performed** |
-| Live browser playback | call-details `<audio>` | **Not performed** |
-| Restart persistence | controller restart + file + playback | **Not performed** |
+| Root cause | Asterisk ARI logs on real bridged call | `ast_ari_bridges_record: No such file or directory` — spool path not mounted |
+| Shared volume | `docker inspect pbx-asterisk` / `pbx-telephony-controller` | Host `var/recordings` → Asterisk `/var/spool/asterisk/recording` + controller `/var/lib/pbx/recordings` |
+| Cross-container RW | write Asterisk / read controller | PASS |
+| Compose guard | `bash scripts/validate-telephony-compose.sh` | PASS |
+| Lifecycle states | controller `recording.go` | `starting → recording → processing → available/failed` |
+| DB finalize SQL | `FinalizeCallRecording` enum cast | Fixed `42P08` inconsistent types on `$2` |
+| Stale reconcile | `POST /internal/v1/recordings/reconcile/{id}` on `ead43118-…` | `failed` + `recording_file_missing` |
+| Go tests | `go test ./...` (telephony-controller) | PASS (incl. `recording_test.go`) |
+| Shared policy | `npx pnpm --filter @pbx/shared test recording-policy` | PASS (8) |
+| API typecheck | `npx pnpm --filter @pbx/api typecheck` | PASS |
+| API recording tests | `recordings.service.spec.ts`, `local-recording-storage.service.spec.ts` | PASS (4) |
+| Web typecheck | `npx pnpm --filter @pbx/web typecheck` | PASS |
+| Finalize + playback E2E | `bash scripts/validate-recording-finalize-e2e.sh` | PASS (available row, byte-range 206, survives controller restart) |
+| API streaming | Fastify `reply.send(stream)` for `/content` | Fixed (was Express-style `.json()` on Fastify reply) |
+| Host API path | `.env` `CALL_RECORDING_LOCAL_ROOT=/home/media/Downloads/pbx/var/recordings` | Confirmed |
+| Live SIP policy Test A (off) | `SIP_PORT=5060 bash scripts/validate-call-recording.sh` | **Blocked** — SIPp callee `603 Decline` / strict offline gate (by design) |
+| Live SIP policy Test B (on) | same | **Not reached** |
+| Live softphone 1004↔1005 | operator registered endpoints | **Not performed** — no reachable contacts during session; prior real bridged call evidence retained |
+| git diff --check | whitespace | PASS |
 
-Status: `PASS_WITH_LIMITATIONS` — policy, storage, API, UI, and capture code verified by unit/type checks; live SIPp recording proof blocked by unreachable SIP contacts in this session (same root cause as failed `stage7-sip-live-test.sh` with host port 5060). Operator must verify with registered softphones: enable org recording or extension override, place answered call, confirm `call_recordings.status=available`, playback on call details, and file survives container recreate.
+Status: `PASS_WITH_LIMITATIONS` — shared recording volume, lifecycle, finalize, authenticated byte-range playback, and restart persistence verified; full live softphone capture requires operator session with registered extensions (strict callee availability gate intentionally unchanged).
 
-Validation script: `SIP_PORT=5060 bash scripts/validate-call-recording.sh`
+Operator scripts: `bash scripts/reconcile-stale-recordings.sh [recording-id]`, `bash scripts/validate-recording-finalize-e2e.sh`
+
+## Local call recording (2026-06-14) — prior slice
 
 ## Git checkpoint (2026-06-14)
 

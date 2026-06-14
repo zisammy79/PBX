@@ -89,12 +89,10 @@ Branch `feature/pbx-multitenant-closeout`, commit `b726713` pushed to `origin`. 
 | Org default | `tenant_settings` key `telephony.recording` → `recordCallsByDefault` (default **off**) |
 | Extension override | `extensions.recording_policy_mode` (`inherit` \| `on` \| `off`) |
 | Effective policy | extension override wins; else org default; internal calls record if **any** participant effective-on |
-| Capture | telephony-controller `maybeStartRecording` after bridge; ARI `Bridge().Record` (WAV); finalize moves to `{tenantId}/{year}/{month}/{recordingId}.wav` |
-| Storage | `CALL_RECORDING_STORAGE_BACKEND=local`; bind mount `var/recordings` (gitignored); S3/MinIO path retained for later |
-| Playback | Authenticated `GET .../recordings/:id/content` with Range; call-details page canonical UI |
-| Authorization | `TENANT_RECORDING_READ` required for list/play/stream (human_agent denied) |
-| Backup | Include `var/recordings` (or production volume) in backups; no automated retention deletion yet |
-| Live verification | `SIP_PORT=5060 bash scripts/validate-call-recording.sh` — **failed in session** (SIPp contact Unavail / originate 500); use real softphones on demo-company 1003↔1004 |
+| Capture | telephony-controller lifecycle `starting → recording → processing → available/failed`; ARI flat live name `{recordingUuid}.wav` under Asterisk spool; controller finalizes to opaque storage key |
+| Storage | Shared host `var/recordings`: Asterisk `/var/spool/asterisk/recording`, controller `/var/lib/pbx/recordings`, host API `CALL_RECORDING_LOCAL_ROOT` |
+| Stale repair | `POST /internal/v1/recordings/reconcile` or `bash scripts/reconcile-stale-recordings.sh [id]` |
+| Live verification | `bash scripts/validate-recording-finalize-e2e.sh` PASS; full softphone capture requires registered 1004↔1005 (strict offline gate blocks SIPp) |
 
 ## Deferred
 

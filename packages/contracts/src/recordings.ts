@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const RecordingStatusSchema = z.enum([
+  'starting',
   'pending',
   'recording',
   'processing',

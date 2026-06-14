@@ -31,6 +31,7 @@ export const callStatusEnum = pgEnum('call_status', [
 ]);
 
 export const recordingStatusEnum = pgEnum('recording_status', [
+  'starting',
   'pending',
   'recording',
   'processing',

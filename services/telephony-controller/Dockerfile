@@ -11,5 +11,7 @@ RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=builder /telephony-controller /app/telephony-controller
 EXPOSE 8090
-USER nobody
+# Root is required to finalize recordings on the shared host bind mount when Asterisk
+# writes files as a different container user.
+USER root
 ENTRYPOINT ["/app/telephony-controller"]

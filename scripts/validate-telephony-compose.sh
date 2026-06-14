@@ -47,4 +47,23 @@ echo "$ari_publish" | grep -q 'published: "18088"' || fail "ARI host port must r
 echo "$asterisk_section" | grep -q 'target: 10000' || fail "missing Asterisk RTP UDP 10000 port mapping"
 echo "$asterisk_section" | grep -q 'target: 10099' || fail "missing Asterisk RTP UDP 10099 port mapping"
 
+controller_section="$(echo "$rendered" | awk '
+  /^  telephony-controller:/ { in_tc=1; next }
+  in_tc && /^  [a-zA-Z0-9_-]+:/ && !/^  telephony-controller:/ { exit }
+  in_tc { print }
+')"
+
+[[ -n "$controller_section" ]] || fail "missing telephony-controller service in compose config"
+if ! echo "$rendered" | grep -q 'target: /var/spool/asterisk/recording'; then
+  fail "asterisk must mount recording volume at /var/spool/asterisk/recording"
+fi
+if ! echo "$rendered" | grep -q 'target: /var/lib/pbx/recordings'; then
+  fail "telephony-controller must mount recording volume at /var/lib/pbx/recordings"
+fi
+recording_mounts="$(echo "$rendered" | awk '/target: \/var\/(spool\/asterisk\/recording|lib\/pbx\/recordings)/{inmount=1} inmount && /source:/{print $2; inmount=0}' | tr -d "'" | sort -u)"
+mount_count="$(printf '%s\n' "$recording_mounts" | sed '/^$/d' | wc -l | tr -d ' ')"
+if [[ "$mount_count" -lt 1 ]]; then
+  fail "shared host recording mount source not found in compose config"
+fi
+
 echo "validate-telephony-compose: OK"

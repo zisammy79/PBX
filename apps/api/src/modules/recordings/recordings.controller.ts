@@ -18,15 +18,11 @@ import {
 import type { RequestWithUser } from '../../common/guards/auth.guard.js';
 import { RequireAnyPermission, RequirePermissions } from '../../common/guards/auth.guard.js';
 import { TenantGuard } from '../../common/guards/tenant.guard.js';
+import type { FastifyReply } from 'fastify';
 import { RecordingsService } from './recordings.service.js';
 import { TenantTelephonySettingsService } from '../telephony/tenant-telephony-settings.service.js';
 
-type StreamResponse = {
-  status(code: number): StreamResponse;
-  setHeader(name: string, value: string | number): void;
-  json(body: unknown): void;
-  end(): void;
-};
+type StreamResponse = FastifyReply;
 
 @Controller('tenants/:tenantId')
 @UseGuards(TenantGuard)

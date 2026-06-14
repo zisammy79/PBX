@@ -66,6 +66,7 @@ func main() {
 			slog.Error("controller stopped", "error", err)
 		}
 	}()
+	ctrl.StartRecordingMaintenance(ctx, time.Minute, 2*time.Minute)
 
 	// Mark ready once dependencies are reachable
 	for i := 0; i < 30; i++ {

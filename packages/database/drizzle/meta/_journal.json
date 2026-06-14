@@ -71,6 +71,13 @@
       "when": 1781600000000,
       "tag": "0010_multitenant_devices_domains",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781700000000,
+      "tag": "0011_recording_starting_status",
+      "breakpoints": true
     }
   ]
 }

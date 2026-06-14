@@ -72,7 +72,14 @@ if [ "${PBX_ENV:-}" = "production" ] && [ -d "${PBX_PRODUCTION}" ]; then
 fi
 
 mkdir -p "${PBX_GEN}/active" "${PBX_GEN}/staging" "${PBX_GEN}/last-known-good" \
-  /var/log/asterisk/cdr
+  /var/log/asterisk/cdr \
+  /var/log/asterisk/cdr-csv \
+  /var/spool/asterisk/recording
+
+# Shared recording directory for ARI bridge recordings (bind-mounted from host).
+chown asterisk:asterisk /var/spool/asterisk/recording /var/log/asterisk/cdr-csv 2>/dev/null || true
+chmod 2775 /var/spool/asterisk/recording 2>/dev/null || true
+chmod 0750 /var/log/asterisk/cdr-csv 2>/dev/null || true
 
 # Ensure include placeholders exist before Asterisk starts
 for f in pjsip-tenants.conf extensions-tenants.conf asterisk-overrides.conf; do

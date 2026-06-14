@@ -25,8 +25,11 @@ function statusLabel(status: string) {
   switch (status) {
     case 'available':
       return 'Ready';
+    case 'starting':
+    case 'pending':
+      return 'Starting';
     case 'recording':
-      return 'Recording';
+      return 'Recording in progress';
     case 'processing':
       return 'Processing';
     case 'failed':
@@ -35,6 +38,24 @@ function statusLabel(status: string) {
       return 'Deleted';
     default:
       return status;
+  }
+}
+
+function statusMessage(row: RecordingItem) {
+  switch (row.status) {
+    case 'starting':
+    case 'pending':
+      return 'Recording is starting';
+    case 'recording':
+      return 'Recording in progress';
+    case 'processing':
+      return 'Recording is processing';
+    case 'failed':
+      return row.failureCode ? `Recording failed (${row.failureCode})` : 'Recording failed';
+    case 'available':
+      return 'Recording available';
+    default:
+      return statusLabel(row.status);
   }
 }
 
@@ -139,7 +160,10 @@ export default function CallDetailPage() {
               <tbody>
                 {recordings.map((row) => (
                   <tr key={row.id}>
-                    <td>{statusLabel(row.status)}</td>
+                    <td>
+                      <div>{statusLabel(row.status)}</div>
+                      <div className="muted">{statusMessage(row)}</div>
+                    </td>
                     <td>{row.startedAt ? formatDate(row.startedAt) : '—'}</td>
                     <td>
                       {row.durationMs != null
