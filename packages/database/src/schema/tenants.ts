@@ -2,6 +2,7 @@ import {
   boolean,
   index,
   jsonb,
+  numeric,
   pgTable,
   text,
   timestamp,
@@ -10,6 +11,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 import { tenantStatusEnum } from './enums';
+import { users } from './users';
 
 export const tenants = pgTable(
   'tenants',
@@ -27,6 +29,26 @@ export const tenants = pgTable(
   (table) => [
     uniqueIndex('tenants_slug_uidx').on(table.slug),
     index('tenants_status_idx').on(table.status),
+  ],
+);
+
+export const tenantLimitOverrides = pgTable(
+  'tenant_limit_overrides',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    dimension: varchar('dimension', { length: 64 }).notNull(),
+    limitValue: numeric('limit_value', { precision: 18, scale: 6 }).notNull(),
+    reason: text('reason'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('tenant_limit_overrides_uidx').on(table.tenantId, table.dimension),
+    index('tenant_limit_overrides_tenant_idx').on(table.tenantId),
   ],
 );
 

@@ -30,6 +30,11 @@ export function AppShell({
 
   const tenantNav: NavItem[] = [
     { href: `/t/${tid}/dashboard`, label: 'Dashboard', show: !!tid },
+    {
+      href: `/t/${tid}/users`,
+      label: 'Users',
+      show: !!tid && hasPermission(user, Permission.TENANT_USER_MANAGE),
+    },
     { href: `/t/${tid}/extensions`, label: 'Extensions', show: !!tid },
     { href: `/t/${tid}/calls`, label: 'Calls', show: !!tid },
     { href: `/t/${tid}/health`, label: 'Health', show: !!tid },
@@ -74,9 +79,9 @@ export function AppShell({
       show: !!tid && canManageBilling(user),
     },
     {
-      href: `/t/${tid}/developers/applications`,
-      label: 'API Applications',
-      show: !!tid && hasPermission(user, Permission.TENANT_APIKEY_MANAGE),
+      href: `/t/${tid}/settings/telephony`,
+      label: 'Settings',
+      show: !!tid && hasPermission(user, Permission.TENANT_UPDATE),
     },
     {
       href: `/t/${tid}/developers/webhooks`,
@@ -87,7 +92,7 @@ export function AppShell({
 
   const platformNav: NavItem[] = [
     { href: '/platform/dashboard', label: 'Dashboard', show: isPlatformAdmin(user) },
-    { href: '/platform/tenants', label: 'Tenants', show: isPlatformAdmin(user) },
+    { href: '/platform/tenants', label: 'Customers', show: isPlatformAdmin(user) },
     { href: '/platform/billing/plans', label: 'Plans', show: isPlatformAdmin(user) },
     { href: '/platform/billing/prices', label: 'Prices', show: isPlatformAdmin(user) },
     { href: '/platform/health', label: 'Health', show: isPlatformAdmin(user) },

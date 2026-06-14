@@ -9,6 +9,7 @@ export const ErrorCodeSchema = z.enum([
   'RATE_LIMITED',
   'TENANT_SUSPENDED',
   'QUOTA_EXCEEDED',
+  'ENTITLEMENT_LIMIT_REACHED',
   'INTERNAL_ERROR',
   'SERVICE_UNAVAILABLE',
 ]);
@@ -63,6 +64,19 @@ export function rateLimited(retryAfterSeconds?: number): AppError {
 
 export function quotaExceeded(resource: string): AppError {
   return new AppError('QUOTA_EXCEEDED', `Quota exceeded for ${resource}`, 429);
+}
+
+export function entitlementLimitReached(
+  dimension: string,
+  used: number,
+  limit: number,
+): AppError {
+  return new AppError('ENTITLEMENT_LIMIT_REACHED', `Limit reached for ${dimension}`, 409, {
+    code: 'ENTITLEMENT_LIMIT_REACHED',
+    dimension,
+    used,
+    limit,
+  });
 }
 
 export function validationError(details: Record<string, unknown>): AppError {

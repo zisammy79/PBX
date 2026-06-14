@@ -18,6 +18,9 @@ import { EventsModule } from './modules/events/events.module.js';
 import { PstnModule } from './modules/pstn/pstn.module.js';
 import { StripeModule } from './modules/stripe/stripe.module.js';
 import { IntegrationsModule } from './modules/integrations/integrations.module.js';
+import { MembershipsModule } from './modules/memberships/memberships.module.js';
+import { DevicesModule } from './modules/devices/devices.module.js';
+import { SipDomainsModule } from './modules/sip-domains/sip-domains.module.js';
 import { RecordingsModule } from './modules/recordings/recordings.module.js';
 
 @Module({})
@@ -45,6 +48,9 @@ export class AppModule {
         StripeModule,
         IntegrationsModule,
         RecordingsModule,
+        MembershipsModule,
+        DevicesModule,
+        SipDomainsModule,
       ],
     };
   }

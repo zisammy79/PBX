@@ -7,11 +7,15 @@ import {
   RequirePermissions,
 } from '../../common/guards/auth.guard.js';
 import { TenantGuard } from '../../common/guards/tenant.guard.js';
+import { TenantLimitsService } from './tenant-limits.service.js';
 import { TenantsService } from './tenants.service.js';
 
 @Controller('tenants')
 export class TenantsController {
-  constructor(@Inject(TenantsService) private readonly tenantsService: TenantsService) {}
+  constructor(
+    @Inject(TenantsService) private readonly tenantsService: TenantsService,
+    @Inject(TenantLimitsService) private readonly tenantLimitsService: TenantLimitsService,
+  ) {}
 
   @Post()
   @RequirePermissions(Permission.PLATFORM_TENANT_CREATE)
@@ -41,6 +45,13 @@ export class TenantsController {
   ) {
     const parsed = UpdateTenantLifecycleSchema.parse(body);
     return this.tenantsService.updateTenantLifecycle(req.user!, tenantId, parsed);
+  }
+
+  @Get(':tenantId/entitlements')
+  @UseGuards(TenantGuard)
+  @RequireAnyPermission(Permission.TENANT_READ, Permission.PLATFORM_TENANT_READ)
+  async entitlements(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string) {
+    return this.tenantLimitsService.getUsageSummary(tenantId);
   }
 
   @Get(':tenantId')

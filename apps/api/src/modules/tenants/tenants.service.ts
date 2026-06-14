@@ -4,6 +4,7 @@ import {
   tenantAccessDenied,
   validationError,
   type PlatformCustomerSummary,
+  type TenantLifecycleStatus,
   type UpdateTenantLifecycleRequest,
 } from '@pbx/contracts';
 import {
@@ -27,12 +28,14 @@ import {
 import { CONFIG, DATABASE } from '../../common/tokens.js';
 import type { AppConfig } from '../../config.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
+import { TenantLifecycleService } from './tenant-lifecycle.service.js';
 
 @Injectable()
 export class TenantsService {
   constructor(
     @Inject(CONFIG) private readonly config: AppConfig,
     @Inject(DATABASE) private readonly database: ReturnType<typeof import('@pbx/database').createDatabase>,
+    @Inject(TenantLifecycleService) private readonly lifecycleService: TenantLifecycleService,
   ) {}
 
   async createTenant(actor: AuthenticatedUser, input: CreateTenantRequest) {
@@ -76,7 +79,7 @@ export class TenantsService {
         .values({
           name: input.name,
           slug: input.slug,
-          status: 'active',
+          status: 'draft',
           asteriskContext: tenantAsteriskContext(input.slug),
           planId: input.planId ?? null,
         })
@@ -86,6 +89,9 @@ export class TenantsService {
         tenantId: tenant!.id,
         userId: ownerId!,
         roles: ['tenant_owner'],
+        status: 'active',
+        acceptedAt: new Date(),
+        createdBy: actor.id,
       });
 
       await db.insert(auditEvents).values({
@@ -95,7 +101,7 @@ export class TenantsService {
         action: 'tenant.created',
         resourceType: 'tenant',
         resourceId: tenant!.id,
-        metadata: { slug: input.slug, ownerEmail: input.ownerEmail },
+        metadata: { slug: input.slug, ownerEmail: input.ownerEmail, status: 'draft' },
       });
 
       return {
@@ -157,6 +163,7 @@ export class TenantsService {
       slug: tenant.slug,
       status: tenant.status,
       asteriskContext: tenant.asteriskContext,
+      planId: tenant.planId,
       createdAt: tenant.createdAt.toISOString(),
       updatedAt: tenant.updatedAt.toISOString(),
     };
@@ -176,7 +183,21 @@ export class TenantsService {
           .select({ total: count() })
           .from(tenantMemberships)
           .innerJoin(users, eq(tenantMemberships.userId, users.id))
-          .where(and(eq(tenantMemberships.tenantId, tenant.id), eq(users.status, 'active')));
+          .where(
+            and(
+              eq(tenantMemberships.tenantId, tenant.id),
+              inArray(tenantMemberships.status, ['active', 'invited']),
+            ),
+          );
+
+        const [ownerRow] = await db
+          .select({ email: users.email })
+          .from(tenantMemberships)
+          .innerJoin(users, eq(tenantMemberships.userId, users.id))
+          .where(
+            and(eq(tenantMemberships.tenantId, tenant.id), eq(tenantMemberships.status, 'active')),
+          )
+          .limit(1);
 
         const [extCount] = await db
           .select({ total: count() })
@@ -215,14 +236,9 @@ export class TenantsService {
           .limit(1);
 
         const [domainRow] = await db
-          .select({ domain: tenantSipDomains.domain })
+          .select({ domain: tenantSipDomains.domain, mode: tenantSipDomains.mode, activationStatus: tenantSipDomains.activationStatus })
           .from(tenantSipDomains)
-          .where(
-            and(
-              eq(tenantSipDomains.tenantId, tenant.id),
-              eq(tenantSipDomains.activationStatus, 'active'),
-            ),
-          )
+          .where(eq(tenantSipDomains.tenantId, tenant.id))
           .limit(1);
 
         const recordingValue = (recordingSetting?.value ?? {}) as { recordCallsByDefault?: boolean };
@@ -233,9 +249,14 @@ export class TenantsService {
           id: tenant.id,
           name: tenant.name,
           slug: tenant.slug,
-          status: tenant.status,
+          status: tenant.status as PlatformCustomerSummary['status'],
           planId: tenant.planId,
-          sipDomain: domainRow?.domain ?? null,
+          primaryOwnerEmail: ownerRow?.email ?? null,
+          sipDomain: domainRow?.activationStatus === 'active' ? domainRow.domain : null,
+          sipDomainMode:
+            domainRow?.activationStatus === 'active'
+              ? (domainRow.mode as 'shared' | 'tenant_domain')
+              : 'shared',
           recordCallsByDefault: recordingValue.recordCallsByDefault ?? false,
           activeUsers: Number(userCount?.total ?? 0),
           activeExtensions: activeExt,
@@ -272,6 +293,11 @@ export class TenantsService {
         throw validationError({ tenantId: 'Tenant not found' });
       }
 
+      this.lifecycleService.assertTransition(
+        tenant.status as TenantLifecycleStatus,
+        input.status,
+      );
+
       const [updated] = await db
         .update(tenants)
         .set({ status: input.status, updatedAt: new Date() })
@@ -285,7 +311,11 @@ export class TenantsService {
         action: 'tenant.lifecycle_updated',
         resourceType: 'tenant',
         resourceId: tenantId,
-        metadata: { from: tenant.status, to: input.status },
+        metadata: {
+          from: tenant.status,
+          to: input.status,
+          ...(input.reason ? { reason: input.reason } : {}),
+        },
       });
 
       return {

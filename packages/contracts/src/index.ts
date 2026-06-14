@@ -17,3 +17,8 @@ export * from './integrations.js';
 export * from './recordings.js';
 export * from './telephony.js';
 export * from './platform-customers.js';
+export * from './tenant-lifecycle.js';
+export * from './invitations.js';
+export * from './devices.js';
+export * from './sip-domains.js';
+export * from './entitlements.js';

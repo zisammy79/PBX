@@ -1,12 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { tenantAccessDenied, validationError } from '@pbx/contracts';
 import { decryptSecret } from '@pbx/shared';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import {
   auditEvents,
   aiAgents,
   extensions,
   sipCredentials,
+  sipDevices,
   tenants,
   withBypassRls,
   withTenantContext,
@@ -287,19 +288,94 @@ export class TelephonyService {
         ? await tenantQuery.where(eq(tenants.id, tenantId))
         : await tenantQuery.where(eq(tenants.status, 'active'));
 
-      const extensionQuery = db
-        .select({
-          extension: extensions,
-          credential: sipCredentials,
-          tenant: tenants,
-        })
-        .from(extensions)
-        .innerJoin(tenants, eq(extensions.tenantId, tenants.id))
-        .innerJoin(sipCredentials, eq(sipCredentials.extensionId, extensions.id));
+      const deviceRows = tenantId
+        ? await db
+            .select({
+              device: sipDevices,
+              credential: sipCredentials,
+              extension: extensions,
+              tenant: tenants,
+            })
+            .from(sipDevices)
+            .innerJoin(sipCredentials, eq(sipDevices.sipCredentialId, sipCredentials.id))
+            .innerJoin(extensions, eq(sipDevices.extensionId, extensions.id))
+            .innerJoin(tenants, eq(sipDevices.tenantId, tenants.id))
+            .where(
+              and(
+                eq(sipDevices.tenantId, tenantId),
+                eq(extensions.status, 'active'),
+                inArray(sipDevices.status, ['ready', 'provisioning']),
+              ),
+            )
+        : await db
+            .select({
+              device: sipDevices,
+              credential: sipCredentials,
+              extension: extensions,
+              tenant: tenants,
+            })
+            .from(sipDevices)
+            .innerJoin(sipCredentials, eq(sipDevices.sipCredentialId, sipCredentials.id))
+            .innerJoin(extensions, eq(sipDevices.extensionId, extensions.id))
+            .innerJoin(tenants, eq(sipDevices.tenantId, tenants.id))
+            .where(
+              and(eq(extensions.status, 'active'), inArray(sipDevices.status, ['ready', 'provisioning'])),
+            );
 
-      const extensionRows = tenantId
-        ? await extensionQuery.where(and(eq(extensions.tenantId, tenantId), eq(extensions.status, 'active')))
-        : await extensionQuery.where(eq(extensions.status, 'active'));
+      const extRecords: TelephonyExtensionRecord[] = [];
+      const skippedCredentialUsernames: string[] = [];
+
+      if (deviceRows.length > 0) {
+        for (const row of deviceRows) {
+          try {
+            extRecords.push({
+              tenantId: row.extension.tenantId,
+              tenantSlug: row.tenant.slug,
+              asteriskContext: row.tenant.asteriskContext,
+              extensionNumber: row.extension.extensionNumber,
+              displayName: row.device.friendlyName || row.extension.displayName,
+              asteriskEndpointId: row.device.asteriskEndpointId ?? row.extension.asteriskEndpointId,
+              sipUsername: row.credential.username,
+              sipSecret: decryptSecret(row.credential.secretEncrypted, this.config.encryptionMasterKey),
+              status: row.extension.status as 'active' | 'disabled',
+            });
+          } catch {
+            skippedCredentialUsernames.push(row.credential.username);
+          }
+        }
+      } else {
+        const extensionQuery = db
+          .select({
+            extension: extensions,
+            credential: sipCredentials,
+            tenant: tenants,
+          })
+          .from(extensions)
+          .innerJoin(tenants, eq(extensions.tenantId, tenants.id))
+          .innerJoin(sipCredentials, eq(sipCredentials.extensionId, extensions.id));
+
+        const extensionRows = tenantId
+          ? await extensionQuery.where(and(eq(extensions.tenantId, tenantId), eq(extensions.status, 'active')))
+          : await extensionQuery.where(eq(extensions.status, 'active'));
+
+        for (const row of extensionRows) {
+          try {
+            extRecords.push({
+              tenantId: row.extension.tenantId,
+              tenantSlug: row.tenant.slug,
+              asteriskContext: row.tenant.asteriskContext,
+              extensionNumber: row.extension.extensionNumber,
+              displayName: row.extension.displayName,
+              asteriskEndpointId: row.extension.asteriskEndpointId,
+              sipUsername: row.credential.username,
+              sipSecret: decryptSecret(row.credential.secretEncrypted, this.config.encryptionMasterKey),
+              status: row.extension.status as 'active' | 'disabled',
+            });
+          } catch {
+            skippedCredentialUsernames.push(row.credential.username);
+          }
+        }
+      }
 
       const aiQuery = db
         .select({ agent: aiAgents, tenant: tenants })
@@ -315,26 +391,6 @@ export class TelephonyService {
         asteriskContext: t.asteriskContext,
         status: t.status,
       }));
-
-      const extRecords: TelephonyExtensionRecord[] = [];
-      const skippedCredentialUsernames: string[] = [];
-      for (const row of extensionRows) {
-        try {
-          extRecords.push({
-            tenantId: row.extension.tenantId,
-            tenantSlug: row.tenant.slug,
-            asteriskContext: row.tenant.asteriskContext,
-            extensionNumber: row.extension.extensionNumber,
-            displayName: row.extension.displayName,
-            asteriskEndpointId: row.extension.asteriskEndpointId,
-            sipUsername: row.credential.username,
-            sipSecret: decryptSecret(row.credential.secretEncrypted, this.config.encryptionMasterKey),
-            status: row.extension.status as 'active' | 'disabled',
-          });
-        } catch {
-          skippedCredentialUsernames.push(row.credential.username);
-        }
-      }
 
       const aiAgentRows: TelephonyAiAgentRecord[] = aiRows
         .filter((r) => r.agent.routeNumber && r.tenant.status === 'active')

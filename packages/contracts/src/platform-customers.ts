@@ -1,12 +1,15 @@
 import { z } from 'zod';
+import { TenantLifecycleStatusSchema } from './tenant-lifecycle.js';
 
 export const PlatformCustomerSummarySchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
   slug: z.string(),
-  status: z.string(),
+  status: TenantLifecycleStatusSchema,
   planId: z.string().uuid().nullable(),
+  primaryOwnerEmail: z.string().email().nullable(),
   sipDomain: z.string().nullable(),
+  sipDomainMode: z.enum(['shared', 'tenant_domain']).nullable(),
   recordCallsByDefault: z.boolean(),
   activeUsers: z.number().int().nonnegative(),
   activeExtensions: z.number().int().nonnegative(),
@@ -19,9 +22,3 @@ export const PlatformCustomerSummarySchema = z.object({
 });
 
 export type PlatformCustomerSummary = z.infer<typeof PlatformCustomerSummarySchema>;
-
-export const UpdateTenantLifecycleSchema = z.object({
-  status: z.enum(['active', 'suspended', 'archived', 'provisioning']),
-});
-
-export type UpdateTenantLifecycleRequest = z.infer<typeof UpdateTenantLifecycleSchema>;
