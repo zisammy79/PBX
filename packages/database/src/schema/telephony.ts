@@ -28,6 +28,7 @@ export const extensions = pgTable(
     asteriskEndpointId: varchar('asterisk_endpoint_id', { length: 128 }).notNull(),
     voicemailEnabled: boolean('voicemail_enabled').notNull().default(false),
     recordingPolicy: jsonb('recording_policy').notNull().default({}),
+    recordingPolicyMode: varchar('recording_policy_mode', { length: 16 }).notNull().default('inherit'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

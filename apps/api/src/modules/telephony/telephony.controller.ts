@@ -21,4 +21,10 @@ export class TelephonyController {
   async activate(@Req() req: RequestWithUser) {
     return this.telephonyService.activateConfiguration(req.user!, req.activeTenantId!);
   }
+
+  @Post('reconcile')
+  @RequirePermissions(Permission.TENANT_EXTENSION_MANAGE)
+  async reconcile(@Req() req: RequestWithUser) {
+    return this.telephonyService.reconcileConfiguration(req.user!, req.activeTenantId!);
+  }
 }

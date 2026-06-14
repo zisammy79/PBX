@@ -84,6 +84,17 @@ export const CreateExtensionRequestSchema = z.object({
 
 export type CreateExtensionRequest = z.infer<typeof CreateExtensionRequestSchema>;
 
+export const ExtensionProvisioningStatusSchema = z.enum([
+  'pending',
+  'provisioning',
+  'ready',
+  'failed',
+  'deleting',
+  'deleted',
+]);
+
+export type ExtensionProvisioningStatus = z.infer<typeof ExtensionProvisioningStatusSchema>;
+
 export const ChangePasswordRequestSchema = z.object({
   currentPassword: z.string().min(8),
   newPassword: z.string().min(12),

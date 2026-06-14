@@ -1,4 +1,5 @@
 import {
+  bigint,
   index,
   integer,
   jsonb,
@@ -104,16 +105,27 @@ export const callRecordings = pgTable(
       .notNull()
       .references(() => calls.id, { onDelete: 'cascade' }),
     status: recordingStatusEnum('status').notNull().default('pending'),
+    storageBackend: varchar('storage_backend', { length: 32 }).notNull().default('local'),
     storageKey: varchar('storage_key', { length: 512 }),
+    mimeType: varchar('mime_type', { length: 64 }),
+    fileSizeBytes: bigint('file_size_bytes', { mode: 'number' }),
     durationSeconds: integer('duration_seconds'),
+    durationMs: integer('duration_ms'),
     format: varchar('format', { length: 16 }).default('wav'),
     consentPolicyId: uuid('consent_policy_id'),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    failureCode: varchar('failure_code', { length: 64 }),
+    failureMessage: text('failure_message'),
+    metadata: jsonb('metadata').notNull().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     availableAt: timestamp('available_at', { withTimezone: true }),
   },
   (table) => [
     index('call_recordings_call_idx').on(table.callId),
     index('call_recordings_tenant_idx').on(table.tenantId),
+    index('call_recordings_tenant_status_idx').on(table.tenantId, table.status),
   ],
 );
 

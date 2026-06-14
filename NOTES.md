@@ -16,6 +16,81 @@ See [docs/CURRENT_GAP_MATRIX.md](docs/CURRENT_GAP_MATRIX.md). Human transfer, Gi
 
 - PostgreSQL `max_connections` exhaustion can occur with multiple API dev instances; restart Postgres and terminate stale Node processes before long test suites.
 - `make foundation-verify` full workspace build can be slow; `make stage7-verify` includes build + telephony regression.
+- Local telephony SIP is published on `0.0.0.0:5062` by default (`SIP_UDP_BIND` / `SIP_UDP_PUBLISH` in `docker-compose.telephony.yml`). LAN softphones must target the PBX host LAN IP (example from 2026-06-11 session: `192.168.86.199`), not `127.0.0.1`.
+- `bash scripts/validate-telephony-compose.sh` fails if SIP is rebound to loopback-only.
+
+## LAN softphone SIP bind fix (2026-06-11)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Compose source confirmed | `docker inspect pbx-asterisk` labels | `docker-compose.yml` + `docker-compose.telephony.yml` |
+| Resolved mapping | `docker compose ... config` | `0.0.0.0:5062 -> 5060/udp`; ARI `127.0.0.1:18088`; RTP `10000-10099` |
+| Regression guard | `bash scripts/validate-telephony-compose.sh` | PASS |
+| Recreate Asterisk | `docker compose ... up -d --force-recreate asterisk` | PASS (healthy) |
+| Docker ports | `docker ps --filter name=pbx-asterisk` | `0.0.0.0:5062->5060/udp` |
+| Host listener | `sudo ss -lunp \| grep :5062` | `0.0.0.0:5062` (`docker-proxy`) |
+| Asterisk transport | `pjsip show transports` | `0.0.0.0:5060` UDP |
+| Local REGISTER proof | SIPp to `127.0.0.1:5062` | `401 Unauthorized` then `200 OK`; `pjsip show contacts` listed extension |
+| External LAN softphone | Operator retry on separate device | **Not performed in this session** |
+| Packet capture | `sudo timeout 60 tcpdump -ni any udp port 5062` | **Blocked** — `tcpdump` not installed on host |
+| Host firewall | `ufw` / `firewalld` / `nft list ruleset` | No conclusive output before timeout; not disabled |
+
+Hairpin note: SIPp REGISTER from the PBX host to its own LAN IP (`192.168.86.199:5062`) timed out with no SIP response. That is a common same-host hairpin limitation and is not treated as proof that external LAN clients cannot register.
+
+## Extension provisioning + SIP onboarding (2026-06-13)
+
+| Finding | Evidence |
+|---------|----------|
+| UI create did not activate telephony | `extension.created` for 1003 with no subsequent `telephony.configuration.activate` |
+| demo-company creds skipped at render | Decrypt failed for `demo-company_1001..1003` with current `ENCRYPTION_MASTER_KEY` (silent skip in `loadTelephonyRecords`) |
+| Fix | Auto `provisionGlobalConfiguration` after extension create; reconcile + rotate endpoints; `scripts/reconcile-extension.sh` |
+| SIP port | Compose default host UDP `5060` (`SIP_UDP_PUBLISH` override validated) |
+| Runtime after reconcile | `demo-company_1003` in active/staging PJSIP; `pjsip show endpoint demo-company_ext_1003`; auth `demo-company_1003` |
+| External Zoiper REGISTER | **Not performed in this session** |
+
+Softphone primary setup: **Username**, **Password**, **Domain** (`SIP_PUBLIC_DOMAIN` or public IPv4). Advanced: UDP, port 5060, auth username same as username, no outbound proxy.
+
+## Public SIP without VPN (2026-06-14)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Transport external addresses | `pjsip show transport transport-udp` after `SIP_EXTERNAL_IP=46.120.0.73` | `external_signaling_address` / `external_media_address` = `46.120.0.73` |
+| Host ports | `docker ps --filter name=pbx-asterisk` | `0.0.0.0:5060/udp`, RTP `10000-10099`, ARI `127.0.0.1:18088` |
+| NAT-safe endpoints | `grep rewrite_contact active/pjsip-tenants.conf` | `rewrite_contact=yes`, `qualify_frequency=30`, `remove_unavailable=yes` |
+| Call sequencing fix | telephony-controller `onStasisStart` | caller ring before answer; bridge after callee Up |
+| Registration API | `GET /api/v1/extensions/registration-status` | batch online/offline/unknown from ARI |
+| Observed public IPv4 | `curl https://api.ipify.org` | `46.120.0.73` |
+| `SIP_PUBLIC_DOMAIN` | `.env` | unset |
+| Router WAN / port forward | operator | **Not confirmed** |
+| Two-device external REGISTER + call | operator | **Not performed** |
+
+Router forwarding required: WAN UDP `5060` and `10000-10099` → PBX host. CGNAT on WAN blocks inbound SIP unless PBX moves to a public host or ISP provides public IPv4.
+
+Operator script: `bash scripts/check-extension-registration.sh demo-company 1003`
+
+## Extension management UI (2026-06-13)
+
+| Area | Implementation |
+|------|----------------|
+| Rotate credential | `POST .../rotate-credential` + detail UI `OneTimeSecretPanel`; password never returned on GET |
+| Recordings list | `GET .../extensions/:id/recordings` joins `call_recordings` ↔ `calls` via `from_extension_id` / `to_extension_id` |
+| Recording playback | `GET .../recordings/:id/play` → short-lived S3 presigned URL; `TENANT_RECORDING_READ` or `TENANT_EXTENSION_MANAGE` |
+| Delete extension | `DELETE .../extensions/:id` → status `disabled`, credential revoked, `sip_registrations` cleared, global telephony reconcile |
+| Recording capture | **Implemented** — ARI bridge recording, local disk via `CALL_RECORDING_LOCAL_ROOT`, metadata in `call_recordings`; live proof pending operator session |
+
+## Local call recording (2026-06-14)
+
+| Area | Implementation |
+|------|----------------|
+| Org default | `tenant_settings` key `telephony.recording` → `recordCallsByDefault` (default **off**) |
+| Extension override | `extensions.recording_policy_mode` (`inherit` \| `on` \| `off`) |
+| Effective policy | extension override wins; else org default; internal calls record if **any** participant effective-on |
+| Capture | telephony-controller `maybeStartRecording` after bridge; ARI `Bridge().Record` (WAV); finalize moves to `{tenantId}/{year}/{month}/{recordingId}.wav` |
+| Storage | `CALL_RECORDING_STORAGE_BACKEND=local`; bind mount `var/recordings` (gitignored); S3/MinIO path retained for later |
+| Playback | Authenticated `GET .../recordings/:id/content` with Range; call-details page canonical UI |
+| Authorization | `TENANT_RECORDING_READ` required for list/play/stream (human_agent denied) |
+| Backup | Include `var/recordings` (or production volume) in backups; no automated retention deletion yet |
+| Live verification | `SIP_PORT=5060 bash scripts/validate-call-recording.sh` — **failed in session** (SIPp contact Unavail / originate 500); use real softphones on demo-company 1003↔1004 |
 
 ## Deferred
 

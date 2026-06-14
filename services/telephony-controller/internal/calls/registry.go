@@ -52,6 +52,11 @@ type ActiveCall struct {
 	EndedAt          *time.Time
 	HangupCause      string
 	ProcessedEvents  map[string]bool
+	RecordingID           uuid.UUID
+	RecordingStorageKey   string
+	LiveRecordingName     string
+	RecordingStarted      bool
+	RecordingStartedAt    time.Time
 }
 
 type Registry struct {

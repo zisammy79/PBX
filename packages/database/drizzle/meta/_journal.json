@@ -57,6 +57,13 @@
       "when": 1781400000000,
       "tag": "0008_integration_validations",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1781500000000,
+      "tag": "0009_call_recording_local",
+      "breakpoints": true
     }
   ]
 }

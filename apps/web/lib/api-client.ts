@@ -110,4 +110,18 @@ export const api = {
     }),
   delete: <T>(path: string, tenantId?: string) =>
     apiFetch<T>(path, { method: 'DELETE', ...(tenantId ? { tenantId } : {}) }),
+  fetchBlob: async (path: string, tenantId: string): Promise<string> => {
+    const res = await fetch(`/api/backend/${path.replace(/^\//, '')}`, {
+      headers: {
+        Accept: 'audio/*',
+        'X-Tenant-Id': tenantId,
+      },
+      credentials: 'same-origin',
+    });
+    if (!res.ok) {
+      throw new ApiError('REQUEST_FAILED', `Playback failed (${res.status})`, res.status);
+    }
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  },
 };

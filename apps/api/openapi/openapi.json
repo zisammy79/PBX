@@ -7,40 +7,12 @@
         "parameters": [],
         "responses": {
           "201": {
-            "description": "Authentication successful",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Invalid credentials",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": [
           "Auth"
-        ],
-        "summary": "Authenticate user",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LoginRequest"
-              }
-            }
-          }
-        }
+        ]
       }
     },
     "/api/v1/auth/change-password": {
@@ -54,12 +26,6 @@
         },
         "tags": [
           "Auth"
-        ],
-        "summary": "Change authenticated user password",
-        "security": [
-          {
-            "bearer": []
-          }
         ]
       }
     },
@@ -69,27 +35,11 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Current user profile"
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": [
           "Auth"
-        ],
-        "summary": "Get current authenticated user and tenant memberships",
-        "security": [
-          {
-            "bearer": []
-          }
         ]
       }
     },
@@ -113,25 +63,12 @@
         "parameters": [],
         "responses": {
           "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "example": "healthy"
-                    }
-                  }
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": [
           "Health"
-        ],
-        "summary": "Liveness probe — process alive"
+        ]
       }
     },
     "/api/v1/health/ready": {
@@ -140,29 +77,12 @@
         "parameters": [],
         "responses": {
           "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReadinessResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Required dependency unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReadinessResponse"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": [
           "Health"
-        ],
-        "summary": "Readiness probe — fails when required dependencies are unavailable"
+        ]
       }
     },
     "/api/v1/tenants": {
@@ -176,23 +96,7 @@
         },
         "tags": [
           "Tenants"
-        ],
-        "summary": "Create tenant and owner membership",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateTenantRequest"
-              }
-            }
-          }
-        }
+        ]
       },
       "get": {
         "operationId": "TenantsController_list",
@@ -204,12 +108,6 @@
         },
         "tags": [
           "Tenants"
-        ],
-        "summary": "List tenants (platform permission required)",
-        "security": [
-          {
-            "bearer": []
-          }
         ]
       }
     },
@@ -224,15 +122,6 @@
         },
         "tags": [
           "Tenants"
-        ],
-        "summary": "Get tenant by ID",
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "tenant": []
-          }
         ]
       }
     },
@@ -242,38 +131,12 @@
         "parameters": [],
         "responses": {
           "201": {
-            "description": "Extension created; SIP secret returned once",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExtensionCreateResponse"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": [
           "Extensions"
-        ],
-        "summary": "Create extension with one-time SIP credential secret",
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "tenant": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateExtensionRequest"
-              }
-            }
-          }
-        }
+        ]
       },
       "get": {
         "operationId": "ExtensionsController_list",
@@ -285,15 +148,6 @@
         },
         "tags": [
           "Extensions"
-        ],
-        "summary": "List extensions without SIP secrets",
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "tenant": []
-          }
         ]
       }
     },
@@ -303,26 +157,65 @@
         "parameters": [],
         "responses": {
           "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExtensionReadResponse"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": [
           "Extensions"
-        ],
-        "summary": "Get extension metadata without SIP secret",
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "tenant": []
+        ]
+      },
+      "delete": {
+        "operationId": "ExtensionsController_delete",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
           }
+        },
+        "tags": [
+          "Extensions"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/extensions/{extensionId}/reconcile": {
+      "post": {
+        "operationId": "ExtensionsController_reconcile",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Extensions"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/extensions/{extensionId}/rotate-credential": {
+      "post": {
+        "operationId": "ExtensionsController_rotateCredential",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Extensions"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/extensions/{extensionId}/recording-policy": {
+      "patch": {
+        "operationId": "ExtensionsController_updateRecordingPolicy",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Extensions"
         ]
       }
     },
@@ -368,6 +261,20 @@
         ]
       }
     },
+    "/api/v1/extensions/registration-status": {
+      "get": {
+        "operationId": "CallsController_registrationBatch",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Calls"
+        ]
+      }
+    },
     "/api/v1/extensions/{id}/registration": {
       "get": {
         "operationId": "CallsController_registration",
@@ -399,6 +306,20 @@
     "/api/v1/telephony/configuration/activate": {
       "post": {
         "operationId": "TelephonyController_activate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Telephony"
+        ]
+      }
+    },
+    "/api/v1/telephony/configuration/reconcile": {
+      "post": {
+        "operationId": "TelephonyController_reconcile",
         "parameters": [],
         "responses": {
           "201": {
@@ -759,15 +680,6 @@
         },
         "tags": [
           "Billing"
-        ],
-        "summary": "Current tenant subscription and plan entitlements",
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "tenant": []
-          }
         ]
       }
     },
@@ -1054,15 +966,6 @@
         },
         "tags": [
           "Dashboard"
-        ],
-        "summary": "Tenant operational dashboard summary",
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "tenant": []
-          }
         ]
       }
     },
@@ -1077,12 +980,6 @@
         },
         "tags": [
           "Dashboard"
-        ],
-        "summary": "Platform admin global dashboard summary",
-        "security": [
-          {
-            "bearer": []
-          }
         ]
       }
     },
@@ -1782,6 +1679,88 @@
         },
         "tags": [
           "IntegrationsInternal"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/settings/telephony": {
+      "get": {
+        "operationId": "RecordingsController_getTelephonySettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Recordings"
+        ]
+      },
+      "patch": {
+        "operationId": "RecordingsController_updateTelephonySettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Recordings"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/calls/{callId}/recordings": {
+      "get": {
+        "operationId": "RecordingsController_listForCall",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Recordings"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/extensions/{extensionId}/recordings": {
+      "get": {
+        "operationId": "RecordingsController_listForExtension",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Recordings"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/recordings/{recordingId}/content": {
+      "get": {
+        "operationId": "RecordingsController_streamContent",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Recordings"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/recordings/{recordingId}/play": {
+      "get": {
+        "operationId": "RecordingsController_play",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Recordings"
         ]
       }
     }
