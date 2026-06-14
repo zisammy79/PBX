@@ -1,5 +1,26 @@
 # Release Notes — Non-AI Platform
 
+**Latest closeout branch:** `feature/pbx-multitenant-closeout`
+
+## 2026-06-14 — Recording pipeline closeout
+
+### Verified
+
+- SIP extension registration and internal extension-to-extension calls
+- ARI bridge recording capture, finalization, persistent local WAV storage
+- Recording metadata in call-details and extension UI
+- Authenticated API byte-range streaming (`GET .../recordings/:id/content`)
+
+### Under repair
+
+- Browser call-details audio playback (Next.js proxy binary passthrough)
+
+### External gates (unchanged)
+
+- OpenAI Realtime, PSTN carrier, Stripe test mode — require Platform Owner credentials
+
+---
+
 **Release ID:** `pbx-non-ai-20260609T193647Z`  
 **Date:** 2026-06-09
 

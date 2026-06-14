@@ -171,19 +171,23 @@ Configure credentials in **Platform Administration → Integrations**. See [docs
 | Live softphone 1004↔1005 | operator registered endpoints | **Not performed** — no reachable contacts during session; prior real bridged call evidence retained |
 | git diff --check | whitespace | PASS |
 
-Status: `PASS_WITH_LIMITATIONS` — shared recording volume, lifecycle, finalize, authenticated byte-range playback, and restart persistence verified; full live softphone capture requires operator session with registered extensions (strict callee availability gate intentionally unchanged).
+Status: `PASS_WITH_LIMITATIONS` — shared recording volume, lifecycle, finalize, and authenticated API byte-range streaming verified; browser playback via web UI proxy fails due to binary response corruption (fix in progress).
 
-Operator scripts: `bash scripts/reconcile-stale-recordings.sh [recording-id]`, `bash scripts/validate-recording-finalize-e2e.sh`
+## Browser recording playback defect (2026-06-14)
 
-## Local call recording (2026-06-14) — prior slice
+| Check | Command | Result |
+|-------|---------|--------|
+| Source WAV | `file var/recordings/.../43d4b07c-....wav` | RIFF/WAVE PCM 16-bit mono 8000 Hz, 172844 bytes |
+| API direct download | authenticated `GET .../content` | Valid RIFF/WAVE; hash matches source |
+| Browser playback | Firefox call-details Play | **FAIL** — `NS_ERROR_DOM_MEDIA_METADATA_ERR` |
+| Root cause | `apps/web/app/api/backend/[...path]/route.ts` | Proxy uses `res.text()` for all responses, corrupting binary |
+| Backend streaming | Fastify `reply.send(stream)` for `/content` | PASS (200/206, correct headers) |
 
 ## Git checkpoint (2026-06-14)
 
 | Item | Value |
 |------|-------|
 | Branch | `feature/pbx-multitenant-closeout` |
-| Checkpoint commit | `b726713` |
-| Latest commit | `8f9e511` |
-| Remote | `origin/feature/pbx-multitenant-closeout` (pushed) |
-| Ahead/behind | `0 0` after checkpoint push |
+| Prior checkpoint | `28b2443` |
+| Remote | `origin/feature/pbx-multitenant-closeout` |
 | Excluded from commit | `.env`, generated `pjsip-tenants.conf` (passwords), `var/recordings/` |

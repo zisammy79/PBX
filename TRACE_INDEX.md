@@ -11,3 +11,5 @@
 | Extension provisioning reconcile | `scripts/reconcile-extension.sh` |
 | Extension rotate/delete/recordings API | `apps/api/src/modules/extensions`, `apps/api/src/modules/recordings` |
 | Extension detail UI | `apps/web/app/t/[tenantId]/extensions/[extensionId]/page.tsx` |
+| Call detail playback UI | `apps/web/app/t/[tenantId]/calls/[callId]/page.tsx` |
+| Web backend proxy | `apps/web/app/api/backend/[...path]/route.ts` |
