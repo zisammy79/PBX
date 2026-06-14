@@ -29,12 +29,16 @@ describe('ExtensionsService provisioning', () => {
     const tenantSettings = {
       readRecordCallsByDefault: vi.fn().mockResolvedValue(false),
     };
+    const tenantLimits = {
+      assertCanCreateExtension: vi.fn().mockResolvedValue(undefined),
+    };
 
     const service = new ExtensionsService(
       config,
       {} as ReturnType<typeof import('@pbx/database').createDatabase>,
       telephonyService,
       tenantSettings as never,
+      tenantLimits as never,
     );
 
     const result = await (service as unknown as {
@@ -71,12 +75,16 @@ describe('ExtensionsService provisioning', () => {
     const tenantSettings = {
       readRecordCallsByDefault: vi.fn().mockResolvedValue(false),
     };
+    const tenantLimits = {
+      assertCanCreateExtension: vi.fn().mockResolvedValue(undefined),
+    };
 
     const service = new ExtensionsService(
       config,
       {} as ReturnType<typeof import('@pbx/database').createDatabase>,
       telephonyService,
       tenantSettings as never,
+      tenantLimits as never,
     );
 
     const result = await (service as unknown as {

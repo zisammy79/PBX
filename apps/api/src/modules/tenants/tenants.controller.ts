@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Inject, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { CreateTenantRequestSchema, Permission } from '@pbx/contracts';
+import { UpdateTenantLifecycleSchema } from '@pbx/contracts';
 import type { RequestWithUser } from '../../common/guards/auth.guard.js';
 import {
   RequireAnyPermission,
@@ -23,6 +24,23 @@ export class TenantsController {
   @RequirePermissions(Permission.PLATFORM_TENANT_READ)
   async list(@Req() req: RequestWithUser) {
     return this.tenantsService.listTenants(req.user!);
+  }
+
+  @Get('customers/summary')
+  @RequirePermissions(Permission.PLATFORM_TENANT_READ)
+  async listCustomers(@Req() req: RequestWithUser) {
+    return this.tenantsService.listPlatformCustomers(req.user!);
+  }
+
+  @Patch(':tenantId/lifecycle')
+  @RequirePermissions(Permission.PLATFORM_TENANT_UPDATE)
+  async updateLifecycle(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = UpdateTenantLifecycleSchema.parse(body);
+    return this.tenantsService.updateTenantLifecycle(req.user!, tenantId, parsed);
   }
 
   @Get(':tenantId')

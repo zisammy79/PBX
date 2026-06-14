@@ -23,6 +23,7 @@ import type { AppConfig } from '../../config.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
 import { TelephonyService, type ExtensionProvisioningState } from '../telephony/telephony.service.js';
 import { TenantTelephonySettingsService } from '../telephony/tenant-telephony-settings.service.js';
+import { TenantLimitsService } from '../tenants/tenant-limits.service.js';
 
 const ACTIVE_CALL_STATUSES = ['initiating', 'ringing', 'answered', 'held'] as const;
 
@@ -54,6 +55,7 @@ export class ExtensionsService {
     private readonly telephonyService: TelephonyService,
     @Inject(TenantTelephonySettingsService)
     private readonly tenantTelephonySettingsService: TenantTelephonySettingsService,
+    @Inject(TenantLimitsService) private readonly tenantLimitsService: TenantLimitsService,
   ) {}
 
   async createExtension(
@@ -62,6 +64,7 @@ export class ExtensionsService {
     input: CreateExtensionInput,
   ) {
     await this.assertTenantAccess(actor, tenantId);
+    await this.tenantLimitsService.assertCanCreateExtension(tenantId);
 
     const created = await withTenantContext(this.database.db, tenantId, async (db) => {
       const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);

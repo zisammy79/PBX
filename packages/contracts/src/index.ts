@@ -16,3 +16,4 @@ export * from './stripe.js';
 export * from './integrations.js';
 export * from './recordings.js';
 export * from './telephony.js';
+export * from './platform-customers.js';

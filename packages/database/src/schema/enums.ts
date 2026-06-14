@@ -1,10 +1,13 @@
 import { pgEnum } from 'drizzle-orm/pg-core';
 
 export const tenantStatusEnum = pgEnum('tenant_status', [
+  'draft',
   'provisioning',
   'active',
   'suspended',
   'trial',
+  'archived',
+  'failed',
   'closed',
 ]);
 
