@@ -179,6 +179,7 @@ Validation script: `SIP_PORT=5060 bash scripts/validate-call-recording.sh`
 |------|-------|
 | Branch | `feature/pbx-multitenant-closeout` |
 | Checkpoint commit | `b726713` |
+| Latest commit | `8f9e511` |
 | Remote | `origin/feature/pbx-multitenant-closeout` (pushed) |
 | Ahead/behind | `0 0` after checkpoint push |
 | Excluded from commit | `.env`, generated `pjsip-tenants.conf` (passwords), `var/recordings/` |
