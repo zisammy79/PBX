@@ -172,3 +172,13 @@ Configure credentials in **Platform Administration → Integrations**. See [docs
 Status: `PASS_WITH_LIMITATIONS` — policy, storage, API, UI, and capture code verified by unit/type checks; live SIPp recording proof blocked by unreachable SIP contacts in this session (same root cause as failed `stage7-sip-live-test.sh` with host port 5060). Operator must verify with registered softphones: enable org recording or extension override, place answered call, confirm `call_recordings.status=available`, playback on call details, and file survives container recreate.
 
 Validation script: `SIP_PORT=5060 bash scripts/validate-call-recording.sh`
+
+## Git checkpoint (2026-06-14)
+
+| Item | Value |
+|------|-------|
+| Branch | `feature/pbx-multitenant-closeout` |
+| Checkpoint commit | `b726713` |
+| Remote | `origin/feature/pbx-multitenant-closeout` (pushed) |
+| Ahead/behind | `0 0` after checkpoint push |
+| Excluded from commit | `.env`, generated `pjsip-tenants.conf` (passwords), `var/recordings/` |

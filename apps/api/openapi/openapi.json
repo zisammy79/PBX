@@ -111,6 +111,34 @@
         ]
       }
     },
+    "/api/v1/tenants/customers/summary": {
+      "get": {
+        "operationId": "TenantsController_listCustomers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tenants"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/lifecycle": {
+      "patch": {
+        "operationId": "TenantsController_updateLifecycle",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tenants"
+        ]
+      }
+    },
     "/api/v1/tenants/{tenantId}": {
       "get": {
         "operationId": "TenantsController_get",

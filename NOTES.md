@@ -68,6 +68,10 @@ Router forwarding required: WAN UDP `5060` and `10000-10099` → PBX host. CGNAT
 
 Operator script: `bash scripts/check-extension-registration.sh demo-company 1003`
 
+## Git checkpoint (2026-06-14)
+
+Branch `feature/pbx-multitenant-closeout`, commit `b726713` pushed to `origin`. Recording API module was previously gitignored by `recordings/` — fixed to `/recordings/` and `var/recordings/` only.
+
 ## Extension management UI (2026-06-13)
 
 | Area | Implementation |
