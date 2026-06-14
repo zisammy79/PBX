@@ -6,7 +6,9 @@ Production-v1 implementation is complete through the external-integration bounda
 
 ## Current status
 
-### Implemented and verified
+Branch: `feature/pbx-multitenant-closeout`
+
+### Current capabilities (verified locally)
 
 | Capability | Status |
 |------------|--------|
@@ -14,34 +16,31 @@ Production-v1 implementation is complete through the external-integration bounda
 | Authentication and permissions | PASS |
 | PostgreSQL RLS | PASS |
 | Encrypted credential storage | PASS |
-| Internal SIP extension registration | PASS |
-| Extension-to-extension calls | PASS |
+| **SIP extension registration** | **PASS** |
+| **Extension-to-extension internal calls** | **PASS** |
 | RTP media | PASS |
-| ARI call tracking | PASS |
-| Full call lifecycle and call legs | PASS |
+| ARI call tracking and call lifecycle | PASS |
+| Public SIP / NAT (`rewrite_contact`, external media) | PASS |
+| **Call recording capture (ARI bridge)** | **PASS** |
+| **Recording finalization and persistent local WAV storage** | **PASS** |
+| Recording metadata in UI (call details, extension list) | PASS |
+| **Authenticated API byte-range streaming (`/content`)** | **PASS** |
+| **Browser call-details audio playback** | **PASS** |
 | Deterministic realtime AI media | PASS |
-| Barge-in | PASS |
-| Tool invocation | PASS |
-| Human transfer | PASS |
-| Usage metering | PASS |
-| Rating and internal invoices | PASS |
-| Tenant UI | PASS |
-| Platform Owner UI | PASS |
-| API applications and keys | PASS |
-| Signed outbound webhooks | PASS |
+| Barge-in, tool invocation, human transfer | PASS |
+| Usage metering, rating, internal invoices | PASS |
+| Tenant UI, Platform Owner UI | PASS |
+| API keys, signed webhooks | PASS |
 | Local demo workflow | PASS |
-| DigitalOcean deployment assets | PASS |
-| Backup, restore, monitoring and rollback assets | PASS |
-| Platform Owner credential management | PASS |
-| Runtime credential resolver | PASS |
+| Deployment and operations assets | PASS |
 
 ### Implemented but awaiting live verification
 
 | Capability | Status |
 |------------|--------|
-| OpenAI Realtime | NOT_TESTED |
-| Real SIP carrier / PSTN inbound and outbound | NOT_TESTED |
-| Stripe test-mode lifecycle | NOT_TESTED |
+| OpenAI Realtime | NOT_TESTED — requires provider credentials |
+| Real SIP carrier / PSTN inbound and outbound | NOT_TESTED — requires carrier configuration |
+| Stripe test-mode lifecycle | NOT_TESTED — requires Stripe test credentials |
 
 ### Not performed or deferred
 
@@ -54,6 +53,155 @@ Production-v1 implementation is complete through the external-integration bounda
 | Multi-region deployment | NOT_IMPLEMENTED |
 | Compliance certification | NOT_PERFORMED |
 | WebRTC browser softphone | NOT_IMPLEMENTED |
+
+## Local development startup
+
+```bash
+cd /path/to/pbx
+cp .env.example .env
+# Set JWT_SECRET and ENCRYPTION_MASTER_KEY (openssl rand -hex 32)
+make install
+make dev-up
+make db-migrate && make db-seed
+pnpm dev:api    # http://localhost:3001
+pnpm dev:web    # http://localhost:3000
+make telephony-up   # Asterisk + telephony-controller (optional, for SIP/recording)
+```
+
+Health check: `curl -fsS http://127.0.0.1:3001/api/v1/health/live`
+
+## Public SIP configuration
+
+Extensions register over UDP SIP. Configure in `.env`:
+
+| Variable | Purpose |
+|----------|---------|
+| `SIP_UDP_BIND` / `SIP_UDP_PUBLISH` | Host bind and published UDP port (default `5060`) |
+| `SIP_EXTERNAL_IP` | Public IPv4 for NAT (`external_signaling_address` / `external_media_address`) |
+| `SIP_PUBLIC_DOMAIN` | Optional domain for softphone Domain field |
+
+Router must forward WAN UDP `5060` and `10000–10099` to the PBX host. CGNAT blocks inbound SIP.
+
+Validate: `bash scripts/validate-telephony-compose.sh`, `bash scripts/check-extension-registration.sh <tenant-slug> <ext>`
+
+## Extension registration
+
+Softphone setup: **Username**, **Password** (one-time after rotate), **Domain** (`SIP_PUBLIC_DOMAIN` or public IPv4), UDP port 5060.
+
+Registration status: `GET /api/v1/extensions/registration-status` (batch online/offline from ARI).
+
+## Extension-to-extension calling
+
+Internal calls route through Asterisk PJSIP endpoints. telephony-controller sequences ring-before-answer and bridges after callee answers. Requires both extensions registered.
+
+## Recording policy
+
+| Level | Setting | Default |
+|-------|---------|---------|
+| Organization | `tenant_settings.telephony.recording.recordCallsByDefault` | **off** |
+| Extension | `extensions.recording_policy_mode` (`inherit` \| `on` \| `off`) | `inherit` |
+
+Effective policy: extension override wins; internal calls record if **any** participant is effectively on.
+
+## Local recording storage
+
+Environment variables (host-specific paths — do not commit real values):
+
+```text
+CALL_RECORDING_STORAGE_BACKEND=local
+CALL_RECORDING_LOCAL_ROOT=<host persistent path visible to API>
+CALL_RECORDING_HOST_ROOT=<Docker bind source for shared volume>
+```
+
+Path contract:
+
+| Component | Container path |
+|-----------|----------------|
+| Asterisk | `/var/spool/asterisk/recording` |
+| telephony-controller | `/var/lib/pbx/recordings` |
+| Host API | `CALL_RECORDING_LOCAL_ROOT` (same host directory as Docker bind) |
+
+Lifecycle: `starting → recording → processing → available | failed`. Stale repair: `bash scripts/reconcile-stale-recordings.sh [id]`
+
+## Call-details playback architecture
+
+1. UI loads recording metadata via `GET /api/v1/tenants/:tenantId/calls/:callId/recordings`
+2. Play fetches binary content via Next.js proxy → `GET /api/v1/tenants/:tenantId/recordings/:recordingId/content`
+3. Frontend validates RIFF/WAVE headers via `arrayBuffer`, creates `audio/wav` Blob URL for `<audio>` element
+4. API supports `Accept-Ranges: bytes` and HTTP 206 for seek; proxy passes binary responses without text conversion
+
+**Verified:** Firefox and authenticated API download; pause, seek, and duration display on call-details page.
+
+Supported format: Microsoft PCM WAV, 16-bit mono 8000 Hz (Asterisk default).
+
+Troubleshooting:
+
+```bash
+# Direct API bytes (replace token via login — do not commit)
+curl -fsS -H "Authorization: Bearer <token>" -H "X-Tenant-Id: <tenantId>" \
+  "http://127.0.0.1:3001/api/v1/tenants/<tenantId>/recordings/<recordingId>/content" \
+  -o /tmp/test.wav && file /tmp/test.wav && xxd -l 16 /tmp/test.wav
+
+bash scripts/validate-recording-finalize-e2e.sh
+```
+
+## Required environment variables
+
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `JWT_SECRET` | yes | 64-char hex |
+| `ENCRYPTION_MASTER_KEY` | yes | 64-char hex |
+| `DATABASE_URL` | yes | PostgreSQL |
+| `CALL_RECORDING_STORAGE_BACKEND` | for recording | `local` or `s3` |
+| `CALL_RECORDING_LOCAL_ROOT` | for local recording | Host path |
+| `CALL_RECORDING_HOST_ROOT` | for Docker telephony | Bind mount source |
+| `SIP_EXTERNAL_IP` | for public SIP | Public IPv4 |
+| OpenAI / Stripe / carrier | external gates | Platform Owner UI or env fallback |
+
+## Migrations
+
+```bash
+pnpm db:generate   # after schema changes
+make db-migrate
+make db-seed       # dev only; ALLOW_DEV_SEED=true
+```
+
+Recording-related migrations: `0009_call_recording_local.sql`, `0011_recording_starting_status.sql`
+
+## Testing commands
+
+```bash
+make foundation-verify
+npx pnpm --filter @pbx/contracts run build
+npx pnpm --filter @pbx/shared run build
+npx pnpm --filter @pbx/database run build
+npx pnpm --filter @pbx/api run typecheck
+npx pnpm --filter @pbx/api run test
+npx pnpm --filter @pbx/web run typecheck
+npx pnpm --filter @pbx/web run test
+npx pnpm --filter @pbx/api run openapi:generate
+npx pnpm --filter @pbx/telephony-config test
+go test ./...   # in services/telephony-controller
+bash scripts/validate-telephony-compose.sh
+bash scripts/validate-recording-finalize-e2e.sh
+bash scripts/secret-scan.sh
+make deploy-validate
+git diff --check
+```
+
+## Known external blockers
+
+- **PSTN** — requires SIP carrier credentials in Platform Owner → Integrations
+- **Stripe** — requires test-mode credentials
+- **OpenAI Realtime** — requires provider credentials
+- **DigitalOcean deployment** — assets validated; cloud apply not performed
+
+## Security notes
+
+- Never commit `.env`, SIP passwords, generated PJSIP files with credentials, recording WAV/MP3 files, or `var/recordings/`
+- Recording content requires `TENANT_RECORDING_READ` permission; tenant-isolated via RLS
+- API `/content` endpoint does not expose filesystem paths
+- See [docs/SECURITY_OPERATIONS.md](docs/SECURITY_OPERATIONS.md)
 
 ## Architecture
 
@@ -327,6 +475,7 @@ PostgreSQL, Redis, NATS, Asterisk ARI, MinIO administration, API internal port, 
 - Live OpenAI verification pending
 - SIP carrier inbound/outbound verification pending
 - Stripe test-mode verification pending
+- **Browser call-details recording playback** — verified (2026-06-14)
 - SIP network validation currently supports UDP; TCP/TLS validation remains pending
 - DigitalOcean deployment not performed
 - High availability not implemented

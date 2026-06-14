@@ -57,6 +57,27 @@
       "when": 1781400000000,
       "tag": "0008_integration_validations",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1781500000000,
+      "tag": "0009_call_recording_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781600000000,
+      "tag": "0010_multitenant_devices_domains",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781700000000,
+      "tag": "0011_recording_starting_status",
+      "breakpoints": true
     }
   ]
 }

@@ -121,6 +121,17 @@ func bridgeKey(id string) *ari.Key {
 	return ari.NewKey(ari.BridgeKey, id)
 }
 
+func (c *Controller) fetchEndpointState(endpointID string) (string, error) {
+	if c.client == nil || endpointID == "" {
+		return "", fmt.Errorf("endpoint unavailable")
+	}
+	data, err := c.client.Endpoint().Data(ari.NewEndpointKey("PJSIP", endpointID))
+	if err != nil {
+		return "", err
+	}
+	return data.State, nil
+}
+
 func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 	channelID := ev.Channel.ID
 	if channelID == "" {
@@ -198,35 +209,31 @@ func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 		"caller": callerNum, "callee": destNum,
 	})
 
-	endpoint := fmt.Sprintf("PJSIP/%s", toExt.AsteriskEndpointID)
-	bKey := ari.NewKey(ari.BridgeKey, rid.New(rid.Bridge))
-	bridge, err := c.client.Bridge().Create(bKey, "mixing", bKey.ID)
-	if err != nil {
-		slog.Error("bridge create failed", "error", err)
-		c.finalizeCall(ctx, active, calls.StateFailed, "bridge_create_failed")
+	endpointState, err := c.fetchEndpointState(toExt.AsteriskEndpointID)
+	if err != nil || !endpointAvailable(endpointState) {
+		slog.Warn("callee endpoint unavailable", "tenant", tenantSlug, "ext", destNum, "endpoint", toExt.AsteriskEndpointID, "state", endpointState, "error", err)
+		c.finalizeCall(ctx, active, calls.StateFailed, "destination_unavailable")
+		c.hangup(channelID)
 		return
 	}
-	active.BridgeID = bridge.ID()
-	_ = c.repo.UpdateCallStatus(ctx, callID, "ringing", map[string]any{"asterisk_bridge_id": bridge.ID()})
 
-	if err := c.client.Channel().Answer(channelKey(channelID)); err != nil {
-		slog.Error("answer caller failed", "error", err)
-		c.finalizeCall(ctx, active, calls.StateFailed, "answer_failed")
-		return
+	if err := c.client.Channel().Ring(channelKey(channelID)); err != nil {
+		slog.Warn("caller ring indication failed", "error", err, "channel", channelID)
 	}
-	_ = c.client.Bridge().AddChannel(bridgeKey(active.BridgeID), channelID)
 
-	callerHandle := c.client.Channel().Get(channelKey(channelID))
-	calleeHandle, err := callerHandle.Originate(ari.OriginateRequest{
-		Endpoint: endpoint,
-		App:      c.cfg.StasisApp,
-		AppArgs:  fmt.Sprintf("join,%s", callID.String()),
-		CallerID: fmt.Sprintf("\"%s\" <%s>", callerNum, callerNum),
-		Timeout:  30,
+	endpoint := buildPjsipEndpointTarget(toExt.AsteriskEndpointID)
+	calleeHandle, err := c.client.Channel().Originate(channelKey(channelID), ari.OriginateRequest{
+		Endpoint:   endpoint,
+		App:        c.cfg.StasisApp,
+		AppArgs:    fmt.Sprintf("join,%s", callID.String()),
+		CallerID:   fmt.Sprintf("\"%s\" <%s>", callerNum, callerNum),
+		Timeout:    30,
+		Originator: channelID,
 	})
 	if err != nil {
-		slog.Error("originate failed", "error", err)
+		slog.Error("originate failed", "error", err, "endpoint", endpoint)
 		c.finalizeCall(ctx, active, calls.StateFailed, "originate_failed")
+		c.hangup(channelID)
 		return
 	}
 	if calleeHandle != nil {
@@ -237,9 +244,39 @@ func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 			c.registry.Put(active)
 			_ = c.repo.InsertCallLeg(ctx, fromExt.TenantID, callID, "callee", calleeID, toExt.AsteriskEndpointID)
 			go c.waitCalleeAnswered(context.Background(), active.CallID, *calleeHandle)
-			go c.waitBridgeReady(context.Background(), active.CallID)
 		}
 	}
+}
+
+func (c *Controller) bridgeCallerAndCallee(ctx context.Context, active *calls.ActiveCall) {
+	if active.CallerChannelID == "" || active.CalleeChannelID == "" {
+		return
+	}
+	calleeData, err := c.client.Channel().Data(channelKey(active.CalleeChannelID))
+	if err != nil || !strings.EqualFold(calleeData.State, "Up") {
+		return
+	}
+	if active.BridgeID == "" {
+		bKey := ari.NewKey(ari.BridgeKey, rid.New(rid.Bridge))
+		bridge, err := c.client.Bridge().Create(bKey, "mixing", bKey.ID)
+		if err != nil {
+			slog.Error("bridge create failed", "error", err, "callId", active.CallID.String())
+			c.finalizeCall(ctx, active, calls.StateFailed, "bridge_create_failed")
+			return
+		}
+		active.BridgeID = bridge.ID()
+		c.registry.Put(active)
+		_ = c.repo.UpdateCallStatus(ctx, active.CallID, "ringing", map[string]any{"asterisk_bridge_id": bridge.ID()})
+	}
+	callerData, err := c.client.Channel().Data(channelKey(active.CallerChannelID))
+	if err == nil && !strings.EqualFold(callerData.State, "Up") {
+		if err := c.client.Channel().Answer(channelKey(active.CallerChannelID)); err != nil {
+			slog.Error("answer caller failed", "error", err, "callId", active.CallID.String())
+			c.finalizeCall(ctx, active, calls.StateFailed, "answer_failed")
+			return
+		}
+	}
+	c.markAnsweredAndBridged(ctx, active)
 }
 
 func (c *Controller) waitBridgeReady(ctx context.Context, callID uuid.UUID) {
@@ -297,7 +334,7 @@ func (c *Controller) waitCalleeAnswered(ctx context.Context, callID uuid.UUID, h
 				c.registry.Put(active)
 			}
 			if strings.EqualFold(data.State, "Up") {
-				c.markAnsweredAndBridged(ctx, active)
+				c.bridgeCallerAndCallee(ctx, active)
 				return
 			}
 		}
@@ -316,7 +353,7 @@ func (c *Controller) waitCalleeAnswered(ctx context.Context, callID uuid.UUID, h
 						active.CalleeChannelID = chData.ID
 						c.registry.Put(active)
 						_ = c.repo.UpdateCallLegChannel(ctx, active.TenantID, active.CallID, "callee", chData.ID)
-						c.markAnsweredAndBridged(ctx, active)
+						c.bridgeCallerAndCallee(ctx, active)
 						return
 					}
 				}
@@ -354,7 +391,6 @@ func (c *Controller) handleJoinLeg(ctx context.Context, channelID, callIDStr str
 	if active.TransferInProgress && active.AiSessionID != uuid.Nil {
 		c.completeAiTransfer(ctx, active, channelID)
 	}
-	c.markAnsweredAndBridged(ctx, active)
 }
 
 func (c *Controller) markAnsweredAndBridged(ctx context.Context, active *calls.ActiveCall) {
@@ -393,13 +429,14 @@ func (c *Controller) markAnsweredAndBridged(ctx context.Context, active *calls.A
 		})
 	}
 	c.registry.Put(active)
+	c.maybeStartRecording(ctx, active)
 }
 
 func (c *Controller) ensureAnsweredAndBridged(ctx context.Context, active *calls.ActiveCall) {
 	if active.CalleeChannelID == "" {
 		return
 	}
-	c.markAnsweredAndBridged(ctx, active)
+	c.bridgeCallerAndCallee(ctx, active)
 }
 
 func (c *Controller) onStasisEnd(ctx context.Context, ev *ari.StasisEnd) {
@@ -454,7 +491,7 @@ func (c *Controller) onChannelEnteredBridge(ctx context.Context, ev *ari.Channel
 		c.registry.Put(active)
 		_ = c.repo.UpdateCallLegChannel(ctx, active.TenantID, active.CallID, "callee", ev.Channel.ID)
 	}
-	c.markAnsweredAndBridged(ctx, active)
+	c.bridgeCallerAndCallee(ctx, active)
 }
 
 func (c *Controller) onChannelStateChange(ctx context.Context, ev *ari.ChannelStateChange) {
@@ -469,7 +506,7 @@ func (c *Controller) onChannelStateChange(ctx context.Context, ev *ari.ChannelSt
 		c.completeAiTransfer(ctx, active, ev.Channel.ID)
 	}
 	if ev.Channel.ID == active.CalleeChannelID {
-		c.markAnsweredAndBridged(ctx, active)
+		c.bridgeCallerAndCallee(ctx, active)
 	}
 }
 
@@ -508,7 +545,7 @@ func (c *Controller) finalizeCall(ctx context.Context, active *calls.ActiveCall,
 	if !active.MarkEvent("finalized") {
 		return
 	}
-	if state == calls.StateComplete && (active.CalleeChannelID != "" || active.HadCalleeLeg) {
+	if state == calls.StateComplete && (active.CalleeChannelID != "" || active.HadCalleeLeg) && active.State == calls.StateBridged {
 		c.ensureAnsweredAndBridged(ctx, active)
 	}
 	if active.State == calls.StateComplete || active.State == calls.StateFailed {
@@ -540,6 +577,9 @@ func (c *Controller) finalizeCall(ctx context.Context, active *calls.ActiveCall,
 	})
 	if state == calls.StateComplete {
 		_, _ = c.repo.WriteUsageEvent(ctx, active.TenantID, active.CallID, active.CorrelationID, dur, active.CreatedAt, end)
+	}
+	if active.RecordingStarted {
+		c.finalizeRecording(ctx, active)
 	}
 	c.registry.Remove(active.CallID)
 }

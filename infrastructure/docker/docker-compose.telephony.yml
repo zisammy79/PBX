@@ -7,10 +7,20 @@ services:
     environment:
       ASTERISK_ARI_USERNAME: ${ASTERISK_ARI_USERNAME:-pbx_ari}
       ASTERISK_ARI_PASSWORD: ${ASTERISK_ARI_PASSWORD:-pbx_ari_dev_password}
+      SIP_PUBLIC_DOMAIN: ${SIP_PUBLIC_DOMAIN:-}
+      SIP_EXTERNAL_IP: ${SIP_EXTERNAL_IP:-}
+      SIP_EXTERNAL_SIGNALING_ADDRESS: ${SIP_EXTERNAL_SIGNALING_ADDRESS:-}
+      SIP_EXTERNAL_MEDIA_ADDRESS: ${SIP_EXTERNAL_MEDIA_ADDRESS:-}
+      SIP_UDP_PUBLISH: ${SIP_UDP_PUBLISH:-5060}
+      # ARI stores bridge recordings under the Asterisk spool recording directory.
+      CALL_RECORDING_LOCAL_ROOT: /var/spool/asterisk/recording
     volumes:
       - ../asterisk/generated:/etc/asterisk/pbx-generated
+      # The same persistent host directory is mounted at Asterisk's native ARI recording path.
+      - '${CALL_RECORDING_HOST_ROOT:-../../var/recordings}:/var/spool/asterisk/recording'
     ports:
-      - '127.0.0.1:5062:5060/udp'
+      # LAN softphones reach host UDP 5060; Asterisk listens on 5060 inside the container.
+      - '${SIP_UDP_BIND:-0.0.0.0}:${SIP_UDP_PUBLISH:-5060}:5060/udp'
       - '127.0.0.1:18088:8088'
       - '10000-10099:10000-10099/udp'
     networks:
@@ -39,6 +49,11 @@ services:
       AI_MEDIA_GATEWAY_URL: http://ai-media-gateway:8091
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Controller-visible path for the same persistent recording files.
+      CALL_RECORDING_LOCAL_ROOT: /var/lib/pbx/recordings
+    volumes:
+      # Shared host recording root; must match the Asterisk service source mount.
+      - '${CALL_RECORDING_HOST_ROOT:-../../var/recordings}:/var/lib/pbx/recordings'
     ports:
       - '127.0.0.1:8090:8090'
     networks:

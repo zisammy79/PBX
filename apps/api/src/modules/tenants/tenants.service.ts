@@ -3,16 +3,23 @@ import {
   CreateTenantRequest,
   tenantAccessDenied,
   validationError,
+  type PlatformCustomerSummary,
+  type UpdateTenantLifecycleRequest,
 } from '@pbx/contracts';
 import {
   generateSecureToken,
   hashPassword,
   tenantAsteriskContext,
 } from '@pbx/shared';
-import { desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import {
   auditEvents,
+  calls,
+  extensions,
+  sipRegistrations,
   tenantMemberships,
+  tenantSettings,
+  tenantSipDomains,
   tenants,
   users,
   withBypassRls,
@@ -153,5 +160,141 @@ export class TenantsService {
       createdAt: tenant.createdAt.toISOString(),
       updatedAt: tenant.updatedAt.toISOString(),
     };
+  }
+
+  async listPlatformCustomers(actor: AuthenticatedUser): Promise<PlatformCustomerSummary[]> {
+    if (!actor.platformRoles.includes('platform_super_admin')) {
+      throw tenantAccessDenied();
+    }
+
+    return withBypassRls(this.database.db, async (db) => {
+      const rows = await db.select().from(tenants).orderBy(desc(tenants.createdAt));
+      const summaries: PlatformCustomerSummary[] = [];
+
+      for (const tenant of rows) {
+        const [userCount] = await db
+          .select({ total: count() })
+          .from(tenantMemberships)
+          .innerJoin(users, eq(tenantMemberships.userId, users.id))
+          .where(and(eq(tenantMemberships.tenantId, tenant.id), eq(users.status, 'active')));
+
+        const [extCount] = await db
+          .select({ total: count() })
+          .from(extensions)
+          .where(and(eq(extensions.tenantId, tenant.id), eq(extensions.status, 'active')));
+
+        const [regCount] = await db
+          .select({ total: count() })
+          .from(sipRegistrations)
+          .where(and(eq(sipRegistrations.tenantId, tenant.id), eq(sipRegistrations.isRegistered, true)));
+
+        const [activeCallCount] = await db
+          .select({ total: count() })
+          .from(calls)
+          .where(
+            and(
+              eq(calls.tenantId, tenant.id),
+              isNull(calls.endedAt),
+              inArray(calls.status, ['initiating', 'ringing', 'answered', 'held']),
+            ),
+          );
+
+        const [lastCall] = await db
+          .select({ startedAt: calls.startedAt })
+          .from(calls)
+          .where(eq(calls.tenantId, tenant.id))
+          .orderBy(desc(calls.startedAt))
+          .limit(1);
+
+        const [recordingSetting] = await db
+          .select()
+          .from(tenantSettings)
+          .where(
+            and(eq(tenantSettings.tenantId, tenant.id), eq(tenantSettings.key, 'telephony.recording')),
+          )
+          .limit(1);
+
+        const [domainRow] = await db
+          .select({ domain: tenantSipDomains.domain })
+          .from(tenantSipDomains)
+          .where(
+            and(
+              eq(tenantSipDomains.tenantId, tenant.id),
+              eq(tenantSipDomains.activationStatus, 'active'),
+            ),
+          )
+          .limit(1);
+
+        const recordingValue = (recordingSetting?.value ?? {}) as { recordCallsByDefault?: boolean };
+        const online = Number(regCount?.total ?? 0);
+        const activeExt = Number(extCount?.total ?? 0);
+
+        summaries.push({
+          id: tenant.id,
+          name: tenant.name,
+          slug: tenant.slug,
+          status: tenant.status,
+          planId: tenant.planId,
+          sipDomain: domainRow?.domain ?? null,
+          recordCallsByDefault: recordingValue.recordCallsByDefault ?? false,
+          activeUsers: Number(userCount?.total ?? 0),
+          activeExtensions: activeExt,
+          onlineRegistrations: online,
+          concurrentCalls: Number(activeCallCount?.total ?? 0),
+          lastActivityAt: lastCall?.startedAt?.toISOString() ?? null,
+          health:
+            tenant.status === 'suspended' || tenant.status === 'failed'
+              ? 'degraded'
+              : activeExt > 0 && online === 0
+                ? 'unknown'
+                : 'healthy',
+          createdAt: tenant.createdAt.toISOString(),
+          updatedAt: tenant.updatedAt.toISOString(),
+        });
+      }
+
+      return summaries;
+    });
+  }
+
+  async updateTenantLifecycle(
+    actor: AuthenticatedUser,
+    tenantId: string,
+    input: UpdateTenantLifecycleRequest,
+  ) {
+    if (!actor.platformRoles.includes('platform_super_admin')) {
+      throw tenantAccessDenied();
+    }
+
+    return withBypassRls(this.database.db, async (db) => {
+      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+      if (!tenant) {
+        throw validationError({ tenantId: 'Tenant not found' });
+      }
+
+      const [updated] = await db
+        .update(tenants)
+        .set({ status: input.status, updatedAt: new Date() })
+        .where(eq(tenants.id, tenantId))
+        .returning();
+
+      await db.insert(auditEvents).values({
+        tenantId,
+        actorUserId: actor.id,
+        actorType: 'user',
+        action: 'tenant.lifecycle_updated',
+        resourceType: 'tenant',
+        resourceId: tenantId,
+        metadata: { from: tenant.status, to: input.status },
+      });
+
+      return {
+        id: updated!.id,
+        name: updated!.name,
+        slug: updated!.slug,
+        status: updated!.status,
+        updatedAt: updated!.updatedAt.toISOString(),
+      };
+    });
   }
 }

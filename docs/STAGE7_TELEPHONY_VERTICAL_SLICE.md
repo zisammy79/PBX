@@ -125,6 +125,97 @@ Unit tests across `@pbx/telephony-config`, `@pbx/database`, `@pbx/api` pass. Int
 
 ---
 
+## Local softphone registration (same LAN)
+
+Use a physical or virtual softphone on another device in the same LAN:
+
+| Setting | Value |
+|---------|-------|
+| Username | `{tenant-slug}_{extension}` (example: `demo-company_1003`) |
+| Password | One-time value from extension create or credential rotation |
+| Domain | PBX LAN IP or `SIP_PUBLIC_DOMAIN` (example: `192.168.86.199`) — **no port suffix** |
+
+Notes:
+
+- Host-published SIP defaults to UDP **5060** (`SIP_UDP_PUBLISH`, Compose `docker-compose.telephony.yml`).
+- Asterisk listens on UDP `5060` inside the container.
+- Authentication username is the same as the SIP username.
+- Disable DNS SRV and STUN for the initial same-LAN registration test.
+- RTP media uses host UDP `10000-10099`.
+- ARI remains private on loopback port `18088` (`127.0.0.1:18088`).
+
+Advanced (optional in UI):
+
+| Setting | Value |
+|---------|-------|
+| Transport | UDP |
+| Port | 5060 |
+| Authentication username | same as username |
+| Outbound proxy | none |
+
+Optional overrides:
+
+```bash
+SIP_UDP_BIND=0.0.0.0 SIP_UDP_PUBLISH=5060 SIP_PUBLIC_DOMAIN=192.168.86.199
+```
+
+Reconcile an existing extension after credential/key drift:
+
+```bash
+bash scripts/reconcile-extension.sh demo-company 1003 true
+```
+
+Regression checks:
+
+```bash
+bash scripts/validate-telephony-compose.sh
+bash scripts/check-extension-registration.sh demo-company 1003
+```
+
+---
+
+## Public SIP without VPN (roaming softphones)
+
+Softphones on independent internet connections (cellular, home Wi-Fi, office Wi-Fi) use the same three fields:
+
+| Setting | Value |
+|---------|-------|
+| Username | `{tenant-slug}_{extension}` |
+| Password | One-time value from create or credential rotation |
+| Domain | `SIP_PUBLIC_DOMAIN` or public IPv4 — **no port suffix** |
+
+Environment (Asterisk container):
+
+| Variable | Purpose |
+|----------|---------|
+| `SIP_PUBLIC_DOMAIN` | Default public hostname for Contact/SDP |
+| `SIP_EXTERNAL_SIGNALING_ADDRESS` | Override signaling address |
+| `SIP_EXTERNAL_MEDIA_ADDRESS` | Override RTP advertisement |
+| `SIP_EXTERNAL_IP` | Legacy alias when separate addresses are not set |
+| `SIP_UDP_PUBLISH` | Host-published UDP port (default 5060) |
+
+Router / firewall (operator):
+
+```text
+WAN UDP 5060      → PBX host UDP 5060
+WAN UDP 10000-10099 → PBX host UDP 10000-10099
+```
+
+Do **not** expose ARI (`8088`), telephony-controller (`8090`), AI gateway, PostgreSQL, Redis, or NATS.
+
+CGNAT on the ISP WAN address blocks inbound SIP unless the PBX runs on a public cloud host or the ISP provides a routable public IPv4.
+
+Registration runtime status in the UI/API is separate from provisioning **Ready**:
+
+- **Ready** — PJSIP objects exist in active configuration
+- **Online** — Asterisk reports a reachable contact for the endpoint
+- **Offline** — Asterisk reachable, no contact
+- **Unknown** — API cannot reach Asterisk ARI
+
+Production should prefer TLS/SRTP; UDP remains supported for this MVP test path.
+
+---
+
 ## Known limitations (Stage 7)
 
 - No PSTN, WebRTC, AI media, or billing rating in this slice

@@ -1,6 +1,6 @@
 {
-  "version": "global-1781188989567",
-  "generatedAt": "2026-06-11T14:43:09.567Z",
+  "version": "global-1781431037995",
+  "generatedAt": "2026-06-14T09:57:17.995Z",
   "tenantIds": [
     "5f3265a8-9384-4e54-b0df-ab549f4b532b",
     "2433f849-3b43-405c-83a4-47d4ff492955",
@@ -129,8 +129,35 @@
     "946d0eb6-f464-4141-ba1a-7ac28f18f56f",
     "d2ff00f3-9de2-42ba-8d53-31403e280fe4",
     "b6346a54-9b68-44d8-8c50-b4bb3c9042f1",
-    "d4b1049f-1b9b-4784-8cd2-c05145750dab"
+    "d4b1049f-1b9b-4784-8cd2-c05145750dab",
+    "06742a9b-0706-4ae9-bad6-575f57789bd0",
+    "b26899c3-a6d2-43fe-841f-8e7a7b57deed",
+    "aa3edff1-87d2-48f0-a6ab-de74432f901e",
+    "3a9faf50-eb61-4198-a603-87761854fdb4",
+    "7e6b0bb2-6ac1-46db-ac11-318f4f831ade",
+    "5e6d7aed-fe30-46d9-a71d-61220a7d9ca2",
+    "3be83ceb-ba9f-43e1-8c1e-d91b10610a73",
+    "b4e772c7-9091-4b79-a6c5-3ffeb278b1cf",
+    "cab8b2e6-7eb3-4931-9011-86abd1630d15",
+    "76cbef54-58ce-43e5-aeb0-db14fed9087c",
+    "91abe1f1-9aa1-422f-87d8-0eb2053c6c2f",
+    "e37d6e27-c7d8-4007-a2e6-1df499d77fc7",
+    "6239e022-121d-4969-a40a-75cee4997189",
+    "bad8bb92-7f28-4262-a8e0-e66ddea1327f",
+    "f61a8761-ed0b-4d43-a266-eda1e301b0d3",
+    "9af54289-c7c0-43d9-be00-f588b75b0fe6",
+    "459b96ea-6c25-42db-aa63-18078c11bbe2",
+    "6f1fda99-e1e4-470c-b9e2-04f7cb8ad75c",
+    "5bf4a8d0-499f-457b-867b-7899251c6d54",
+    "8d41dc12-7d5f-4579-9877-7dc348eb0ea3",
+    "2952a691-2083-4de6-9775-63d21f670904",
+    "f7e4cb39-9262-4043-bf44-265acc16b3c3",
+    "e9286fd8-e612-4982-b49e-4ee39893bce9",
+    "fe6b0cce-4ad6-4162-befc-1c5d93bc33a0",
+    "1132a514-4197-4106-82f4-f68feacf2e4b",
+    "61d23b6c-49fe-4a84-815a-fe979bdce119",
+    "36552c9a-180e-43e2-9da6-b4c84c9db46e"
   ],
-  "extensionCount": 53,
-  "checksum": "dfd0d211174aa8e6ff7a2b2991ce1d636d63662ce301046f2784dd2475ed046a"
+  "extensionCount": 64,
+  "checksum": "adf590bc7beb7a79bb766a4b095d4c352387738913e9144ab65a54229599638f"
 }

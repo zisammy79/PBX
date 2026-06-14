@@ -10,7 +10,8 @@ COMPOSE_TELEPHONY=(docker compose -f infrastructure/docker/docker-compose.yml -f
 telephony-up() {
   "${COMPOSE_BASE[@]}" up -d
   "${COMPOSE_TELEPHONY[@]}" up -d --build
-  echo "Telephony stack started (Asterisk ARI on 127.0.0.1:18088/asterisk/ari, SIP UDP 127.0.0.1:5062, RTP 10000-10099)"
+  echo "Telephony stack started (Asterisk ARI on 127.0.0.1:18088/asterisk/ari, SIP UDP <PBX LAN IP>:5060, RTP 10000-10099)"
+  echo "LAN softphones: use the PBX machine LAN IP (not localhost) on UDP 5060; disable DNS SRV and STUN for same-LAN tests."
 }
 
 telephony-down() {
@@ -18,6 +19,7 @@ telephony-down() {
 }
 
 telephony-validate() {
+  bash scripts/validate-telephony-compose.sh
   npx pnpm@9.15.0 --filter @pbx/telephony-config test
 }
 

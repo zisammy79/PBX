@@ -14,6 +14,7 @@ import {
 import {
   activateStagingConfig,
   generateTelephonyConfig,
+  isSipUsernameInActiveConfig,
   redactForAudit,
   redactGeneratedConfig,
   reloadAsterisk,
@@ -28,6 +29,34 @@ import { resolveRepoRoot } from '../../common/repo-root.js';
 import { CONFIG, DATABASE } from '../../common/tokens.js';
 import type { AppConfig } from '../../config.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
+
+export type ExtensionProvisioningStatus =
+  | 'pending'
+  | 'provisioning'
+  | 'ready'
+  | 'failed'
+  | 'deleting'
+  | 'deleted';
+
+export interface LoadTelephonyRecordsResult {
+  tenants: TelephonyTenantRecord[];
+  extensions: TelephonyExtensionRecord[];
+  aiAgents: TelephonyAiAgentRecord[];
+  skippedCredentialUsernames: string[];
+}
+
+export interface ProvisionGlobalResult {
+  activated: boolean;
+  version: string;
+  previousVersion?: string | null;
+  skippedCredentialUsernames: string[];
+}
+
+export interface ExtensionProvisioningState {
+  status: ExtensionProvisioningStatus;
+  reason?: string;
+  runtimePresent: boolean;
+}
 
 @Injectable()
 export class TelephonyService {
@@ -60,11 +89,35 @@ export class TelephonyService {
 
   async activateConfiguration(actor: AuthenticatedUser, tenantId: string) {
     await this.assertTenantAccess(actor, tenantId);
+    const result = await this.provisionGlobalConfiguration(actor, tenantId);
+    return {
+      activated: result.activated,
+      version: result.version,
+      previousVersion: result.previousVersion ?? null,
+      skippedCredentialUsernames: result.skippedCredentialUsernames,
+    };
+  }
+
+  async reconcileConfiguration(actor: AuthenticatedUser, tenantId: string) {
+    return this.provisionGlobalConfiguration(actor, tenantId);
+  }
+
+  async provisionGlobalConfiguration(
+    actor: AuthenticatedUser,
+    tenantId: string,
+  ): Promise<ProvisionGlobalResult> {
+    await this.assertTenantAccess(actor, tenantId);
     if (!this.config.telephonyEnabled) {
       throw validationError({ telephony: 'Telephony is not enabled' });
     }
 
-    const generated = await this.buildGlobalConfig();
+    const loaded = await this.loadTelephonyRecords();
+    const generated = generateTelephonyConfig(
+      loaded.tenants,
+      loaded.extensions,
+      loaded.aiAgents,
+      `global-${Date.now()}`,
+    );
     const validation = validateGeneratedConfig(generated, { requireExtensions: true });
     if (!validation.valid) {
       throw validationError({ configuration: validation.errors.join('; ') });
@@ -88,27 +141,146 @@ export class TelephonyService {
       version: result.version,
       previousVersion: result.previousVersion,
       tenantIds: generated.tenantIds,
+      skippedCredentialCount: loaded.skippedCredentialUsernames.length,
     });
+
+    if (loaded.skippedCredentialUsernames.length > 0) {
+      await this.recordAudit(actor, tenantId, 'telephony.configuration.skipped_credentials', {
+        usernames: loaded.skippedCredentialUsernames,
+      });
+    }
 
     return {
       activated: true,
       version: result.version,
       previousVersion: result.previousVersion ?? null,
+      skippedCredentialUsernames: loaded.skippedCredentialUsernames,
+    };
+  }
+
+  async getExtensionProvisioningState(
+    tenantId: string,
+    extensionId: string,
+  ): Promise<ExtensionProvisioningState> {
+    const row = await this.loadExtensionRecord(tenantId, extensionId);
+    if (!row) {
+      return { status: 'failed', reason: 'extension_not_found', runtimePresent: false };
+    }
+
+    if (row.extension.status === 'disabled') {
+      const runtimePresent = await isSipUsernameInActiveConfig(
+        this.repoRoot,
+        row.credential.username,
+      );
+      return {
+        status: runtimePresent ? 'failed' : 'deleted',
+        ...(runtimePresent ? { reason: 'still_provisioned' } : {}),
+        runtimePresent,
+      };
+    }
+
+    try {
+      decryptSecret(row.credential.secretEncrypted, this.config.encryptionMasterKey);
+    } catch {
+      return {
+        status: 'failed',
+        reason: 'credential_unavailable',
+        runtimePresent: false,
+      };
+    }
+
+    const runtimePresent = await isSipUsernameInActiveConfig(this.repoRoot, row.credential.username);
+    if (runtimePresent) {
+      return { status: 'ready', runtimePresent: true };
+    }
+
+    if (!this.config.telephonyEnabled) {
+      return { status: 'pending', reason: 'telephony_disabled', runtimePresent: false };
+    }
+
+    return { status: 'failed', reason: 'not_provisioned', runtimePresent: false };
+  }
+
+  async verifyExtensionRuntime(
+    tenantId: string,
+    extensionId: string,
+  ): Promise<{ ready: boolean; sipUsername: string; reason?: string }> {
+    const row = await this.loadExtensionRecord(tenantId, extensionId);
+    if (!row) {
+      return { ready: false, sipUsername: '', reason: 'extension_not_found' };
+    }
+
+    if (row.extension.status === 'disabled') {
+      const runtimePresent = await isSipUsernameInActiveConfig(
+        this.repoRoot,
+        row.credential.username,
+      );
+      return {
+        ready: !runtimePresent,
+        sipUsername: row.credential.username,
+        ...(runtimePresent ? { reason: 'still_provisioned' } : {}),
+      };
+    }
+
+    try {
+      decryptSecret(row.credential.secretEncrypted, this.config.encryptionMasterKey);
+    } catch {
+      return {
+        ready: false,
+        sipUsername: row.credential.username,
+        reason: 'credential_unavailable',
+      };
+    }
+
+    const runtimePresent = await isSipUsernameInActiveConfig(this.repoRoot, row.credential.username);
+    return {
+      ready: runtimePresent,
+      sipUsername: row.credential.username,
+      ...(runtimePresent ? {} : { reason: 'not_provisioned' }),
+    };
+  }
+
+  async verifyExtensionRemovedFromRuntime(
+    tenantId: string,
+    extensionId: string,
+  ): Promise<{ removed: boolean; sipUsername: string; reason?: string }> {
+    const row = await this.loadExtensionRecord(tenantId, extensionId);
+    if (!row) {
+      return { removed: true, sipUsername: '', reason: 'extension_not_found' };
+    }
+
+    const runtimePresent = await isSipUsernameInActiveConfig(
+      this.repoRoot,
+      row.credential.username,
+    );
+    return {
+      removed: !runtimePresent,
+      sipUsername: row.credential.username,
+      ...(runtimePresent ? { reason: 'still_provisioned' } : {}),
     };
   }
 
   async buildConfigForTenant(tenantId: string): Promise<GeneratedTelephonyConfig> {
-    const { tenants: tenantRows, extensions: extensionRows, aiAgents: aiAgentRows } =
-      await this.loadTelephonyRecords(tenantId);
-    return generateTelephonyConfig(tenantRows, extensionRows, aiAgentRows, `tenant-${tenantId}-${Date.now()}`);
+    const loaded = await this.loadTelephonyRecords(tenantId);
+    return generateTelephonyConfig(
+      loaded.tenants,
+      loaded.extensions,
+      loaded.aiAgents,
+      `tenant-${tenantId}-${Date.now()}`,
+    );
   }
 
   async buildGlobalConfig(): Promise<GeneratedTelephonyConfig> {
-    const { tenants: tenantRows, extensions: extensionRows, aiAgents: aiAgentRows } = await this.loadTelephonyRecords();
-    return generateTelephonyConfig(tenantRows, extensionRows, aiAgentRows, `global-${Date.now()}`);
+    const loaded = await this.loadTelephonyRecords();
+    return generateTelephonyConfig(
+      loaded.tenants,
+      loaded.extensions,
+      loaded.aiAgents,
+      `global-${Date.now()}`,
+    );
   }
 
-  private async loadTelephonyRecords(tenantId?: string) {
+  async loadTelephonyRecords(tenantId?: string): Promise<LoadTelephonyRecordsResult> {
     return withBypassRls(this.database.db, async (db) => {
       const tenantQuery = db.select().from(tenants);
       const tenantRows = tenantId
@@ -145,6 +317,7 @@ export class TelephonyService {
       }));
 
       const extRecords: TelephonyExtensionRecord[] = [];
+      const skippedCredentialUsernames: string[] = [];
       for (const row of extensionRows) {
         try {
           extRecords.push({
@@ -159,7 +332,7 @@ export class TelephonyService {
             status: row.extension.status as 'active' | 'disabled',
           });
         } catch {
-          // Skip credentials encrypted with a different key or corrupted rows
+          skippedCredentialUsernames.push(row.credential.username);
         }
       }
 
@@ -175,7 +348,27 @@ export class TelephonyService {
           status: r.agent.isActive ? 'active' : 'disabled',
         }));
 
-      return { tenants: tenantRecords, extensions: extRecords, aiAgents: aiAgentRows };
+      return {
+        tenants: tenantRecords,
+        extensions: extRecords,
+        aiAgents: aiAgentRows,
+        skippedCredentialUsernames,
+      };
+    });
+  }
+
+  private async loadExtensionRecord(tenantId: string, extensionId: string) {
+    return withBypassRls(this.database.db, async (db) => {
+      const [row] = await db
+        .select({
+          extension: extensions,
+          credential: sipCredentials,
+        })
+        .from(extensions)
+        .innerJoin(sipCredentials, eq(sipCredentials.extensionId, extensions.id))
+        .where(and(eq(extensions.tenantId, tenantId), eq(extensions.id, extensionId)))
+        .limit(1);
+      return row ?? null;
     });
   }
 

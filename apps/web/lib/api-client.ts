@@ -1,3 +1,5 @@
+import { fetchRecordingBlobUrl } from '@/lib/recording-playback';
+
 export class ApiError extends Error {
   constructor(
     public readonly code: string,
@@ -110,4 +112,5 @@ export const api = {
     }),
   delete: <T>(path: string, tenantId?: string) =>
     apiFetch<T>(path, { method: 'DELETE', ...(tenantId ? { tenantId } : {}) }),
+  fetchBlob: (path: string, tenantId: string) => fetchRecordingBlobUrl(path, tenantId),
 };

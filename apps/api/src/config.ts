@@ -21,6 +21,20 @@ const ConfigSchema = z.object({
   asteriskAriUsername: z.string().default('pbx_ari'),
   asteriskAriPassword: z.string().optional(),
   repoRoot: z.string().optional(),
+  sipPublicDomain: z.string().min(1).optional(),
+  sipExternalSignalingAddress: z.string().min(1).optional(),
+  sipExternalMediaAddress: z.string().min(1).optional(),
+  sipExternalIp: z.string().min(1).optional(),
+  sipUdpPort: z.coerce.number().int().min(1).max(65535).default(5060),
+  s3Endpoint: z.string().url().optional(),
+  s3AccessKey: z.string().min(1).optional(),
+  s3SecretKey: z.string().min(1).optional(),
+  s3Bucket: z.string().min(1).optional(),
+  s3Region: z.string().default('us-east-1'),
+  s3ForcePathStyle: z.coerce.boolean().default(true),
+  recordingPlaybackTtlSeconds: z.coerce.number().int().min(60).max(3600).default(300),
+  callRecordingStorageBackend: z.enum(['local', 's3']).default('local'),
+  callRecordingLocalRoot: z.string().min(1).default('/var/lib/pbx/recordings'),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
@@ -48,6 +62,20 @@ export function loadConfig(): AppConfig {
     asteriskAriUsername: process.env.ASTERISK_ARI_USERNAME,
     asteriskAriPassword: process.env.ASTERISK_ARI_PASSWORD,
     repoRoot: process.env.PBX_REPO_ROOT,
+    sipPublicDomain: process.env.SIP_PUBLIC_DOMAIN,
+    sipExternalSignalingAddress: process.env.SIP_EXTERNAL_SIGNALING_ADDRESS,
+    sipExternalMediaAddress: process.env.SIP_EXTERNAL_MEDIA_ADDRESS,
+    sipExternalIp: process.env.SIP_EXTERNAL_IP,
+    sipUdpPort: process.env.SIP_UDP_PUBLISH,
+    s3Endpoint: process.env.S3_ENDPOINT,
+    s3AccessKey: process.env.S3_ACCESS_KEY,
+    s3SecretKey: process.env.S3_SECRET_KEY,
+    s3Bucket: process.env.S3_BUCKET,
+    s3Region: process.env.S3_REGION,
+    s3ForcePathStyle: process.env.S3_FORCE_PATH_STYLE,
+    recordingPlaybackTtlSeconds: process.env.RECORDING_PLAYBACK_TTL_SECONDS,
+    callRecordingStorageBackend: process.env.CALL_RECORDING_STORAGE_BACKEND,
+    callRecordingLocalRoot: process.env.CALL_RECORDING_LOCAL_ROOT,
   });
 
   if (!result.success) {

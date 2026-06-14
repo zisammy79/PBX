@@ -28,7 +28,8 @@ infrastructure/asterisk/secrets/
 .stage7-provision.secrets.json
 .stage8-provision.env
 .stage8-behavior.env
-recordings/
+/recordings/
+var/recordings/
 uploads/
 transcripts/
 *.pcap

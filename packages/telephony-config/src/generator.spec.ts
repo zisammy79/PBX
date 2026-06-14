@@ -41,6 +41,15 @@ describe('telephony config generator', () => {
     expect(config.pjsipTenants).toContain('[acme_1001]');
     expect(config.pjsipTenants).toContain('context=t_acme');
     expect(config.pjsipTenants).toContain('allow=ulaw,alaw');
+    expect(config.pjsipTenants).toContain('rewrite_contact=yes');
+    expect(config.pjsipTenants).toContain('rtp_symmetric=yes');
+    expect(config.pjsipTenants).toContain('force_rport=yes');
+    expect(config.pjsipTenants).toContain('direct_media=no');
+    expect(config.pjsipTenants).toContain('qualify_frequency=30');
+    expect(config.pjsipTenants).toContain('qualify_timeout=3');
+    expect(config.pjsipTenants).toContain('remove_unavailable=yes');
+    expect(config.pjsipTenants).not.toContain('rewrite_contact=no');
+    expect(config.pjsipTenants).not.toContain('qualify_frequency=0');
     expect(config.extensionsTenants).toContain('[t_acme]');
     expect(config.extensionsTenants).toContain('Stasis(pbx-platform,acme');
   });

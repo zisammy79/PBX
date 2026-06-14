@@ -28,6 +28,7 @@ type toolInvocationRequest struct {
 
 func (c *Controller) RegisterInternalRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/internal/v1/ai/tools", c.handleAiToolHTTP)
+	c.RegisterRecordingMaintenanceRoutes(mux)
 }
 
 func (c *Controller) handleAiToolHTTP(w http.ResponseWriter, r *http.Request) {

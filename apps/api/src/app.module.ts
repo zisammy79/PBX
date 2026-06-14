@@ -18,6 +18,7 @@ import { EventsModule } from './modules/events/events.module.js';
 import { PstnModule } from './modules/pstn/pstn.module.js';
 import { StripeModule } from './modules/stripe/stripe.module.js';
 import { IntegrationsModule } from './modules/integrations/integrations.module.js';
+import { RecordingsModule } from './modules/recordings/recordings.module.js';
 
 @Module({})
 export class AppModule {
@@ -43,6 +44,7 @@ export class AppModule {
         PstnModule,
         StripeModule,
         IntegrationsModule,
+        RecordingsModule,
       ],
     };
   }

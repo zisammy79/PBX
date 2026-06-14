@@ -28,6 +28,7 @@ export const extensions = pgTable(
     asteriskEndpointId: varchar('asterisk_endpoint_id', { length: 128 }).notNull(),
     voicemailEnabled: boolean('voicemail_enabled').notNull().default(false),
     recordingPolicy: jsonb('recording_policy').notNull().default({}),
+    recordingPolicyMode: varchar('recording_policy_mode', { length: 16 }).notNull().default('inherit'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -378,4 +379,51 @@ export const voicemails = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('voicemails_tenant_idx').on(table.tenantId)],
+);
+
+export const sipDevices = pgTable(
+  'sip_devices',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    extensionId: uuid('extension_id')
+      .notNull()
+      .references(() => extensions.id, { onDelete: 'cascade' }),
+    sipCredentialId: uuid('sip_credential_id').references(() => sipCredentials.id, {
+      onDelete: 'set null',
+    }),
+    deviceType: varchar('device_type', { length: 32 }).notNull().default('legacy'),
+    friendlyName: varchar('friendly_name', { length: 255 }).notNull(),
+    status: varchar('status', { length: 32 }).notNull().default('active'),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('sip_devices_tenant_idx').on(table.tenantId),
+    index('sip_devices_extension_idx').on(table.extensionId),
+  ],
+);
+
+export const tenantSipDomains = pgTable(
+  'tenant_sip_domains',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    domain: varchar('domain', { length: 255 }).notNull(),
+    validationStatus: varchar('validation_status', { length: 32 }).notNull().default('pending'),
+    activationStatus: varchar('activation_status', { length: 32 }).notNull().default('inactive'),
+    dnsValidationToken: varchar('dns_validation_token', { length: 128 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('tenant_sip_domains_domain_uidx').on(table.domain),
+    index('tenant_sip_domains_tenant_idx').on(table.tenantId),
+  ],
 );
