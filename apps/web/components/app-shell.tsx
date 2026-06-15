@@ -59,8 +59,8 @@ export function AppShell({
       show: !!tid && hasPermission(user, Permission.AI_AGENTS_MANAGE),
     },
     {
-      href: `/t/${tid}/billing/usage`,
-      label: 'Usage',
+      href: `/t/${tid}/entitlements`,
+      label: 'Entitlements',
       show: !!tid && hasPermission(user, Permission.TENANT_USAGE_READ),
     },
     {
