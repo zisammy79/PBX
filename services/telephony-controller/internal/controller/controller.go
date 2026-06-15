@@ -208,11 +208,6 @@ func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 		AsteriskChannelID: channelID,
 		StartedAt:         now,
 	}
-	_ = c.repo.InsertCallEvent(ctx, fromExt.TenantID, callID, "CREATED", map[string]any{"source": "asterisk"})
-	_ = c.repo.InsertCallEvent(ctx, fromExt.TenantID, callID, "RINGING", map[string]any{"source": "asterisk"})
-	_ = c.bus.PublishCallEvent(ctx, fromExt.TenantID, callID, correlationID, "RINGING", map[string]any{
-		"caller": callerNum, "callee": destNum,
-	})
 
 	if err := c.repo.CreateCall(ctx, rec); err != nil {
 		if strings.Contains(err.Error(), "concurrent_call_limit_reached") {
@@ -226,6 +221,11 @@ func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 		return
 	}
 	_ = c.repo.InsertCallLeg(ctx, fromExt.TenantID, callID, "caller", channelID, fromExt.AsteriskEndpointID)
+	_ = c.repo.InsertCallEvent(ctx, fromExt.TenantID, callID, "CREATED", map[string]any{"source": "asterisk"})
+	_ = c.repo.InsertCallEvent(ctx, fromExt.TenantID, callID, "RINGING", map[string]any{"source": "asterisk"})
+	_ = c.bus.PublishCallEvent(ctx, fromExt.TenantID, callID, correlationID, "RINGING", map[string]any{
+		"caller": callerNum, "callee": destNum,
+	})
 
 	endpoints, err := c.repo.ListCalleeEndpointsForExtension(ctx, toExt.TenantID, toExt.ID, toExt.AsteriskEndpointID)
 	if err != nil || len(endpoints) == 0 {
@@ -646,7 +646,16 @@ func (c *Controller) finalizeCall(ctx context.Context, active *calls.ActiveCall,
 	if active.RecordingStarted {
 		c.finalizeRecording(ctx, active)
 	}
+	c.destroyCallBridge(active)
 	c.registry.Remove(active.CallID)
+}
+
+func (c *Controller) destroyCallBridge(active *calls.ActiveCall) {
+	if active.BridgeID == "" || c.client == nil {
+		return
+	}
+	_ = c.client.Bridge().Delete(bridgeKey(active.BridgeID))
+	active.BridgeID = ""
 }
 
 func (c *Controller) hangup(channelID string) {

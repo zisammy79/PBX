@@ -10,7 +10,7 @@ source "${PBX_ENV_FILE:-.env}" 2>/dev/null || true
 set +a
 
 SIP_HOST="${SIP_HOST:-127.0.0.1}"
-SIP_PORT="${SIP_PORT:-5062}"
+SIP_PORT="${SIP_PORT:-${SIP_UDP_PUBLISH:-5060}}"
 SIP_DOCKER_NETWORK="${SIP_DOCKER_NETWORK:-pbx-internal}"
 SIP_DOCKER_TARGET="${SIP_DOCKER_TARGET:-asterisk:5060}"
 SIP_IMAGE="${SIP_IMAGE:-pbertera/sipp}"
