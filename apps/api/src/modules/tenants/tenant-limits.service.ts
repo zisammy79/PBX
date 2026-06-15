@@ -33,8 +33,17 @@ export class TenantLimitsService {
   ) {}
 
   async assertCanCreateExtension(tenantId: string): Promise<void> {
-    await this.assertWithinLimit(tenantId, 'max_active_extensions', async (db) => {
-      const [usage] = await db
+    await withTenantContext(this.database.db, tenantId, async (db) => {
+      await this.assertCanCreateExtensionInTx(db, tenantId);
+    });
+  }
+
+  async assertCanCreateExtensionInTx(
+    db: Parameters<Parameters<typeof withTenantContext>[2]>[0],
+    tenantId: string,
+  ): Promise<void> {
+    await this.assertWithinLimitInTx(db, tenantId, 'max_active_extensions', async (innerDb) => {
+      const [usage] = await innerDb
         .select({ total: count() })
         .from(extensions)
         .where(and(eq(extensions.tenantId, tenantId), eq(extensions.status, 'active')));
@@ -112,29 +121,38 @@ export class TenantLimitsService {
     });
   }
 
+  private async assertWithinLimitInTx(
+    db: Parameters<Parameters<typeof withTenantContext>[2]>[0],
+    tenantId: string,
+    dimension: EntitlementDimension,
+    countFn: (db: Parameters<Parameters<typeof withTenantContext>[2]>[0]) => Promise<number>,
+  ): Promise<void> {
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+    if (!tenant) throw notFound('Tenant');
+    if (tenant.status === 'archived') {
+      throw validationError({ tenant: 'Tenant is archived' });
+    }
+
+    const limits = await this.resolveLimits(db, tenantId);
+    const limit = limits[dimension] ?? null;
+    if (limit === null || limit <= 0) {
+      return;
+    }
+
+    await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${tenantId}), hashtext(${dimension}))`);
+    const used = await countFn(db);
+    if (used >= limit) {
+      throw entitlementLimitReached(dimension, used, limit);
+    }
+  }
+
   private async assertWithinLimit(
     tenantId: string,
     dimension: EntitlementDimension,
     countFn: (db: Parameters<Parameters<typeof withTenantContext>[2]>[0]) => Promise<number>,
   ): Promise<void> {
     await withTenantContext(this.database.db, tenantId, async (db) => {
-      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
-      if (!tenant) throw notFound('Tenant');
-      if (tenant.status === 'archived') {
-        throw validationError({ tenant: 'Tenant is archived' });
-      }
-
-      const limits = await this.resolveLimits(db, tenantId);
-      const limit = limits[dimension] ?? null;
-      if (limit === null || limit <= 0) {
-        return;
-      }
-
-      await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${tenantId}), hashtext(${dimension}))`);
-      const used = await countFn(db);
-      if (used >= limit) {
-        throw entitlementLimitReached(dimension, used, limit);
-      }
+      await this.assertWithinLimitInTx(db, tenantId, dimension, countFn);
     });
   }
 

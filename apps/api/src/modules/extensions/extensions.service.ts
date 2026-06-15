@@ -64,9 +64,9 @@ export class ExtensionsService {
     input: CreateExtensionInput,
   ) {
     await this.assertTenantAccess(actor, tenantId);
-    await this.tenantLimitsService.assertCanCreateExtension(tenantId);
 
     const created = await withTenantContext(this.database.db, tenantId, async (db) => {
+      await this.tenantLimitsService.assertCanCreateExtensionInTx(db, tenantId);
       const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
       if (!tenant) throw notFound('Tenant');
       if (tenant.status === 'suspended') {
