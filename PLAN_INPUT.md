@@ -1,40 +1,30 @@
-# PLAN_INPUT — PBX multi-tenant closeout
+# PLAN_INPUT — PBX multi-tenant closeout (residual matrix)
 
-**Approved:** 2026-06-14
+**Approved:** 2026-06-15
+**Baseline commit:** `5e80d73`
+**Branch:** `feature/pbx-multitenant-closeout`
 
-## Mission
+## Residual gap matrix (post-5e80d73)
 
-Complete the PBX multi-tenant management layer: customer lifecycle, portal users/invitations, SIP devices, tenant SIP domains, entitlements, and Platform Owner / tenant-admin UI — without interrupting working telephony.
+| Gap | Current implementation | Missing runtime behavior | Files/symbols | Compatibility constraint | Tests required | Live evidence required |
+|-----|------------------------|------------------------|---------------|--------------------------|----------------|------------------------|
+| Lifecycle telephony enforcement | `TenantLifecycleTelephonyService`, `TenantGuard` blocks suspended/archived portal | Live REGISTER/call denial on suspended tenant | `tenant-lifecycle-telephony.service.ts`, `tenants.service.ts`, `tenant.guard.ts`, `generator.ts` (active-only) | Rollback on telephony failure; history preserved | Lifecycle + rollback unit tests | Suspend API → config absent → reactivate same creds (**suspend/reactivate API proven 2026-06-15**) |
+| Customer PBX provisioning | `TenantProvisioningService`, `/platform/tenants/[id]/provision` | End-to-end browser wizard proof | `tenant-provisioning.service.ts`, `tenants.controller.ts`, provision page | Idempotent retry; not `active` before runtime verify | Provisioning integration test | UI draft→provision→active with endpoint verify |
+| Invitation acceptance UI | `accept-invitation/page.tsx`, memberships API | Browser accept + expire/revoke/replay | `memberships.service.ts`, accept page | Token hash-only; copy-link when SMTP missing | Invitation API + browser test | Copy-link + accept session |
+| Multi-device ringing | Controller multi-originate + `cancelOtherCalleeLegs`, `ListCalleeEndpointsForExtension` | Two softphones live first-answer-wins | `controller.go`, `repository.go`, `registry.go` | Legacy endpoint fallback; offline gate preserved | Go unit tests (host lacks `go`) | Two-device REGISTER + call |
+| Tenant SIP domains | TXT validation APIs + telephony settings UI | Live DNS delegation proof | `sip-domains.service.ts` | Shared-domain login preserved | Resolver unit tests | External DNS (blocked if undelegated) |
+| Entitlement enforcement | `TenantLimitsService` + concurrent calls in controller `CreateCall` | Race integration tests; recording storage gate | `tenant-limits.service.ts`, `repository.go` | Grandfather over-limit; unlimited when unset | Concurrent race integration | UI counters match API |
+| Five-tenant isolation | `demo:multitenant-seed`, guard tests | Cross-tenant API integration suite | `multitenant-demo-seed.ts`, `tenant-isolation.spec.ts` | No secrets in repo | API isolation integration | Tenant A cannot access B resources |
+| Generated Asterisk secrets in git | `.gitignore` for credential-bearing conf | Migrate to ignored runtime dir | `infrastructure/asterisk/generated/*` | Do not break active mount | N/A | Working tree remains dirty (not committed) |
+| Live telephony regression | Stage7 scripts | stage7-sip-live-test REGISTER failed (stage7 tenant creds) | `scripts/stage7-*.sh` | Preserve ringback/recording pipeline | stage7-verify | Mandatory regression partially blocked |
 
-## Capability matrix (2026-06-14 review)
+## Reused from 5e80d73 (do not replace)
 
-| Capability | DB | API | UI | Auth | Runtime | Tests | Status | Missing work |
-|------------|----|-----|----|----|---------|-------|--------|--------------|
-| Tenant list/create | IMPLEMENTED | IMPLEMENTED | PARTIAL | IMPLEMENTED | IMPLEMENTED | PARTIAL | PARTIAL | Wizard provisioning orchestration |
-| Customer summary dashboard | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | PARTIAL | PARTIAL | Primary owner, SIP mode columns |
-| Lifecycle states (draft→archived) | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | PARTIAL | IMPLEMENTED | PARTIAL | Suspend blocks SIP at auth layer (future) |
-| Lifecycle transition validation | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | — |
-| Portal users / memberships | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | PARTIAL | MISSING | PARTIAL | Extension assign/unassign API |
-| Secure invitations | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | PARTIAL | MISSING | PARTIAL | Email provider (external) |
-| SIP devices schema | IMPLEMENTED | IMPLEMENTED | PARTIAL | IMPLEMENTED | PARTIAL | MISSING | PARTIAL | Multi-device ring in controller |
-| Legacy device backfill | IMPLEMENTED | IMPLEMENTED | N/A | N/A | PARTIAL | MISSING | PARTIAL | Run backfill after migrate |
-| Tenant SIP domains | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | EXTERNAL | MISSING | PARTIAL | Live DNS delegation |
-| Shared-domain compatibility | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | — |
-| Extension limits | IMPLEMENTED | IMPLEMENTED | MISSING | IMPLEMENTED | PARTIAL | PARTIAL | PARTIAL | UI entitlement counters |
-| Multi-dimension entitlements | IMPLEMENTED | PARTIAL | MISSING | IMPLEMENTED | PARTIAL | MISSING | PARTIAL | Enforce calls/PSTN/AI dims |
-| Platform customer UI | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | IMPLEMENTED | PARTIAL | MISSING | PARTIAL | Detail tabs reuse |
-| Tenant admin UI | IMPLEMENTED | PARTIAL | PARTIAL | IMPLEMENTED | PARTIAL | MISSING | PARTIAL | Devices list page, settings nav |
-| Audit events | IMPLEMENTED | IMPLEMENTED | PARTIAL | IMPLEMENTED | IMPLEMENTED | MISSING | PARTIAL | Dedicated audit tab |
-| Telephony regression | N/A | N/A | N/A | N/A | IMPLEMENTED | PARTIAL | PASS_WITH_LIMITATIONS | Live two-device gate pending |
+- Migration `0012_multitenant_closeout.sql`, contracts, memberships/devices/sip-domains modules
+- Platform customers list, tenant users invite UI, extension devices panel (partial)
+- Entitlement dimensions schema and partial `TenantLimitsService`
+- Telephony `loadTelephonyRecords()` device-first with legacy fallback
 
-## Compatibility constraints
+## Definition of Done status
 
-- Preserve existing extension credentials as legacy/default devices
-- Preserve shared-domain username format `{slug}_{ext}`
-- Additive migration `0012_multitenant_closeout` only
-- Grandfathered over-limit tenants: existing objects operate; new creates blocked
-- Do not manually edit active generated Asterisk config
-
-## Prior extension-management mission (2026-06-13)
-
-See prior sections in git history — rotate credential, recordings playback, safe delete remain IMPLEMENTED.
+**Overall:** `PASS_WITH_LIMITATIONS` — lifecycle telephony suspend/reactivate proven via API; code complete for provisioning, invitations, devices, entitlements; live multi-device SIP and full stage7 regression not fully proven in this session.

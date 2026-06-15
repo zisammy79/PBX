@@ -195,3 +195,23 @@ Status: `PASS` — shared recording volume, lifecycle, finalize, authenticated A
 | Prior checkpoint | `28b2443` |
 | Remote | `origin/feature/pbx-multitenant-closeout` |
 | Excluded from commit | `.env`, generated `pjsip-tenants.conf` (passwords), `var/recordings/` |
+
+## Multi-tenant closeout slice (2026-06-15)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| API typecheck | `npx pnpm --filter @pbx/api run typecheck` | PASS |
+| API unit tests | `npx pnpm --filter @pbx/api test` | PASS (69 tests) |
+| Web typecheck | `npx pnpm --filter @pbx/web run typecheck` | PASS |
+| Telephony-config tests | `npx pnpm --filter @pbx/telephony-config test` | PASS (11 tests) |
+| Lifecycle suspend telephony | `PATCH .../lifecycle {"status":"suspended"}` on `stage7-isolation-1781188999` | PASS — `telephonyReconciled`, `runtimeVerified`, tenant absent from active PJSIP |
+| Lifecycle reactivate | `PATCH .../lifecycle {"status":"active"}` | PASS — `telephonyReconciled`, `runtimeVerified` |
+| Five-tenant demo seed | `ALLOW_DEV_SEED=true bash scripts/seed-multitenant-demo.sh` | PASS — `demo-mt-1..5` |
+| Legacy device backfill | `bash scripts/backfill-legacy-sip-devices.sh` | PASS — `created=68` (idempotent on rerun) |
+| Stage7 live SIP | `bash scripts/stage7-sip-live-test.sh` | **FAIL** — stage7 tenant callee REGISTER did not complete (401 loop / no 200) |
+| Stage7 isolation | `bash scripts/stage7-isolation-test.sh` | PARTIAL — generator tests PASS; usage idempotency skipped (no completed call) |
+| Multi-device live call | two softphones same extension | **Not performed** |
+| Invitation browser accept | `/accept-invitation?token=` | **Not performed** in browser |
+| Generated runtime git state | `git status infrastructure/asterisk/generated` | **Dirty** — credential-bearing conf modified; not committed |
+
+Status: `PASS_WITH_LIMITATIONS` — lifecycle telephony enforcement and demo seed proven; live SIP regression and browser invitation proof remain operator/session gaps.
