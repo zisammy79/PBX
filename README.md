@@ -84,6 +84,8 @@ Router must forward WAN UDP `5060` and `10000–10099` to the PBX host. CGNAT bl
 
 Validate: `bash scripts/validate-telephony-compose.sh`, `bash scripts/check-extension-registration.sh <tenant-slug> <ext>`
 
+Live regression: `bash scripts/stage7-sip-live-test.sh` (uses `pbx-internal` Docker network, `SIP_UDP_PUBLISH` default port `5060`, and SIPp `-aa` for OPTIONS qualify).
+
 ## Extension registration
 
 Softphone setup: **Username**, **Password** (one-time after rotate), **Domain** (`SIP_PUBLIC_DOMAIN` or public IPv4), UDP port 5060.

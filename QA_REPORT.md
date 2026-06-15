@@ -208,10 +208,13 @@ Status: `PASS` — shared recording volume, lifecycle, finalize, authenticated A
 | Lifecycle reactivate | `PATCH .../lifecycle {"status":"active"}` | PASS — `telephonyReconciled`, `runtimeVerified` |
 | Five-tenant demo seed | `ALLOW_DEV_SEED=true bash scripts/seed-multitenant-demo.sh` | PASS — `demo-mt-1..5` |
 | Legacy device backfill | `bash scripts/backfill-legacy-sip-devices.sh` | PASS — `created=68` (idempotent on rerun) |
-| Stage7 live SIP | `bash scripts/stage7-sip-live-test.sh` | **FAIL** — stage7 tenant callee REGISTER did not complete (401 loop / no 200) |
+| Stage7 live SIP | `bash scripts/stage7-sip-live-test.sh` | **PASS** — REGISTER 401→200, internal call, CREATED→COMPLETED, 2 legs, usage, bridge cleanup |
+| Stage7 root cause | `SIP_PORT` default 5062 vs host 5060; host-network contacts unqualified | Fixed: `pbx-internal` network, `SIP_UDP_PUBLISH` default, SIPp `-aa`, 60s qualify wait |
+| Entitlement race integration | `RUN_INTEGRATION_TESTS=true vitest entitlement-race.integration.spec.ts` | **PASS** — concurrent extension create with limit=1 |
+| Invitation API integration | `multitenant-closeout.integration.spec.ts` | **PASS** — copy-link, accept, replay denial |
 | Stage7 isolation | `bash scripts/stage7-isolation-test.sh` | PARTIAL — generator tests PASS; usage idempotency skipped (no completed call) |
 | Multi-device live call | two softphones same extension | **Not performed** |
 | Invitation browser accept | `/accept-invitation?token=` | **Not performed** in browser |
 | Generated runtime git state | `git status infrastructure/asterisk/generated` | **Dirty** — credential-bearing conf modified; not committed |
 
-Status: `PASS_WITH_LIMITATIONS` — lifecycle telephony enforcement and demo seed proven; live SIP regression and browser invitation proof remain operator/session gaps.
+Status: `PASS_WITH_LIMITATIONS` — stage7 live SIP, lifecycle, invitation API, and entitlement race proven; multi-device live two-softphone and browser wizard proofs remain open.

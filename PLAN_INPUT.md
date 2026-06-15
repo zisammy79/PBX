@@ -27,4 +27,4 @@
 
 ## Definition of Done status
 
-**Overall:** `PASS_WITH_LIMITATIONS` — lifecycle telephony suspend/reactivate proven via API; code complete for provisioning, invitations, devices, entitlements; live multi-device SIP and full stage7 regression not fully proven in this session.
+**Overall:** `PASS_WITH_LIMITATIONS` — stage7 live SIP regression PASS; lifecycle suspend/reactivate PASS; invitation API and entitlement race PASS; multi-device live and browser wizard proofs remain open.
