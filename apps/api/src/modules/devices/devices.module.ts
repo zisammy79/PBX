@@ -5,7 +5,7 @@ import { DevicesController } from './devices.controller.js';
 import { DevicesService } from './devices.service.js';
 
 @Module({
-  imports: [TenantsModule, forwardRef(() => TelephonyModule)],
+  imports: [forwardRef(() => TenantsModule), forwardRef(() => TelephonyModule)],
   controllers: [DevicesController],
   providers: [DevicesService],
   exports: [DevicesService],

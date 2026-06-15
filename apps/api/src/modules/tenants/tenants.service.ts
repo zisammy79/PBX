@@ -29,6 +29,7 @@ import { CONFIG, DATABASE } from '../../common/tokens.js';
 import type { AppConfig } from '../../config.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
 import { TenantLifecycleService } from './tenant-lifecycle.service.js';
+import { TenantLifecycleTelephonyService } from './tenant-lifecycle-telephony.service.js';
 
 @Injectable()
 export class TenantsService {
@@ -36,6 +37,8 @@ export class TenantsService {
     @Inject(CONFIG) private readonly config: AppConfig,
     @Inject(DATABASE) private readonly database: ReturnType<typeof import('@pbx/database').createDatabase>,
     @Inject(TenantLifecycleService) private readonly lifecycleService: TenantLifecycleService,
+    @Inject(TenantLifecycleTelephonyService)
+    private readonly lifecycleTelephonyService: TenantLifecycleTelephonyService,
   ) {}
 
   async createTenant(actor: AuthenticatedUser, input: CreateTenantRequest) {
@@ -298,6 +301,8 @@ export class TenantsService {
         input.status,
       );
 
+      const previousStatus = tenant.status as TenantLifecycleStatus;
+
       const [updated] = await db
         .update(tenants)
         .set({ status: input.status, updatedAt: new Date() })
@@ -312,19 +317,48 @@ export class TenantsService {
         resourceType: 'tenant',
         resourceId: tenantId,
         metadata: {
-          from: tenant.status,
+          from: previousStatus,
           to: input.status,
           ...(input.reason ? { reason: input.reason } : {}),
         },
       });
 
-      return {
-        id: updated!.id,
-        name: updated!.name,
-        slug: updated!.slug,
-        status: updated!.status,
-        updatedAt: updated!.updatedAt.toISOString(),
-      };
+      return { updated: updated!, previousStatus };
+    }).then(async ({ updated, previousStatus }) => {
+      try {
+        const telephonyResult = await this.lifecycleTelephonyService.applyLifecycleTelephony(
+          actor,
+          tenantId,
+          previousStatus,
+          input.status,
+        );
+
+        return {
+          id: updated.id,
+          name: updated.name,
+          slug: updated.slug,
+          status: updated.status,
+          updatedAt: updated.updatedAt.toISOString(),
+          telephony: telephonyResult,
+        };
+      } catch (err) {
+        await withBypassRls(this.database.db, async (db) => {
+          await db
+            .update(tenants)
+            .set({ status: previousStatus, updatedAt: new Date() })
+            .where(eq(tenants.id, tenantId));
+          await db.insert(auditEvents).values({
+            tenantId,
+            actorUserId: actor.id,
+            actorType: 'user',
+            action: 'tenant.lifecycle_rollback',
+            resourceType: 'tenant',
+            resourceId: tenantId,
+            metadata: { from: input.status, to: previousStatus },
+          });
+        });
+        throw err;
+      }
     });
   }
 }

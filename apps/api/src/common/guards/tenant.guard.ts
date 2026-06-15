@@ -63,9 +63,16 @@ export class TenantGuard implements CanActivate {
 
   private async assertTenantActive(tenantId: string, request?: RequestWithUser): Promise<boolean> {
     const [tenant] = await this.db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
-    if (!tenant || tenant.status === 'closed') {
+    if (!tenant || tenant.status === 'closed' || tenant.status === 'archived') {
       throw tenantAccessDenied();
     }
+
+    const isPlatformAdmin = request?.user?.platformRoles.includes('platform_super_admin') ?? false;
+
+    if (tenant.status === 'suspended' && !isPlatformAdmin) {
+      throw new ForbiddenException('Tenant is suspended');
+    }
+
     if (request) {
       request.activeTenantId = tenantId;
       (request as RequestWithUser & { tenantSlug?: string }).tenantSlug = tenant.slug;
