@@ -16,7 +16,7 @@
 | Entitlement enforcement | `TenantLimitsService` + concurrent calls in controller `CreateCall` | Race integration tests; recording storage gate | `tenant-limits.service.ts`, `repository.go` | Grandfather over-limit; unlimited when unset | Concurrent race integration | UI counters match API |
 | Five-tenant isolation | `demo:multitenant-seed`, guard tests | Cross-tenant API integration suite | `multitenant-demo-seed.ts`, `tenant-isolation.spec.ts` | No secrets in repo | API isolation integration | Tenant A cannot access B resources |
 | Generated Asterisk secrets in git | `.gitignore` for credential-bearing conf | Migrate to ignored runtime dir | `infrastructure/asterisk/generated/*` | Do not break active mount | N/A | Working tree remains dirty (not committed) |
-| Live telephony regression | Stage7 scripts | stage7-sip-live-test REGISTER failed (stage7 tenant creds) | `scripts/stage7-*.sh` | Preserve ringback/recording pipeline | stage7-verify | Mandatory regression partially blocked |
+| Live telephony regression | Stage7 scripts | **PASS** after port/network/qualify fixes | `scripts/stage7-*.sh` | Preserve ringback/recording pipeline | stage7-verify | Mandatory regression proven |
 
 ## Reused from 5e80d73 (do not replace)
 
