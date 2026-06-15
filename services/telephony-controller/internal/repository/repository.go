@@ -102,7 +102,7 @@ func (r *Repository) LookupExtensionByTenantNumber(ctx context.Context, tenantSl
 			SELECT e.id, e.tenant_id, t.slug, e.extension_number, e.asterisk_endpoint_id
 			FROM extensions e
 			JOIN tenants t ON t.id = e.tenant_id
-			WHERE t.slug = $1 AND e.extension_number = $2 AND e.status = 'active'
+			WHERE t.slug = $1 AND e.extension_number = $2 AND e.status = 'active' AND t.status = 'active'
 		`, tenantSlug, number).Scan(&ext.ID, &ext.TenantID, &ext.TenantSlug, &ext.ExtensionNumber, &ext.AsteriskEndpointID)
 	})
 	if err != nil {
@@ -111,9 +111,82 @@ func (r *Repository) LookupExtensionByTenantNumber(ctx context.Context, tenantSl
 	return &ext, nil
 }
 
+func (r *Repository) ListCalleeEndpointsForExtension(ctx context.Context, tenantID, extensionID uuid.UUID, fallbackEndpointID string) ([]string, error) {
+	endpoints := make([]string, 0, 4)
+	seen := map[string]bool{}
+	err := r.withBypass(ctx, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT COALESCE(d.asterisk_endpoint_id, e.asterisk_endpoint_id) AS endpoint_id
+			FROM sip_devices d
+			JOIN extensions e ON e.id = d.extension_id
+			JOIN tenants t ON t.id = d.tenant_id
+			WHERE d.tenant_id = $1
+			  AND d.extension_id = $2
+			  AND e.status = 'active'
+			  AND t.status = 'active'
+			  AND d.status IN ('ready', 'provisioning')
+			ORDER BY d.created_at ASC
+		`, tenantID, extensionID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var endpointID string
+			if err := rows.Scan(&endpointID); err != nil {
+				return err
+			}
+			if endpointID != "" && !seen[endpointID] {
+				seen[endpointID] = true
+				endpoints = append(endpoints, endpointID)
+			}
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(endpoints) == 0 && fallbackEndpointID != "" {
+		endpoints = append(endpoints, fallbackEndpointID)
+	}
+	return endpoints, nil
+}
+
+func (r *Repository) IsTenantCallable(ctx context.Context, tenantSlug string) (bool, error) {
+	var status string
+	err := r.withBypass(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT status FROM tenants WHERE slug = $1`, tenantSlug).Scan(&status)
+	})
+	if err != nil {
+		return false, err
+	}
+	return status == "active", nil
+}
+
 func (r *Repository) CreateCall(ctx context.Context, rec CallRecord) error {
 	return r.withBypass(ctx, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1::text), hashtext('max_concurrent_calls'))`, rec.TenantID.String()); err != nil {
+			return err
+		}
+		limit, err := r.concurrentCallLimit(ctx, tx, rec.TenantID)
+		if err != nil {
+			return err
+		}
+		if limit > 0 {
+			var used int
+			if err := tx.QueryRow(ctx, `
+				SELECT COUNT(*)::int FROM calls
+				WHERE tenant_id = $1
+				  AND ended_at IS NULL
+				  AND status IN ('initiating', 'ringing', 'answered', 'held')
+			`, rec.TenantID).Scan(&used); err != nil {
+				return err
+			}
+			if used >= limit {
+				return fmt.Errorf("concurrent_call_limit_reached")
+			}
+		}
+		_, err = tx.Exec(ctx, `
 			INSERT INTO calls (
 				id, tenant_id, correlation_id, direction, status,
 				from_extension_id, to_extension_id, caller_number, callee_number,
@@ -124,6 +197,46 @@ func (r *Repository) CreateCall(ctx context.Context, rec CallRecord) error {
 			rec.AsteriskChannelID, rec.StartedAt)
 		return err
 	})
+}
+
+func (r *Repository) concurrentCallLimit(ctx context.Context, tx pgx.Tx, tenantID uuid.UUID) (int, error) {
+	var planID *uuid.UUID
+	if err := tx.QueryRow(ctx, `SELECT plan_id FROM tenants WHERE id = $1`, tenantID).Scan(&planID); err != nil {
+		return 0, err
+	}
+
+	var override *int
+	err := tx.QueryRow(ctx, `
+		SELECT limit_value::int
+		FROM tenant_limit_overrides
+		WHERE tenant_id = $1 AND dimension = 'max_concurrent_calls'
+		LIMIT 1
+	`, tenantID).Scan(&override)
+	if err != nil && err != pgx.ErrNoRows {
+		return 0, err
+	}
+	if override != nil {
+		return *override, nil
+	}
+
+	if planID == nil {
+		return 0, nil
+	}
+
+	var included *int
+	err = tx.QueryRow(ctx, `
+		SELECT included_quantity::int
+		FROM plan_entitlements
+		WHERE plan_id = $1 AND meter_name = 'max_concurrent_calls'
+		LIMIT 1
+	`, *planID).Scan(&included)
+	if err != nil && err != pgx.ErrNoRows {
+		return 0, err
+	}
+	if included == nil {
+		return 0, nil
+	}
+	return *included, nil
 }
 
 func (r *Repository) UpdateCallStatus(ctx context.Context, callID uuid.UUID, status string, fields map[string]any) error {
