@@ -241,6 +241,34 @@
         ]
       }
     },
+    "/api/v1/tenants/{tenantId}/provisioning": {
+      "get": {
+        "operationId": "TenantsController_getProvisioning",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tenants"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/provision": {
+      "post": {
+        "operationId": "TenantsController_provision",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tenants"
+        ]
+      }
+    },
     "/api/v1/tenants/{tenantId}/entitlements": {
       "get": {
         "operationId": "TenantsController_entitlements",

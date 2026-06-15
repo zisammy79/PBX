@@ -91,6 +91,11 @@ export default function PlatformCustomersPage() {
                   <td>
                     <Link href={`/platform/tenants/${customer.id}`}>{customer.name}</Link>
                     <div className="muted">{customer.slug}</div>
+                    {customer.status === 'draft' || customer.status === 'provisioning' || customer.status === 'failed' ? (
+                      <div>
+                        <Link href={`/platform/tenants/${customer.id}/provision`}>Provision</Link>
+                      </div>
+                    ) : null}
                   </td>
                   <td>{customer.status}</td>
                   <td className="muted">{customer.primaryOwnerEmail ?? '—'}</td>
@@ -107,15 +112,10 @@ export default function PlatformCustomersPage() {
                         Provision
                       </button>
                     ) : null}
-                    {customer.status === 'provisioning' ? (
-                      <button type="button" className="btn btn-primary" style={{ marginLeft: '0.25rem' }} onClick={() => void transition(customer.id, 'active')}>
-                        Activate
-                      </button>
-                    ) : null}
-                    {customer.status === 'failed' ? (
-                      <button type="button" className="btn btn-secondary" onClick={() => void transition(customer.id, 'provisioning')}>
-                        Retry
-                      </button>
+                    {customer.status === 'provisioning' || customer.status === 'failed' ? (
+                      <Link href={`/platform/tenants/${customer.id}/provision`} className="btn btn-primary" style={{ marginLeft: '0.25rem' }}>
+                        Continue provisioning
+                      </Link>
                     ) : null}
                     {customer.status === 'active' ? (
                       <button type="button" className="btn btn-secondary" onClick={() => void transition(customer.id, 'suspended')}>
