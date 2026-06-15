@@ -7,9 +7,10 @@ import {
   type EntitlementUsage,
   METER_TO_DIMENSION,
 } from '@pbx/contracts';
-import { and, count, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
   apiApplications,
+  calls,
   extensions,
   planEntitlements,
   sipDevices,
@@ -215,6 +216,32 @@ export class TenantLimitsService {
             and(
               eq(sipDevices.tenantId, tenantId),
               inArray(sipDevices.status, [...ACTIVE_DEVICE_STATUSES, 'draft']),
+            ),
+          );
+        return Number(row?.total ?? 0);
+      }
+      case 'max_devices_per_extension': {
+        const rows = await db
+          .select({ total: count() })
+          .from(sipDevices)
+          .where(
+            and(
+              eq(sipDevices.tenantId, tenantId),
+              inArray(sipDevices.status, [...ACTIVE_DEVICE_STATUSES, 'draft']),
+            ),
+          )
+          .groupBy(sipDevices.extensionId);
+        return rows.reduce((max, row) => Math.max(max, Number(row.total ?? 0)), 0);
+      }
+      case 'max_concurrent_calls': {
+        const [row] = await db
+          .select({ total: count() })
+          .from(calls)
+          .where(
+            and(
+              eq(calls.tenantId, tenantId),
+              isNull(calls.endedAt),
+              inArray(calls.status, ['initiating', 'ringing', 'answered', 'held']),
             ),
           );
         return Number(row?.total ?? 0);
