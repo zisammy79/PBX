@@ -16,6 +16,7 @@ import { DevicesService } from '../devices/devices.service.js';
 import { ExtensionsService } from '../extensions/extensions.service.js';
 import { TelephonyService } from '../telephony/telephony.service.js';
 import { TenantLifecycleTelephonyService } from './tenant-lifecycle-telephony.service.js';
+import { TwilioProvisioningService } from '../twilio/twilio-provisioning.service.js';
 
 export type ProvisioningStepStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 
@@ -56,6 +57,8 @@ export class TenantProvisioningService {
     private readonly telephonyService: TelephonyService,
     @Inject(TenantLifecycleTelephonyService)
     private readonly lifecycleTelephonyService: TenantLifecycleTelephonyService,
+    @Inject(TwilioProvisioningService)
+    private readonly twilioProvisioningService: TwilioProvisioningService,
   ) {}
 
   async getState(tenantId: string): Promise<TenantProvisioningState> {
@@ -176,6 +179,14 @@ export class TenantProvisioningService {
         metadata: { activated: true },
       });
     });
+
+    if (input.assignPhoneNumber) {
+      await this.twilioProvisioningService.provisionPhoneNumberForTenant(actor, tenantId, {
+        ...(input.inboundDestinationExtensionNumber
+          ? { inboundDestinationExtensionNumber: input.inboundDestinationExtensionNumber }
+          : {}),
+      });
+    }
 
     const state = await this.getState(tenantId);
     return { ...state, ...(credentials.length ? { credentials } : {}) };

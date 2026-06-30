@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Inject, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
-import { CreateTenantRequestSchema, Permission, ProvisionTenantRequestSchema } from '@pbx/contracts';
+import { CreateTenantRequestSchema, Permission, ProvisionTenantPhoneNumberSchema, ProvisionTenantRequestSchema } from '@pbx/contracts';
 import { UpdateTenantLifecycleSchema } from '@pbx/contracts';
 import type { RequestWithUser } from '../../common/guards/auth.guard.js';
 import {
@@ -10,6 +10,7 @@ import { TenantGuard } from '../../common/guards/tenant.guard.js';
 import { TenantLimitsService } from './tenant-limits.service.js';
 import { TenantProvisioningService } from './tenant-provisioning.service.js';
 import { TenantsService } from './tenants.service.js';
+import { TwilioProvisioningService } from '../twilio/twilio-provisioning.service.js';
 
 @Controller('tenants')
 export class TenantsController {
@@ -17,6 +18,7 @@ export class TenantsController {
     @Inject(TenantsService) private readonly tenantsService: TenantsService,
     @Inject(TenantLimitsService) private readonly tenantLimitsService: TenantLimitsService,
     @Inject(TenantProvisioningService) private readonly tenantProvisioningService: TenantProvisioningService,
+    @Inject(TwilioProvisioningService) private readonly twilioProvisioningService: TwilioProvisioningService,
   ) {}
 
   @Post()
@@ -60,6 +62,22 @@ export class TenantsController {
   async provision(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Body() body: unknown) {
     const parsed = ProvisionTenantRequestSchema.parse(body ?? {});
     return this.tenantProvisioningService.provision(req.user!, tenantId, parsed);
+  }
+
+  @Post(':tenantId/provision-phone-number')
+  @RequirePermissions(Permission.PLATFORM_TENANT_UPDATE)
+  async provisionPhoneNumber(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = ProvisionTenantPhoneNumberSchema.parse(body ?? {});
+    return this.twilioProvisioningService.provisionPhoneNumberForTenant(req.user!, tenantId, {
+      ...(parsed.inboundDestinationExtensionNumber
+        ? { inboundDestinationExtensionNumber: parsed.inboundDestinationExtensionNumber }
+        : {}),
+      ...(parsed.force ? { force: parsed.force } : {}),
+    });
   }
 
   @Get(':tenantId/entitlements')

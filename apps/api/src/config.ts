@@ -35,6 +35,17 @@ const ConfigSchema = z.object({
   recordingPlaybackTtlSeconds: z.coerce.number().int().min(60).max(3600).default(300),
   callRecordingStorageBackend: z.enum(['local', 's3']).default('local'),
   callRecordingLocalRoot: z.string().min(1).default('/var/lib/pbx/recordings'),
+  twilioAccountSid: z.string().min(1).optional(),
+  twilioApiKeySid: z.string().min(1).optional(),
+  twilioApiKeySecret: z.string().min(1).optional(),
+  twilioTrunkSid: z.string().min(1).optional(),
+  twilioTerminationSipUri: z.string().min(1).optional(),
+  twilioTestDid: z.string().regex(/^\+[1-9]\d{6,14}$/).optional(),
+  pbxPublicIp: z.string().min(1).optional(),
+  pbxOriginationSipUri: z.string().min(1).optional(),
+  twilioDefaultCountry: z.string().length(2).default('IL'),
+  twilioDefaultNumberType: z.enum(['local']).default('local'),
+  twilioNumberAssignmentMode: z.enum(['manual', 'auto', 'manual_or_auto']).default('manual_or_auto'),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
@@ -76,6 +87,17 @@ export function loadConfig(): AppConfig {
     recordingPlaybackTtlSeconds: process.env.RECORDING_PLAYBACK_TTL_SECONDS,
     callRecordingStorageBackend: process.env.CALL_RECORDING_STORAGE_BACKEND,
     callRecordingLocalRoot: process.env.CALL_RECORDING_LOCAL_ROOT,
+    twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
+    twilioApiKeySid: process.env.TWILIO_API_KEY_SID,
+    twilioApiKeySecret: process.env.TWILIO_API_KEY_SECRET,
+    twilioTrunkSid: process.env.TWILIO_TRUNK_SID,
+    twilioTerminationSipUri: process.env.TWILIO_TERMINATION_SIP_URI,
+    twilioTestDid: process.env.TWILIO_TEST_DID,
+    pbxPublicIp: process.env.PBX_PUBLIC_IP,
+    pbxOriginationSipUri: process.env.PBX_ORIGINATION_SIP_URI,
+    twilioDefaultCountry: process.env.TWILIO_DEFAULT_COUNTRY,
+    twilioDefaultNumberType: process.env.TWILIO_DEFAULT_NUMBER_TYPE,
+    twilioNumberAssignmentMode: process.env.TWILIO_NUMBER_ASSIGNMENT_MODE,
   });
 
   if (!result.success) {
@@ -99,4 +121,51 @@ export function loadConfig(): AppConfig {
 
 export function resolveDatabaseUrl(config: AppConfig): string {
   return config.databaseAppUrl ?? config.databaseUrl;
+}
+
+export type TwilioConfig = {
+  accountSid: string;
+  apiKeySid: string;
+  apiKeySecret: string;
+  trunkSid: string;
+  terminationSipUri: string;
+  testDid?: string | undefined;
+  publicIp: string;
+  originationSipUri: string;
+  defaultCountry: string;
+  defaultNumberType: 'local';
+  numberAssignmentMode: 'manual' | 'auto' | 'manual_or_auto';
+};
+
+export function isTwilioConfigured(config: AppConfig): config is AppConfig & TwilioConfig {
+  return Boolean(
+    config.twilioAccountSid &&
+      config.twilioApiKeySid &&
+      config.twilioApiKeySecret &&
+      config.twilioTrunkSid &&
+      config.twilioTerminationSipUri &&
+      config.pbxPublicIp &&
+      config.pbxOriginationSipUri,
+  );
+}
+
+export function requireTwilioConfig(config: AppConfig): TwilioConfig {
+  if (!isTwilioConfigured(config)) {
+    throw new Error(
+      'Twilio is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET, TWILIO_TRUNK_SID, TWILIO_TERMINATION_SIP_URI, PBX_PUBLIC_IP, and PBX_ORIGINATION_SIP_URI.',
+    );
+  }
+  return {
+    accountSid: config.twilioAccountSid!,
+    apiKeySid: config.twilioApiKeySid!,
+    apiKeySecret: config.twilioApiKeySecret!,
+    trunkSid: config.twilioTrunkSid!,
+    terminationSipUri: config.twilioTerminationSipUri!,
+    testDid: config.twilioTestDid,
+    publicIp: config.pbxPublicIp!,
+    originationSipUri: config.pbxOriginationSipUri!,
+    defaultCountry: config.twilioDefaultCountry,
+    defaultNumberType: config.twilioDefaultNumberType,
+    numberAssignmentMode: config.twilioNumberAssignmentMode,
+  };
 }

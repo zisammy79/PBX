@@ -97,6 +97,7 @@ export function AppShell({
     { href: '/platform/billing/prices', label: 'Prices', show: isPlatformAdmin(user) },
     { href: '/platform/health', label: 'Health', show: isPlatformAdmin(user) },
     { href: '/platform/integrations', label: 'Integrations', show: isPlatformAdmin(user) },
+    { href: '/platform/telephony/twilio', label: 'Twilio SIP', show: isPlatformAdmin(user) },
   ];
 
   const nav = mode === 'platform' ? platformNav : tenantNav;

@@ -22,6 +22,7 @@ import { MembershipsModule } from './modules/memberships/memberships.module.js';
 import { DevicesModule } from './modules/devices/devices.module.js';
 import { SipDomainsModule } from './modules/sip-domains/sip-domains.module.js';
 import { RecordingsModule } from './modules/recordings/recordings.module.js';
+import { TwilioModule } from './modules/twilio/twilio.module.js';
 
 @Module({})
 export class AppModule {
@@ -51,6 +52,7 @@ export class AppModule {
         MembershipsModule,
         DevicesModule,
         SipDomainsModule,
+        TwilioModule,
       ],
     };
   }

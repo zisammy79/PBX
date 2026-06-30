@@ -22,3 +22,4 @@ export * from './invitations.js';
 export * from './devices.js';
 export * from './sip-domains.js';
 export * from './entitlements.js';
+export * from './twilio.js';

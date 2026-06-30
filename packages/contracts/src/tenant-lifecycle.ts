@@ -43,6 +43,9 @@ export const ProvisionTenantRequestSchema = z.object({
     )
     .max(10)
     .optional(),
+  /** When true and Twilio is configured, provisions an IL local DID during tenant activation. */
+  assignPhoneNumber: z.boolean().optional(),
+  inboundDestinationExtensionNumber: z.string().regex(/^\d{3,6}$/).optional(),
 });
 
 export type ProvisionTenantRequest = z.infer<typeof ProvisionTenantRequestSchema>;
