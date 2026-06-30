@@ -52,5 +52,18 @@ describe('trunk generator', () => {
   it('validates destination countries', () => {
     expect(validateDestinationCountry('+15551234567', ['US']).allowed).toBe(true);
     expect(validateDestinationCountry('+442071234567', ['US']).allowed).toBe(false);
+    expect(validateDestinationCountry('+97221234567', ['IL']).allowed).toBe(true);
+  });
+
+  it('generates credential-based outbound on ip trunk (Twilio termination)', () => {
+    const twilioTrunk = {
+      ...trunk,
+      authMode: 'ip' as const,
+      registrar: 'acme.pstn.twilio.com',
+    };
+    const cfg = generateTrunkConfig([twilioTrunk], [], []);
+    expect(cfg.pjsipTrunks).toContain('contact=sip:acme.pstn.twilio.com');
+    expect(cfg.pjsipTrunks).toContain('outbound_auth=acme_trunk_carrier_a_auth');
+    expect(cfg.pjsipTrunks).not.toContain('type=registration');
   });
 });

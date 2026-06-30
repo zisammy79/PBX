@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { notFound, validationError, type TwilioPhoneProvisioningStatus } from '@pbx/contracts';
-import { tenantTrunkId } from '@pbx/shared';
+import { encryptSecret, tenantTrunkId } from '@pbx/shared';
 import { and, eq } from 'drizzle-orm';
 import {
   auditEvents,
@@ -222,6 +222,32 @@ export class TwilioProvisioningService {
 
       const cfg = this.twilioService.twilioConfig();
       const { host, port } = parseTerminationHost(cfg.terminationSipUri);
+      const credentialsEncrypted =
+        cfg.sipUsername && cfg.sipPassword
+          ? encryptSecret(
+              JSON.stringify({ username: cfg.sipUsername, password: cfg.sipPassword }),
+              this.config.encryptionMasterKey,
+            )
+          : null;
+      const trunkValues = {
+        name: 'Twilio Production',
+        providerAdapter: 'twilio',
+        authMode: 'ip' as const,
+        transport: 'udp' as const,
+        isActive: true,
+        credentialsEncrypted,
+        config: {
+          allowedCodecs: ['alaw', 'ulaw'],
+          dtmfMode: 'rfc4733',
+          assignedDid: e164,
+          allowedCallerId: e164,
+          allowedDestinationCountries: ['IL'],
+          providerName: 'Twilio Elastic SIP Trunk',
+          twilioTrunkSid: cfg.trunkSid,
+          terminationSipUri: cfg.terminationSipUri,
+        },
+        updatedAt: new Date(),
+      };
 
       const [existing] = await db
         .select()
@@ -232,24 +258,7 @@ export class TwilioProvisioningService {
       if (existing) {
         await db
           .update(sipTrunks)
-          .set({
-            name: 'Twilio Production',
-            providerAdapter: 'twilio',
-            authMode: 'ip',
-            transport: 'udp',
-            isActive: true,
-            config: {
-              allowedCodecs: ['alaw', 'ulaw'],
-              dtmfMode: 'rfc4733',
-              assignedDid: e164,
-              allowedCallerId: e164,
-              allowedDestinationCountries: ['IL'],
-              providerName: 'Twilio Elastic SIP Trunk',
-              twilioTrunkSid: cfg.trunkSid,
-              terminationSipUri: cfg.terminationSipUri,
-            },
-            updatedAt: new Date(),
-          })
+          .set(trunkValues)
           .where(eq(sipTrunks.id, existing.id));
 
         const [endpoint] = await db
@@ -273,23 +282,9 @@ export class TwilioProvisioningService {
         .insert(sipTrunks)
         .values({
           tenantId,
-          name: 'Twilio Production',
           slug: TWILIO_TRUNK_SLUG,
-          providerAdapter: 'twilio',
-          authMode: 'ip',
-          transport: 'udp',
           asteriskTrunkId,
-          isActive: true,
-          config: {
-            allowedCodecs: ['alaw', 'ulaw'],
-            dtmfMode: 'rfc4733',
-            assignedDid: e164,
-            allowedCallerId: e164,
-            allowedDestinationCountries: ['IL'],
-            providerName: 'Twilio Elastic SIP Trunk',
-            twilioTrunkSid: cfg.trunkSid,
-            terminationSipUri: cfg.terminationSipUri,
-          },
+          ...trunkValues,
         })
         .returning();
 

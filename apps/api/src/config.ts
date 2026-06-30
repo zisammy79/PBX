@@ -46,6 +46,8 @@ const ConfigSchema = z.object({
   twilioDefaultCountry: z.string().length(2).default('IL'),
   twilioDefaultNumberType: z.enum(['local']).default('local'),
   twilioNumberAssignmentMode: z.enum(['manual', 'auto', 'manual_or_auto']).default('manual_or_auto'),
+  twilioSipUsername: z.string().min(1).optional(),
+  twilioSipPassword: z.string().min(1).optional(),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
@@ -98,6 +100,8 @@ export function loadConfig(): AppConfig {
     twilioDefaultCountry: process.env.TWILIO_DEFAULT_COUNTRY,
     twilioDefaultNumberType: process.env.TWILIO_DEFAULT_NUMBER_TYPE,
     twilioNumberAssignmentMode: process.env.TWILIO_NUMBER_ASSIGNMENT_MODE,
+    twilioSipUsername: process.env.TWILIO_SIP_USERNAME,
+    twilioSipPassword: process.env.TWILIO_SIP_PASSWORD,
   });
 
   if (!result.success) {
@@ -135,6 +139,8 @@ export type TwilioConfig = {
   defaultCountry: string;
   defaultNumberType: 'local';
   numberAssignmentMode: 'manual' | 'auto' | 'manual_or_auto';
+  sipUsername?: string | undefined;
+  sipPassword?: string | undefined;
 };
 
 export function isTwilioConfigured(config: AppConfig): config is AppConfig & TwilioConfig {
@@ -167,5 +173,7 @@ export function requireTwilioConfig(config: AppConfig): TwilioConfig {
     defaultCountry: config.twilioDefaultCountry,
     defaultNumberType: config.twilioDefaultNumberType,
     numberAssignmentMode: config.twilioNumberAssignmentMode,
+    sipUsername: config.twilioSipUsername,
+    sipPassword: config.twilioSipPassword,
   };
 }

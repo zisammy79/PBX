@@ -47,6 +47,7 @@ export function validateDestinationCountry(
     US: ['1'],
     CA: ['1'],
     GB: ['44'],
+    IL: ['972'],
   };
   for (const country of allowed) {
     const codes = prefixes[country] ?? [country.replace(/\D/g, '')];
@@ -129,6 +130,25 @@ export function generateTrunkConfig(
       if (trunk.outboundProxy) {
         pjsipLines.push(`outbound_proxy=sip:${trunk.outboundProxy}`);
       }
+    } else if (trunk.username && trunk.password && trunk.registrar) {
+      pjsipLines.push(
+        `outbound_auth=${auth}`,
+        `aors=${aor}`,
+        '',
+        `[${auth}]`,
+        'type=auth',
+        'auth_type=userpass',
+        `username=${trunk.username}`,
+        `password=${trunk.password}`,
+        '',
+        `[${aor}]`,
+        'type=aor',
+        `contact=sip:${trunk.registrar}`,
+      );
+      if (trunk.outboundProxy) {
+        pjsipLines.push(`outbound_proxy=sip:${trunk.outboundProxy}`);
+      }
+      pjsipLines.push(`identify_by=ip`, '', `[${ep}-identify]`, 'type=identify', `endpoint=${ep}`, 'match=0.0.0.0/0');
     } else {
       pjsipLines.push(`identify_by=ip`, `[${ep}-identify]`, 'type=identify', `endpoint=${ep}`, 'match=0.0.0.0/0');
     }
