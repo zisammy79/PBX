@@ -39,8 +39,10 @@ type WorkerConfig = {
   pollIntervalMs: number;
 };
 
-export async function processPendingDeliveries(config: WorkerConfig): Promise<number> {
-  const { db } = createDatabase({ url: config.databaseUrl });
+export async function processPendingDeliveries(
+  config: WorkerConfig,
+  db: ReturnType<typeof createDatabase>['db'],
+): Promise<number> {
   const now = new Date();
 
   const pending = await withBypassRls(db, async (tx) =>
