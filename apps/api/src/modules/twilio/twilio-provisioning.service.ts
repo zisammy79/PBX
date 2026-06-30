@@ -112,7 +112,7 @@ export class TwilioProvisioningService {
           actorType: 'user',
           action: 'twilio.number.provisioned',
           resourceType: 'phone_number',
-          resourceId: e164,
+          resourceId: pbxTrunkId,
           metadata: {
             e164,
             twilioNumberSid: twilioNumber.sid,
@@ -181,8 +181,8 @@ export class TwilioProvisioningService {
         actorType: 'user',
         action: 'twilio.number.purchased',
         resourceType: 'phone_number',
-        resourceId: purchased.e164,
-        metadata: { twilioNumberSid: purchased.sid, twilioTrunkSid: this.config.twilioTrunkSid },
+        resourceId: null,
+        metadata: { e164: purchased.e164, twilioNumberSid: purchased.sid, twilioTrunkSid: this.config.twilioTrunkSid },
       });
     });
 
