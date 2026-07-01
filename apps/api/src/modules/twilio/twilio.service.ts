@@ -146,7 +146,11 @@ export class TwilioService {
     const attachedLists = await client.trunking.v1.trunks(cfg.trunkSid).credentialsLists.list();
     for (const row of attachedLists) {
       const creds = await client.sip.credentialLists(row.sid).credentials.list();
-      if (creds.some((cred) => cred.username === cfg.sipUsername)) {
+      const existing = creds.find((cred) => cred.username === cfg.sipUsername);
+      if (existing) {
+        await client.sip.credentialLists(row.sid).credentials(existing.sid).update({
+          password: cfg.sipPassword,
+        });
         return;
       }
     }
