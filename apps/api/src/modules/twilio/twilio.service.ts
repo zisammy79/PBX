@@ -16,6 +16,9 @@ export type TwilioTrunkStatus = {
   originationUriMatches: boolean;
   ipAclConfigured: boolean;
   ipAclContainsPbx: boolean;
+  credentialListConfigured: boolean;
+  credentialListAttached: boolean;
+  credentialUsernameConfigured: boolean;
   attachedNumberCount: number;
 };
 
@@ -76,6 +79,7 @@ export class TwilioService {
     }
 
     const attached = await client.trunking.v1.trunks(cfg.trunkSid).phoneNumbers.list();
+    const credentialStatus = await this.readTerminationCredentialStatus(client, cfg);
 
     return {
       trunkSid: trunk.sid,
@@ -85,8 +89,89 @@ export class TwilioService {
       originationUriMatches: originationMatch,
       ipAclConfigured: acls.length > 0,
       ipAclContainsPbx,
+      ...credentialStatus,
       attachedNumberCount: attached.length,
     };
+  }
+
+  private async readTerminationCredentialStatus(
+    client: TwilioClient,
+    cfg: TwilioConfig,
+  ): Promise<{
+    credentialListConfigured: boolean;
+    credentialListAttached: boolean;
+    credentialUsernameConfigured: boolean;
+  }> {
+    const credentialUsernameConfigured = Boolean(cfg.sipUsername && cfg.sipPassword);
+    if (!credentialUsernameConfigured) {
+      return {
+        credentialListConfigured: false,
+        credentialListAttached: false,
+        credentialUsernameConfigured: false,
+      };
+    }
+
+    const attachedLists = await client.trunking.v1.trunks(cfg.trunkSid).credentialsLists.list();
+    if (attachedLists.length === 0) {
+      return {
+        credentialListConfigured: false,
+        credentialListAttached: false,
+        credentialUsernameConfigured: true,
+      };
+    }
+
+    for (const row of attachedLists) {
+      const creds = await client.sip.credentialLists(row.sid).credentials.list();
+      if (creds.some((cred) => cred.username === cfg.sipUsername)) {
+        return {
+          credentialListConfigured: true,
+          credentialListAttached: true,
+          credentialUsernameConfigured: true,
+        };
+      }
+    }
+
+    return {
+      credentialListConfigured: false,
+      credentialListAttached: true,
+      credentialUsernameConfigured: true,
+    };
+  }
+
+  private async ensureTerminationCredentialList(client: TwilioClient, cfg: TwilioConfig): Promise<void> {
+    if (!cfg.sipUsername || !cfg.sipPassword) {
+      return;
+    }
+
+    const attachedLists = await client.trunking.v1.trunks(cfg.trunkSid).credentialsLists.list();
+    for (const row of attachedLists) {
+      const creds = await client.sip.credentialLists(row.sid).credentials.list();
+      if (creds.some((cred) => cred.username === cfg.sipUsername)) {
+        return;
+      }
+    }
+
+    const friendlyName = `PBX termination ${cfg.trunkSid.slice(-8)}`;
+    const existingLists = await client.sip.credentialLists.list({ limit: 100 });
+    let credentialListSid = existingLists.find((row) => row.friendlyName === friendlyName)?.sid;
+    if (!credentialListSid) {
+      const created = await client.sip.credentialLists.create({ friendlyName });
+      credentialListSid = created.sid;
+    }
+
+    const credentials = await client.sip.credentialLists(credentialListSid).credentials.list();
+    if (!credentials.some((cred) => cred.username === cfg.sipUsername)) {
+      await client.sip.credentialLists(credentialListSid).credentials.create({
+        username: cfg.sipUsername,
+        password: cfg.sipPassword,
+      });
+    }
+
+    if (!attachedLists.some((row) => row.sid === credentialListSid)) {
+      await client.trunking.v1.trunks(cfg.trunkSid).credentialsLists.create({
+        credentialListSid,
+      });
+    }
   }
 
   async syncTrunk(): Promise<TwilioTrunkStatus> {
@@ -135,6 +220,8 @@ export class TwilioService {
         });
       }
     }
+
+    await this.ensureTerminationCredentialList(client, cfg);
 
     return this.getTrunkStatus();
   }

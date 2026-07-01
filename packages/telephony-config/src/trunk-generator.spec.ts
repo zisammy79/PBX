@@ -77,6 +77,22 @@ describe('trunk generator', () => {
     );
   });
 
+  it('generates Twilio termination identity headers when assigned DID is set', () => {
+    const twilioTrunk = {
+      ...trunk,
+      authMode: 'ip' as const,
+      registrar: 'acme.pstn.twilio.com',
+      providerAdapter: 'twilio',
+      assignedDid: '+97233820386',
+      allowedCallerId: '+97233820386',
+    };
+    const cfg = generateTrunkConfig([twilioTrunk], [], []);
+    expect(cfg.pjsipTrunks).toContain('from_domain=acme.pstn.twilio.com');
+    expect(cfg.pjsipTrunks).toContain('from_user=+97233820386');
+    expect(cfg.pjsipTrunks).toContain('send_pai=yes');
+    expect(cfg.pjsipTrunks).toContain('trust_id_outbound=yes');
+  });
+
   it('generates inbound PSTN dialplan for E.164 DID', () => {
     const cfg = generateTrunkConfig(
       [{ ...trunk, authMode: 'ip' as const, providerAdapter: 'twilio' }],

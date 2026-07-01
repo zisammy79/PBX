@@ -221,7 +221,10 @@ export class TwilioProvisioningService {
       if (!tenant) throw notFound('Tenant');
 
       const cfg = this.twilioService.twilioConfig();
-      const { host, port } = parseTerminationHost(cfg.terminationSipUri);
+      const trunkStatus = await this.twilioService.getTrunkStatus();
+      const { host, port } = parseTerminationHost(
+        trunkStatus.terminationSipUri ?? cfg.terminationSipUri,
+      );
       const credentialsEncrypted =
         cfg.sipUsername && cfg.sipPassword
           ? encryptSecret(

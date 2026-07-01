@@ -94,6 +94,27 @@ function inboundDidPatterns(didPattern: string): string[] {
   return patterns;
 }
 
+function appendTwilioTerminationEndpointOptions(
+  endpointTail: string[],
+  trunk: TelephonyTrunkRecord,
+): void {
+  if (trunk.providerAdapter !== 'twilio' || !trunk.registrar) {
+    return;
+  }
+  const callerId = trunk.allowedCallerId ?? trunk.assignedDid;
+  if (!callerId) {
+    return;
+  }
+  assertE164(callerId);
+  endpointTail.push(
+    `from_domain=${trunk.registrar}`,
+    `from_user=${callerId}`,
+    'send_pai=yes',
+    'trust_id_outbound=yes',
+    `callerid="PBX Outbound" <${callerId}>`,
+  );
+}
+
 export function generateTrunkConfig(
   trunks: TelephonyTrunkRecord[],
   inbound: TelephonyInboundRouteRecord[],
@@ -173,6 +194,7 @@ export function generateTrunkConfig(
       if (trunk.outboundProxy) {
         endpointTail.push(`outbound_proxy=sip:${trunk.outboundProxy}`);
       }
+      appendTwilioTerminationEndpointOptions(endpointTail, trunk);
       pjsipLines.push(
         ...endpointTail,
         '',
