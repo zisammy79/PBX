@@ -74,11 +74,11 @@ function resolveInboundIdentifyCidrs(trunk: TelephonyTrunkRecord): string[] {
   return [];
 }
 
-function appendIdentifyByIp(pjsipLines: string[], ep: string, cidrs: string[]): void {
+function appendInboundIdentify(pjsipLines: string[], ep: string, cidrs: string[]): void {
   if (cidrs.length === 0) {
     return;
   }
-  pjsipLines.push(`identify_by=ip`, '', `[${ep}-identify]`, 'type=identify', `endpoint=${ep}`);
+  pjsipLines.push('', `[${ep}-identify]`, 'type=identify', `endpoint=${ep}`);
   for (const cidr of cidrs) {
     pjsipLines.push(`match=${cidr}`);
   }
@@ -165,9 +165,16 @@ export function generateTrunkConfig(
         pjsipLines.push(`outbound_proxy=sip:${trunk.outboundProxy}`);
       }
     } else if (trunk.username && trunk.password && trunk.registrar) {
+      const inboundCidrs = resolveInboundIdentifyCidrs(trunk);
+      const endpointTail: string[] = [`outbound_auth=${auth}`, `aors=${aor}`];
+      if (inboundCidrs.length > 0) {
+        endpointTail.push('identify_by=ip');
+      }
+      if (trunk.outboundProxy) {
+        endpointTail.push(`outbound_proxy=sip:${trunk.outboundProxy}`);
+      }
       pjsipLines.push(
-        `outbound_auth=${auth}`,
-        `aors=${aor}`,
+        ...endpointTail,
         '',
         `[${auth}]`,
         'type=auth',
@@ -178,13 +185,15 @@ export function generateTrunkConfig(
         `[${aor}]`,
         'type=aor',
         `contact=sip:${trunk.registrar}`,
+        '',
       );
-      if (trunk.outboundProxy) {
-        pjsipLines.push(`outbound_proxy=sip:${trunk.outboundProxy}`);
-      }
-      appendIdentifyByIp(pjsipLines, ep, resolveInboundIdentifyCidrs(trunk));
+      appendInboundIdentify(pjsipLines, ep, inboundCidrs);
     } else {
-      appendIdentifyByIp(pjsipLines, ep, resolveInboundIdentifyCidrs(trunk));
+      const inboundCidrs = resolveInboundIdentifyCidrs(trunk);
+      if (inboundCidrs.length > 0) {
+        pjsipLines.push('identify_by=ip');
+      }
+      appendInboundIdentify(pjsipLines, ep, inboundCidrs);
     }
 
     if (trunk.assignedDid) {

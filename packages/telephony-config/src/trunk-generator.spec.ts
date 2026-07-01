@@ -68,6 +68,13 @@ describe('trunk generator', () => {
     expect(cfg.pjsipTrunks).toContain('match=54.171.127.192/32');
     expect(cfg.pjsipTrunks).not.toContain('type=registration');
     expect(cfg.pjsipTrunks).not.toContain('match=0.0.0.0/0');
+    const aorBlock = cfg.pjsipTrunks.match(/\[acme_trunk_carrier_a_aor\][\s\S]*?(?=\n\[|$)/);
+    expect(aorBlock?.[0]).toContain('type=aor');
+    expect(aorBlock?.[0]).toContain('contact=sip:acme.pstn.twilio.com');
+    expect(aorBlock?.[0]).not.toContain('identify_by=ip');
+    expect(cfg.pjsipTrunks).toMatch(
+      /\[acme_trunk_carrier_a\][\s\S]*identify_by=ip[\s\S]*\[acme_trunk_carrier_a_auth\]/,
+    );
   });
 
   it('generates inbound PSTN dialplan for E.164 DID', () => {
