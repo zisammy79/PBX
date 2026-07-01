@@ -24,6 +24,8 @@ export interface TelephonyTrunkRecord {
   spendLimitCents?: number;
   allowedDestinationCountries: string[];
   failureRoute?: string;
+  providerAdapter?: string;
+  inboundIpCidrs?: string[];
 }
 
 export interface TelephonyInboundRouteRecord {

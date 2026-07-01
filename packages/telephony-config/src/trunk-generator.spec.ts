@@ -60,10 +60,34 @@ describe('trunk generator', () => {
       ...trunk,
       authMode: 'ip' as const,
       registrar: 'acme.pstn.twilio.com',
+      providerAdapter: 'twilio',
     };
     const cfg = generateTrunkConfig([twilioTrunk], [], []);
     expect(cfg.pjsipTrunks).toContain('contact=sip:acme.pstn.twilio.com');
     expect(cfg.pjsipTrunks).toContain('outbound_auth=acme_trunk_carrier_a_auth');
+    expect(cfg.pjsipTrunks).toContain('match=54.171.127.192/32');
     expect(cfg.pjsipTrunks).not.toContain('type=registration');
+    expect(cfg.pjsipTrunks).not.toContain('match=0.0.0.0/0');
+  });
+
+  it('generates inbound PSTN dialplan for E.164 DID', () => {
+    const cfg = generateTrunkConfig(
+      [{ ...trunk, authMode: 'ip' as const, providerAdapter: 'twilio' }],
+      [
+        {
+          tenantId: trunk.tenantId,
+          tenantSlug: trunk.tenantSlug,
+          asteriskContext: 't_acme',
+          didPattern: '+97233820386',
+          destinationType: 'extension',
+          destinationValue: '100',
+          trunkAsteriskId: trunk.asteriskTrunkId,
+        },
+      ],
+      [],
+    );
+    expect(cfg.inboundDialplan).toContain('[from-pstn-acme]');
+    expect(cfg.inboundDialplan).toContain('exten => +97233820386,1');
+    expect(cfg.inboundDialplan).toContain('Stasis(pbx-platform,acme,${CALLERID(num)},100)');
   });
 });

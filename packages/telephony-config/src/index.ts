@@ -6,3 +6,5 @@ export * from './validate.js';
 export * from './activate.js';
 export * from './paths.js';
 export * from './runtime.js';
+export * from './merge-trunks.js';
+export * from './twilio-signaling-ips.js';

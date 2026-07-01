@@ -6,8 +6,12 @@ import {
   auditEvents,
   aiAgents,
   extensions,
+  inboundRoutes,
+  outboundRoutes,
   sipCredentials,
   sipDevices,
+  sipTrunkEndpoints,
+  sipTrunks,
   tenants,
   withBypassRls,
   withTenantContext,
@@ -15,7 +19,9 @@ import {
 import {
   activateStagingConfig,
   generateTelephonyConfig,
+  generateTrunkConfig,
   isSipUsernameInActiveConfig,
+  mergeTelephonyWithTrunks,
   redactForAudit,
   redactGeneratedConfig,
   reloadAsterisk,
@@ -25,6 +31,9 @@ import {
   type TelephonyExtensionRecord,
   type TelephonyTenantRecord,
   type TelephonyAiAgentRecord,
+  type TelephonyInboundRouteRecord,
+  type TelephonyOutboundRouteRecord,
+  type TelephonyTrunkRecord,
 } from '@pbx/telephony-config';
 import { resolveRepoRoot } from '../../common/repo-root.js';
 import { CONFIG, DATABASE } from '../../common/tokens.js';
@@ -113,11 +122,15 @@ export class TelephonyService {
     }
 
     const loaded = await this.loadTelephonyRecords();
-    const generated = generateTelephonyConfig(
-      loaded.tenants,
-      loaded.extensions,
-      loaded.aiAgents,
-      `global-${Date.now()}`,
+    const trunkLoaded = await this.loadGlobalTrunkRecords();
+    const generated = mergeTelephonyWithTrunks(
+      generateTelephonyConfig(
+        loaded.tenants,
+        loaded.extensions,
+        loaded.aiAgents,
+        `global-${Date.now()}`,
+      ),
+      generateTrunkConfig(trunkLoaded.trunks, trunkLoaded.inbound, trunkLoaded.outbound),
     );
     const validation = validateGeneratedConfig(generated, { requireExtensions: true });
     if (!validation.valid) {
@@ -143,6 +156,7 @@ export class TelephonyService {
       previousVersion: result.previousVersion,
       tenantIds: generated.tenantIds,
       skippedCredentialCount: loaded.skippedCredentialUsernames.length,
+      trunkCount: trunkLoaded.trunks.filter((t) => t.isActive).length,
     });
 
     if (loaded.skippedCredentialUsernames.length > 0) {
@@ -410,6 +424,126 @@ export class TelephonyService {
         aiAgents: aiAgentRows,
         skippedCredentialUsernames,
       };
+    });
+  }
+
+  private async loadGlobalTrunkRecords(): Promise<{
+    trunks: TelephonyTrunkRecord[];
+    inbound: TelephonyInboundRouteRecord[];
+    outbound: TelephonyOutboundRouteRecord[];
+  }> {
+    return withBypassRls(this.database.db, async (db) => {
+      const tenantRows = await db.select().from(tenants).where(eq(tenants.status, 'active'));
+      const trunks: TelephonyTrunkRecord[] = [];
+      const inbound: TelephonyInboundRouteRecord[] = [];
+      const outbound: TelephonyOutboundRouteRecord[] = [];
+
+      for (const tenant of tenantRows) {
+        const trunkRows = await db
+          .select()
+          .from(sipTrunks)
+          .where(and(eq(sipTrunks.tenantId, tenant.id), eq(sipTrunks.isActive, true)));
+
+        for (const row of trunkRows) {
+          const cfg = (row.config ?? {}) as Record<string, unknown>;
+          let username: string | undefined;
+          let password: string | undefined;
+          if (row.credentialsEncrypted) {
+            try {
+              const creds = JSON.parse(
+                decryptSecret(row.credentialsEncrypted, this.config.encryptionMasterKey),
+              ) as { username?: string; password?: string };
+              username = creds.username;
+              password = creds.password;
+            } catch {
+              // still render ip-identified inbound trunk
+            }
+          }
+
+          const endpoints = await db
+            .select()
+            .from(sipTrunkEndpoints)
+            .where(and(eq(sipTrunkEndpoints.trunkId, row.id), eq(sipTrunkEndpoints.isActive, true)));
+
+          const record: TelephonyTrunkRecord = {
+            tenantId: row.tenantId,
+            tenantSlug: tenant.slug,
+            trunkId: row.id,
+            name: row.name,
+            slug: row.slug,
+            asteriskTrunkId: row.asteriskTrunkId,
+            authMode: row.authMode as 'registration' | 'ip',
+            transport: row.transport as 'udp' | 'tcp' | 'tls',
+            isActive: row.isActive,
+            allowedCodecs: (cfg.allowedCodecs as string[]) ?? ['ulaw'],
+            dtmfMode: (cfg.dtmfMode as 'rfc4733') ?? 'rfc4733',
+            maxConcurrentCalls: Number(cfg.maxConcurrentCalls ?? 5),
+            maxCallDurationSeconds: Number(cfg.maxCallDurationSeconds ?? 3600),
+            allowedDestinationCountries: (cfg.allowedDestinationCountries as string[]) ?? ['US'],
+            providerAdapter: row.providerAdapter,
+          };
+          if (endpoints[0]?.host) record.registrar = endpoints[0].host;
+          if (username) record.username = username;
+          if (password) record.password = password;
+          if (typeof cfg.assignedDid === 'string') record.assignedDid = cfg.assignedDid;
+          if (Array.isArray(cfg.inboundIpCidrs)) {
+            record.inboundIpCidrs = cfg.inboundIpCidrs.filter((v): v is string => typeof v === 'string');
+          }
+          trunks.push(record);
+        }
+
+        const inboundRows = await db
+          .select()
+          .from(inboundRoutes)
+          .where(and(eq(inboundRoutes.tenantId, tenant.id), eq(inboundRoutes.isActive, true)));
+
+        const activeTrunk =
+          trunkRows.find((t) => t.isActive) ??
+          (await db.select().from(sipTrunks).where(eq(sipTrunks.tenantId, tenant.id))).find((t) => t.isActive);
+
+        for (const route of inboundRows) {
+          let destValue = '';
+          if (route.destinationType === 'extension' && route.destinationId) {
+            const [ext] = await db
+              .select()
+              .from(extensions)
+              .where(eq(extensions.id, route.destinationId))
+              .limit(1);
+            destValue = ext?.extensionNumber ?? '';
+          }
+          inbound.push({
+            tenantId: tenant.id,
+            tenantSlug: tenant.slug,
+            asteriskContext: tenant.asteriskContext,
+            didPattern: route.didPattern,
+            destinationType: route.destinationType as 'extension' | 'ai_agent',
+            destinationValue: destValue,
+            trunkAsteriskId: activeTrunk?.asteriskTrunkId ?? `${tenant.slug}_trunk_default`,
+          });
+        }
+
+        const outboundRows = await db
+          .select()
+          .from(outboundRoutes)
+          .where(and(eq(outboundRoutes.tenantId, tenant.id), eq(outboundRoutes.isActive, true)));
+
+        for (const route of outboundRows) {
+          const trunk = trunkRows.find((t) => t.id === route.trunkId) ?? activeTrunk;
+          const policy = (route.callerIdPolicy ?? {}) as Record<string, string>;
+          const out: TelephonyOutboundRouteRecord = {
+            tenantId: tenant.id,
+            tenantSlug: tenant.slug,
+            asteriskContext: tenant.asteriskContext,
+            pattern: route.pattern,
+            trunkAsteriskId: trunk?.asteriskTrunkId ?? `${tenant.slug}_trunk_default`,
+            callerId: policy.callerId ?? '+10000000000',
+          };
+          if (policy.normalizePrefix) out.normalizePrefix = policy.normalizePrefix;
+          outbound.push(out);
+        }
+      }
+
+      return { trunks, inbound, outbound };
     });
   }
 
