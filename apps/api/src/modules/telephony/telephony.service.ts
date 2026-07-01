@@ -484,15 +484,15 @@ export class TelephonyService {
             allowedDestinationCountries: (cfg.allowedDestinationCountries as string[]) ?? ['US'],
             providerAdapter: row.providerAdapter,
           };
+          if (typeof cfg.terminationSipUri === 'string') {
+            const match = cfg.terminationSipUri.match(/^sip:([^:;@]+)/i);
+            if (match?.[1]) record.registrar = match[1];
+          }
           if (endpoints[0]?.host) record.registrar = endpoints[0].host;
           if (username) record.username = username;
           if (password) record.password = password;
           if (typeof cfg.assignedDid === 'string') record.assignedDid = cfg.assignedDid;
           if (typeof cfg.allowedCallerId === 'string') record.allowedCallerId = cfg.allowedCallerId;
-          if (typeof cfg.terminationSipUri === 'string') {
-            const match = cfg.terminationSipUri.match(/^sip:([^:;@]+)/i);
-            if (match?.[1]) record.registrar = match[1];
-          }
           if (Array.isArray(cfg.inboundIpCidrs)) {
             record.inboundIpCidrs = cfg.inboundIpCidrs.filter((v): v is string => typeof v === 'string');
           }

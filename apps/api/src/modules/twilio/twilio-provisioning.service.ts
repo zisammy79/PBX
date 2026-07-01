@@ -222,9 +222,8 @@ export class TwilioProvisioningService {
 
       const cfg = this.twilioService.twilioConfig();
       const trunkStatus = await this.twilioService.getTrunkStatus();
-      const { host, port } = parseTerminationHost(
-        trunkStatus.terminationSipUri ?? cfg.terminationSipUri,
-      );
+      const terminationSipUri = trunkStatus.terminationSipUri ?? cfg.terminationSipUri;
+      const { host, port } = parseTerminationHost(terminationSipUri);
       const credentialsEncrypted =
         cfg.sipUsername && cfg.sipPassword
           ? encryptSecret(
@@ -247,7 +246,7 @@ export class TwilioProvisioningService {
           allowedDestinationCountries: ['IL'],
           providerName: 'Twilio Elastic SIP Trunk',
           twilioTrunkSid: cfg.trunkSid,
-          terminationSipUri: cfg.terminationSipUri,
+          terminationSipUri,
         },
         updatedAt: new Date(),
       };
