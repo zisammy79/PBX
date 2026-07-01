@@ -161,12 +161,21 @@ func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 		return
 	}
 
-	fromExt, err := c.repo.LookupExtensionByTenantNumber(ctx, tenantSlug, callerNum)
-	if err != nil {
-		slog.Error("caller extension lookup failed", "tenant", tenantSlug, "ext", callerNum)
-		c.hangup(channelID)
-		return
+	pstnInbound := isPstnInboundStasis(callerNum, destNum)
+	var fromExt *repository.ExtensionInfo
+	direction := "internal"
+	if pstnInbound {
+		direction = "inbound"
+	} else {
+		var lookupErr error
+		fromExt, lookupErr = c.repo.LookupExtensionByTenantNumber(ctx, tenantSlug, callerNum)
+		if lookupErr != nil {
+			slog.Error("caller extension lookup failed", "tenant", tenantSlug, "ext", callerNum)
+			c.hangup(channelID)
+			return
+		}
 	}
+
 	toExt, err := c.repo.LookupExtensionByTenantNumber(ctx, tenantSlug, destNum)
 	if err != nil {
 		slog.Error("callee extension lookup failed", "tenant", tenantSlug, "ext", destNum)
@@ -174,12 +183,25 @@ func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 		return
 	}
 
+	if pstnInbound {
+		originateEndpoint := buildPjsipEndpointTarget(toExt.AsteriskEndpointID)
+		slog.Info(
+			"pstn inbound stasis start",
+			"tenant_slug", tenantSlug,
+			"caller_id", callerNum,
+			"destination_extension", destNum,
+			"resolved_tenant_id", toExt.TenantID.String(),
+			"resolved_extension_id", toExt.ID.String(),
+			"originate_endpoint", originateEndpoint,
+		)
+	}
+
 	callID := uuid.New()
 	correlationID := uuid.New()
 	now := time.Now().UTC()
 	active := &calls.ActiveCall{
 		CallID:           callID,
-		TenantID:         fromExt.TenantID,
+		TenantID:         toExt.TenantID,
 		CorrelationID:    correlationID,
 		TenantSlug:       tenantSlug,
 		CallerNumber:     callerNum,
@@ -187,21 +209,27 @@ func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 		State:            calls.StateCreated,
 		CallerChannelID:  channelID,
 		CalleeEndpointID: toExt.AsteriskEndpointID,
-		FromExtensionID:  fromExt.ID,
 		ToExtensionID:    toExt.ID,
 		CreatedAt:        now,
 		ProcessedEvents:  map[string]bool{},
 	}
+	if fromExt != nil {
+		active.FromExtensionID = fromExt.ID
+	}
 	active.Transition(calls.StateRinging)
 	c.registry.Put(active)
 
+	var fromExtID *uuid.UUID
+	if fromExt != nil {
+		fromExtID = &fromExt.ID
+	}
 	rec := repository.CallRecord{
 		ID:                callID,
-		TenantID:          fromExt.TenantID,
+		TenantID:          toExt.TenantID,
 		CorrelationID:     correlationID,
-		Direction:         "internal",
+		Direction:         direction,
 		Status:            "ringing",
-		FromExtensionID:   &fromExt.ID,
+		FromExtensionID:   fromExtID,
 		ToExtensionID:     &toExt.ID,
 		CallerNumber:      callerNum,
 		CalleeNumber:      destNum,
@@ -220,10 +248,14 @@ func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 		c.hangup(channelID)
 		return
 	}
-	_ = c.repo.InsertCallLeg(ctx, fromExt.TenantID, callID, "caller", channelID, fromExt.AsteriskEndpointID)
-	_ = c.repo.InsertCallEvent(ctx, fromExt.TenantID, callID, "CREATED", map[string]any{"source": "asterisk"})
-	_ = c.repo.InsertCallEvent(ctx, fromExt.TenantID, callID, "RINGING", map[string]any{"source": "asterisk"})
-	_ = c.bus.PublishCallEvent(ctx, fromExt.TenantID, callID, correlationID, "RINGING", map[string]any{
+	callerEndpointID := ""
+	if fromExt != nil {
+		callerEndpointID = fromExt.AsteriskEndpointID
+	}
+	_ = c.repo.InsertCallLeg(ctx, toExt.TenantID, callID, "caller", channelID, callerEndpointID)
+	_ = c.repo.InsertCallEvent(ctx, toExt.TenantID, callID, "CREATED", map[string]any{"source": "asterisk"})
+	_ = c.repo.InsertCallEvent(ctx, toExt.TenantID, callID, "RINGING", map[string]any{"source": "asterisk"})
+	_ = c.bus.PublishCallEvent(ctx, toExt.TenantID, callID, correlationID, "RINGING", map[string]any{
 		"caller": callerNum, "callee": destNum,
 	})
 
@@ -258,6 +290,9 @@ func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 	originated := 0
 	for _, ep := range available {
 		endpoint := buildPjsipEndpointTarget(ep)
+		if pstnInbound {
+			slog.Info("pstn inbound originate", "call_id", callID.String(), "originate_endpoint", endpoint)
+		}
 		calleeHandle, origErr := c.client.Channel().Originate(channelKey(channelID), ari.OriginateRequest{
 			Endpoint:   endpoint,
 			App:        c.cfg.StasisApp,
@@ -276,7 +311,7 @@ func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 			if calleeID != "" {
 				active.PendingCalleeChannelIDs = append(active.PendingCalleeChannelIDs, calleeID)
 				active.HadCalleeLeg = true
-				_ = c.repo.InsertCallLeg(ctx, fromExt.TenantID, callID, "callee", calleeID, ep)
+				_ = c.repo.InsertCallLeg(ctx, toExt.TenantID, callID, "callee", calleeID, ep)
 				go c.waitCalleeAnswered(context.Background(), active.CallID, *calleeHandle)
 			}
 		}
@@ -311,6 +346,7 @@ func (c *Controller) bridgeCallerAndCallee(ctx context.Context, active *calls.Ac
 		}
 		active.BridgeID = bridge.ID()
 		c.registry.Put(active)
+		slog.Info("call bridge created", "call_id", active.CallID.String(), "bridge_id", bridge.ID())
 		_ = c.repo.UpdateCallStatus(ctx, active.CallID, "ringing", map[string]any{"asterisk_bridge_id": bridge.ID()})
 	}
 	callerData, err := c.client.Channel().Data(channelKey(active.CallerChannelID))
