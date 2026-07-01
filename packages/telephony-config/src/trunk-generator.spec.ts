@@ -52,5 +52,95 @@ describe('trunk generator', () => {
   it('validates destination countries', () => {
     expect(validateDestinationCountry('+15551234567', ['US']).allowed).toBe(true);
     expect(validateDestinationCountry('+442071234567', ['US']).allowed).toBe(false);
+    expect(validateDestinationCountry('+97221234567', ['IL']).allowed).toBe(true);
+  });
+
+  it('generates credential-based outbound on ip trunk (Twilio termination)', () => {
+    const twilioTrunk = {
+      ...trunk,
+      authMode: 'ip' as const,
+      registrar: 'acme.pstn.twilio.com',
+      providerAdapter: 'twilio',
+    };
+    const cfg = generateTrunkConfig([twilioTrunk], [], []);
+    expect(cfg.pjsipTrunks).toContain('contact=sip:acme.pstn.twilio.com');
+    expect(cfg.pjsipTrunks).toContain('outbound_auth=acme_trunk_carrier_a_auth');
+    expect(cfg.pjsipTrunks).toContain('match=54.171.127.192/32');
+    expect(cfg.pjsipTrunks).not.toContain('type=registration');
+    expect(cfg.pjsipTrunks).not.toContain('match=0.0.0.0/0');
+    const aorBlock = cfg.pjsipTrunks.match(/\[acme_trunk_carrier_a_aor\][\s\S]*?(?=\n\[|$)/);
+    expect(aorBlock?.[0]).toContain('type=aor');
+    expect(aorBlock?.[0]).toContain('contact=sip:acme.pstn.twilio.com');
+    expect(aorBlock?.[0]).not.toContain('identify_by=ip');
+    expect(cfg.pjsipTrunks).toMatch(
+      /\[acme_trunk_carrier_a\][\s\S]*identify_by=ip[\s\S]*\[acme_trunk_carrier_a_auth\]/,
+    );
+  });
+
+  it('generates Twilio termination identity headers when assigned DID is set', () => {
+    const twilioTrunk = {
+      ...trunk,
+      authMode: 'ip' as const,
+      registrar: 'acme.pstn.twilio.com',
+      providerAdapter: 'twilio',
+      assignedDid: '+97233820386',
+      allowedCallerId: '+97233820386',
+    };
+    const cfg = generateTrunkConfig([twilioTrunk], [], []);
+    expect(cfg.pjsipTrunks).toContain('from_domain=acme.pstn.twilio.com');
+    expect(cfg.pjsipTrunks).toContain('from_user=+97233820386');
+    expect(cfg.pjsipTrunks).toContain('send_pai=yes');
+    expect(cfg.pjsipTrunks).toContain('trust_id_outbound=yes');
+  });
+
+  it('generates inbound PSTN dialplan for E.164 DID', () => {
+    const cfg = generateTrunkConfig(
+      [{ ...trunk, authMode: 'ip' as const, providerAdapter: 'twilio' }],
+      [
+        {
+          tenantId: trunk.tenantId,
+          tenantSlug: trunk.tenantSlug,
+          asteriskContext: 't_acme',
+          didPattern: '+97233820386',
+          destinationType: 'extension',
+          destinationValue: '100',
+          trunkAsteriskId: trunk.asteriskTrunkId,
+        },
+      ],
+      [],
+    );
+    expect(cfg.inboundDialplan).toContain('[from-pstn-acme]');
+    expect(cfg.inboundDialplan).toContain('exten => +97233820386,1');
+    expect(cfg.inboundDialplan).toContain('Stasis(pbx-platform,acme,${CALLERID(num)},100)');
+  });
+
+  it('generates consolidated outbound PSTN dialplan with E164 dial target', () => {
+    const cfg = generateTrunkConfig(
+      [trunk],
+      [],
+      [
+        {
+          tenantId: trunk.tenantId,
+          tenantSlug: trunk.tenantSlug,
+          asteriskContext: 't_acme',
+          pattern: '^05\\d{8}$',
+          callerId: '+97233820386',
+          trunkAsteriskId: trunk.asteriskTrunkId,
+        },
+        {
+          tenantId: trunk.tenantId,
+          tenantSlug: trunk.tenantSlug,
+          asteriskContext: 't_acme',
+          pattern: '^\\+972[2-9]\\d{7,8}$',
+          callerId: '+97233820386',
+          trunkAsteriskId: trunk.asteriskTrunkId,
+        },
+      ],
+    );
+    expect(cfg.outboundDialplan).toContain('[outbound-pstn-acme]');
+    expect(cfg.outboundDialplan).toContain('exten => _+X.,1');
+    expect(cfg.outboundDialplan).toContain('Set(CALLERID(num)=+97233820386)');
+    expect(cfg.outboundDialplan).toContain('Dial(PJSIP/${EXTEN}@acme_trunk_carrier_a,,g)');
+    expect(cfg.outboundDialplan.match(/\[outbound-pstn-acme\]/g)?.length).toBe(1);
   });
 });

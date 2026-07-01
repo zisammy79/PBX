@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { TWILIO_ELASTIC_SIP_SIGNALING_CIDRS } from './twilio-signaling-ips.js';
 import type {
   GeneratedTrunkConfig,
   TelephonyInboundRouteRecord,
@@ -47,6 +48,7 @@ export function validateDestinationCountry(
     US: ['1'],
     CA: ['1'],
     GB: ['44'],
+    IL: ['972'],
   };
   for (const country of allowed) {
     const codes = prefixes[country] ?? [country.replace(/\D/g, '')];
@@ -57,6 +59,60 @@ export function validateDestinationCountry(
     }
   }
   return { allowed: false };
+}
+
+function resolveInboundIdentifyCidrs(trunk: TelephonyTrunkRecord): string[] {
+  if (trunk.inboundIpCidrs?.length) {
+    return trunk.inboundIpCidrs;
+  }
+  if (trunk.providerAdapter === 'twilio' || trunk.slug === 'twilio-production') {
+    return [...TWILIO_ELASTIC_SIP_SIGNALING_CIDRS];
+  }
+  if (trunk.authMode === 'ip') {
+    return ['0.0.0.0/0'];
+  }
+  return [];
+}
+
+function appendInboundIdentify(pjsipLines: string[], ep: string, cidrs: string[]): void {
+  if (cidrs.length === 0) {
+    return;
+  }
+  pjsipLines.push('', `[${ep}-identify]`, 'type=identify', `endpoint=${ep}`);
+  for (const cidr of cidrs) {
+    pjsipLines.push(`match=${cidr}`);
+  }
+  pjsipLines.push('');
+}
+
+function inboundDidPatterns(didPattern: string): string[] {
+  const patterns = [didPattern];
+  const digits = didPattern.replace(/\D/g, '');
+  if (digits && digits !== didPattern) {
+    patterns.push(digits);
+  }
+  return patterns;
+}
+
+function appendTwilioTerminationEndpointOptions(
+  endpointTail: string[],
+  trunk: TelephonyTrunkRecord,
+): void {
+  if (trunk.providerAdapter !== 'twilio' || !trunk.registrar) {
+    return;
+  }
+  const callerId = trunk.allowedCallerId ?? trunk.assignedDid;
+  if (!callerId) {
+    return;
+  }
+  assertE164(callerId);
+  endpointTail.push(
+    `from_domain=${trunk.registrar}`,
+    `from_user=${callerId}`,
+    'send_pai=yes',
+    'trust_id_outbound=yes',
+    `callerid="PBX Outbound" <${callerId}>`,
+  );
 }
 
 export function generateTrunkConfig(
@@ -95,6 +151,8 @@ export function generateTrunkConfig(
       'direct_media=no',
       'rtp_symmetric=yes',
       'force_rport=yes',
+      'rewrite_contact=yes',
+      'rtp_keepalive=30',
       `dtmf_mode=${trunk.dtmfMode}`,
     );
 
@@ -129,8 +187,37 @@ export function generateTrunkConfig(
       if (trunk.outboundProxy) {
         pjsipLines.push(`outbound_proxy=sip:${trunk.outboundProxy}`);
       }
+    } else if (trunk.username && trunk.password && trunk.registrar) {
+      const inboundCidrs = resolveInboundIdentifyCidrs(trunk);
+      const endpointTail: string[] = [`outbound_auth=${auth}`, `aors=${aor}`];
+      if (inboundCidrs.length > 0) {
+        endpointTail.push('identify_by=ip');
+      }
+      if (trunk.outboundProxy) {
+        endpointTail.push(`outbound_proxy=sip:${trunk.outboundProxy}`);
+      }
+      appendTwilioTerminationEndpointOptions(endpointTail, trunk);
+      pjsipLines.push(
+        ...endpointTail,
+        '',
+        `[${auth}]`,
+        'type=auth',
+        'auth_type=userpass',
+        `username=${trunk.username}`,
+        `password=${trunk.password}`,
+        '',
+        `[${aor}]`,
+        'type=aor',
+        `contact=sip:${trunk.registrar}`,
+        '',
+      );
+      appendInboundIdentify(pjsipLines, ep, inboundCidrs);
     } else {
-      pjsipLines.push(`identify_by=ip`, `[${ep}-identify]`, 'type=identify', `endpoint=${ep}`, 'match=0.0.0.0/0');
+      const inboundCidrs = resolveInboundIdentifyCidrs(trunk);
+      if (inboundCidrs.length > 0) {
+        pjsipLines.push('identify_by=ip');
+      }
+      appendInboundIdentify(pjsipLines, ep, inboundCidrs);
     }
 
     if (trunk.assignedDid) {
@@ -138,29 +225,49 @@ export function generateTrunkConfig(
     }
   }
 
+  const inboundByTenant = new Map<string, TelephonyInboundRouteRecord[]>();
   for (const route of inbound) {
     assertSafeIdentifier(route.tenantSlug, 'tenant slug');
-    inboundLines.push(
-      '',
-      `[from-pstn-${route.tenantSlug}]`,
-      `exten => ${route.didPattern},1,NoOp(PSTN inbound ${route.didPattern})`,
-      ` same => n,Set(PBX_TENANT=${route.tenantSlug})`,
-      ` same => n,Set(PBX_TRUNK=${route.trunkAsteriskId})`,
-      route.destinationType === 'extension'
-        ? ` same => n,Stasis(${STASIS_APP},${route.tenantSlug},\${CALLERID(num)},${route.destinationValue})`
-        : ` same => n,Stasis(${STASIS_APP},${route.tenantSlug},\${CALLERID(num)},ai,${route.destinationValue})`,
-      ' same => n,Hangup()',
-    );
+    const list = inboundByTenant.get(route.tenantSlug) ?? [];
+    list.push(route);
+    inboundByTenant.set(route.tenantSlug, list);
+  }
+  for (const [tenantSlug, routes] of inboundByTenant) {
+    inboundLines.push('', `[from-pstn-${tenantSlug}]`);
+    for (const route of routes) {
+      for (const pattern of inboundDidPatterns(route.didPattern)) {
+        inboundLines.push(
+          `exten => ${pattern},1,NoOp(PSTN inbound ${route.didPattern})`,
+          ` same => n,Set(PBX_TENANT=${route.tenantSlug})`,
+          ` same => n,Set(PBX_TRUNK=${route.trunkAsteriskId})`,
+          route.destinationType === 'extension'
+            ? ` same => n,Stasis(${STASIS_APP},${route.tenantSlug},\${CALLERID(num)},${route.destinationValue})`
+            : ` same => n,Stasis(${STASIS_APP},${route.tenantSlug},\${CALLERID(num)},ai,${route.destinationValue})`,
+          ' same => n,Hangup()',
+        );
+      }
+    }
   }
 
+  const outboundByTenant = new Map<string, { trunkAsteriskId: string; callerId: string }>();
   for (const route of outbound) {
     assertSafeIdentifier(route.tenantSlug, 'tenant slug');
+    assertE164(route.callerId);
+    if (!outboundByTenant.has(route.tenantSlug)) {
+      outboundByTenant.set(route.tenantSlug, {
+        trunkAsteriskId: route.trunkAsteriskId,
+        callerId: route.callerId,
+      });
+    }
+  }
+  for (const [tenantSlug, meta] of outboundByTenant) {
     outboundLines.push(
       '',
-      `[outbound-pstn-${route.tenantSlug}]`,
-      `exten => ${route.pattern},1,NoOp(PSTN outbound \${EXTEN})`,
-      ` same => n,Set(CALLERID(num)=${route.callerId})`,
-      ` same => n,Dial(PJSIP/\${EXTEN}@${route.trunkAsteriskId},,g)` ,
+      `[outbound-pstn-${tenantSlug}]`,
+      `exten => _+X.,1,NoOp(PSTN outbound \${EXTEN})`,
+      ` same => n,Set(CALLERID(num)=${meta.callerId})`,
+      ` same => n,Set(CALLERID(name)=PBX Outbound)`,
+      ` same => n,Dial(PJSIP/\${EXTEN}@${meta.trunkAsteriskId},,g)`,
       ' same => n,Hangup()',
     );
   }

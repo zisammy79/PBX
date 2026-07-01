@@ -29,7 +29,7 @@ function loadConfig() {
   };
 }
 
-async function handleCallEvent(raw: string, databaseUrl: string) {
+async function handleCallEvent(raw: string, db: ReturnType<typeof createDatabase>['db']) {
   const parsed = JSON.parse(raw) as {
     tenantId: string;
     callId: string;
@@ -41,8 +41,6 @@ async function handleCallEvent(raw: string, databaseUrl: string) {
 
   const mapped = TELEPHONY_EVENT_MAP[parsed.eventType];
   if (!mapped) return;
-
-  const { db } = createDatabase({ url: databaseUrl });
 
   await withBypassRls(db, async (tx) => {
     const [event] = await tx
@@ -100,13 +98,26 @@ async function main() {
   const config = loadConfig();
   console.log('PBX worker starting — webhook delivery + NATS call events');
 
+  const database = createDatabase({
+    url: config.databaseUrl,
+    maxConnections: Number(process.env.DATABASE_MAX_CONNECTIONS ?? 3),
+  });
+  const db = database.db;
+
+  const shutdown = async () => {
+    await database.close().catch(() => undefined);
+    process.exit(0);
+  };
+  process.on('SIGTERM', () => void shutdown());
+  process.on('SIGINT', () => void shutdown());
+
   const nc = await connect({ servers: config.natsUrl });
   const sub = nc.subscribe('tenant.*.calls.events');
 
   void (async () => {
     for await (const msg of sub) {
       try {
-        await handleCallEvent(sc.decode(msg.data), config.databaseUrl);
+        await handleCallEvent(sc.decode(msg.data), db);
       } catch (err) {
         console.error('Failed to process call event:', err);
       }
@@ -115,7 +126,7 @@ async function main() {
 
   const tick = async () => {
     try {
-      const count = await processPendingDeliveries(config);
+      const count = await processPendingDeliveries(config, db);
       if (count > 0) {
         console.log(`Processed webhook delivery batch (${count} candidates)`);
       }

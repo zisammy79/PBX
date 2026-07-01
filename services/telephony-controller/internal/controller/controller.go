@@ -154,12 +154,28 @@ func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 	callerNum := args[1]
 	destNum := args[2]
 
-	fromExt, err := c.repo.LookupExtensionByTenantNumber(ctx, tenantSlug, callerNum)
-	if err != nil {
-		slog.Error("caller extension lookup failed", "tenant", tenantSlug, "ext", callerNum)
+	callable, err := c.repo.IsTenantCallable(ctx, tenantSlug)
+	if err != nil || !callable {
+		slog.Warn("tenant not callable", "tenant", tenantSlug, "error", err)
 		c.hangup(channelID)
 		return
 	}
+
+	pstnInbound := isPstnInboundStasis(callerNum, destNum)
+	var fromExt *repository.ExtensionInfo
+	direction := "internal"
+	if pstnInbound {
+		direction = "inbound"
+	} else {
+		var lookupErr error
+		fromExt, lookupErr = c.repo.LookupExtensionByTenantNumber(ctx, tenantSlug, callerNum)
+		if lookupErr != nil {
+			slog.Error("caller extension lookup failed", "tenant", tenantSlug, "ext", callerNum)
+			c.hangup(channelID)
+			return
+		}
+	}
+
 	toExt, err := c.repo.LookupExtensionByTenantNumber(ctx, tenantSlug, destNum)
 	if err != nil {
 		slog.Error("callee extension lookup failed", "tenant", tenantSlug, "ext", destNum)
@@ -167,12 +183,25 @@ func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 		return
 	}
 
+	if pstnInbound {
+		originateEndpoint := buildPjsipEndpointTarget(toExt.AsteriskEndpointID)
+		slog.Info(
+			"pstn inbound stasis start",
+			"tenant_slug", tenantSlug,
+			"caller_id", callerNum,
+			"destination_extension", destNum,
+			"resolved_tenant_id", toExt.TenantID.String(),
+			"resolved_extension_id", toExt.ID.String(),
+			"originate_endpoint", originateEndpoint,
+		)
+	}
+
 	callID := uuid.New()
 	correlationID := uuid.New()
 	now := time.Now().UTC()
 	active := &calls.ActiveCall{
 		CallID:           callID,
-		TenantID:         fromExt.TenantID,
+		TenantID:         toExt.TenantID,
 		CorrelationID:    correlationID,
 		TenantSlug:       tenantSlug,
 		CallerNumber:     callerNum,
@@ -180,38 +209,73 @@ func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 		State:            calls.StateCreated,
 		CallerChannelID:  channelID,
 		CalleeEndpointID: toExt.AsteriskEndpointID,
-		FromExtensionID:  fromExt.ID,
 		ToExtensionID:    toExt.ID,
 		CreatedAt:        now,
 		ProcessedEvents:  map[string]bool{},
 	}
+	if fromExt != nil {
+		active.FromExtensionID = fromExt.ID
+	}
 	active.Transition(calls.StateRinging)
 	c.registry.Put(active)
 
+	var fromExtID *uuid.UUID
+	if fromExt != nil {
+		fromExtID = &fromExt.ID
+	}
 	rec := repository.CallRecord{
 		ID:                callID,
-		TenantID:          fromExt.TenantID,
+		TenantID:          toExt.TenantID,
 		CorrelationID:     correlationID,
-		Direction:         "internal",
+		Direction:         direction,
 		Status:            "ringing",
-		FromExtensionID:   &fromExt.ID,
+		FromExtensionID:   fromExtID,
 		ToExtensionID:     &toExt.ID,
 		CallerNumber:      callerNum,
 		CalleeNumber:      destNum,
 		AsteriskChannelID: channelID,
 		StartedAt:         now,
 	}
-	_ = c.repo.CreateCall(ctx, rec)
-	_ = c.repo.InsertCallLeg(ctx, fromExt.TenantID, callID, "caller", channelID, fromExt.AsteriskEndpointID)
-	_ = c.repo.InsertCallEvent(ctx, fromExt.TenantID, callID, "CREATED", map[string]any{"source": "asterisk"})
-	_ = c.repo.InsertCallEvent(ctx, fromExt.TenantID, callID, "RINGING", map[string]any{"source": "asterisk"})
-	_ = c.bus.PublishCallEvent(ctx, fromExt.TenantID, callID, correlationID, "RINGING", map[string]any{
+
+	if err := c.repo.CreateCall(ctx, rec); err != nil {
+		if strings.Contains(err.Error(), "concurrent_call_limit_reached") {
+			slog.Warn("concurrent call limit reached", "tenant", tenantSlug)
+			c.finalizeCall(ctx, active, calls.StateFailed, "concurrent_call_limit_reached")
+		} else {
+			slog.Error("create call failed", "error", err, "tenant", tenantSlug)
+			c.finalizeCall(ctx, active, calls.StateFailed, "call_create_failed")
+		}
+		c.hangup(channelID)
+		return
+	}
+	callerEndpointID := ""
+	if fromExt != nil {
+		callerEndpointID = fromExt.AsteriskEndpointID
+	}
+	_ = c.repo.InsertCallLeg(ctx, toExt.TenantID, callID, "caller", channelID, callerEndpointID)
+	_ = c.repo.InsertCallEvent(ctx, toExt.TenantID, callID, "CREATED", map[string]any{"source": "asterisk"})
+	_ = c.repo.InsertCallEvent(ctx, toExt.TenantID, callID, "RINGING", map[string]any{"source": "asterisk"})
+	_ = c.bus.PublishCallEvent(ctx, toExt.TenantID, callID, correlationID, "RINGING", map[string]any{
 		"caller": callerNum, "callee": destNum,
 	})
 
-	endpointState, err := c.fetchEndpointState(toExt.AsteriskEndpointID)
-	if err != nil || !endpointAvailable(endpointState) {
-		slog.Warn("callee endpoint unavailable", "tenant", tenantSlug, "ext", destNum, "endpoint", toExt.AsteriskEndpointID, "state", endpointState, "error", err)
+	endpoints, err := c.repo.ListCalleeEndpointsForExtension(ctx, toExt.TenantID, toExt.ID, toExt.AsteriskEndpointID)
+	if err != nil || len(endpoints) == 0 {
+		slog.Warn("callee endpoints unavailable", "tenant", tenantSlug, "ext", destNum, "error", err)
+		c.finalizeCall(ctx, active, calls.StateFailed, "destination_unavailable")
+		c.hangup(channelID)
+		return
+	}
+
+	available := make([]string, 0, len(endpoints))
+	for _, ep := range endpoints {
+		endpointState, stateErr := c.fetchEndpointState(ep)
+		if stateErr == nil && endpointAvailable(endpointState) {
+			available = append(available, ep)
+		}
+	}
+	if len(available) == 0 {
+		slog.Warn("callee endpoints offline", "tenant", tenantSlug, "ext", destNum, "endpoints", endpoints)
 		c.finalizeCall(ctx, active, calls.StateFailed, "destination_unavailable")
 		c.hangup(channelID)
 		return
@@ -221,31 +285,47 @@ func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 		slog.Warn("caller ring indication failed", "error", err, "channel", channelID)
 	}
 
-	endpoint := buildPjsipEndpointTarget(toExt.AsteriskEndpointID)
-	calleeHandle, err := c.client.Channel().Originate(channelKey(channelID), ari.OriginateRequest{
-		Endpoint:   endpoint,
-		App:        c.cfg.StasisApp,
-		AppArgs:    fmt.Sprintf("join,%s", callID.String()),
-		CallerID:   fmt.Sprintf("\"%s\" <%s>", callerNum, callerNum),
-		Timeout:    30,
-		Originator: channelID,
-	})
-	if err != nil {
-		slog.Error("originate failed", "error", err, "endpoint", endpoint)
+	active.CalleeEndpointID = available[0]
+	active.PendingCalleeChannelIDs = make([]string, 0, len(available))
+	originated := 0
+	for _, ep := range available {
+		endpoint := buildPjsipEndpointTarget(ep)
+		if pstnInbound {
+			slog.Info("pstn inbound originate", "call_id", callID.String(), "originate_endpoint", endpoint)
+		}
+		calleeHandle, origErr := c.client.Channel().Originate(channelKey(channelID), ari.OriginateRequest{
+			Endpoint:   endpoint,
+			App:        c.cfg.StasisApp,
+			AppArgs:    fmt.Sprintf("join,%s", callID.String()),
+			CallerID:   fmt.Sprintf("\"%s\" <%s>", callerNum, callerNum),
+			Timeout:    30,
+			Originator: channelID,
+		})
+		if origErr != nil {
+			slog.Warn("originate failed", "error", origErr, "endpoint", endpoint)
+			continue
+		}
+		originated++
+		if calleeHandle != nil {
+			calleeID := calleeHandle.ID()
+			if calleeID != "" {
+				active.PendingCalleeChannelIDs = append(active.PendingCalleeChannelIDs, calleeID)
+				active.HadCalleeLeg = true
+				_ = c.repo.InsertCallLeg(ctx, toExt.TenantID, callID, "callee", calleeID, ep)
+				go c.waitCalleeAnswered(context.Background(), active.CallID, *calleeHandle)
+			}
+		}
+	}
+	if originated == 0 {
+		slog.Error("all callee originates failed", "endpoints", available)
 		c.finalizeCall(ctx, active, calls.StateFailed, "originate_failed")
 		c.hangup(channelID)
 		return
 	}
-	if calleeHandle != nil {
-		calleeID := calleeHandle.ID()
-		if calleeID != "" {
-			active.CalleeChannelID = calleeID
-			active.HadCalleeLeg = true
-			c.registry.Put(active)
-			_ = c.repo.InsertCallLeg(ctx, fromExt.TenantID, callID, "callee", calleeID, toExt.AsteriskEndpointID)
-			go c.waitCalleeAnswered(context.Background(), active.CallID, *calleeHandle)
-		}
+	if len(active.PendingCalleeChannelIDs) == 1 {
+		active.CalleeChannelID = active.PendingCalleeChannelIDs[0]
 	}
+	c.registry.Put(active)
 }
 
 func (c *Controller) bridgeCallerAndCallee(ctx context.Context, active *calls.ActiveCall) {
@@ -266,6 +346,7 @@ func (c *Controller) bridgeCallerAndCallee(ctx context.Context, active *calls.Ac
 		}
 		active.BridgeID = bridge.ID()
 		c.registry.Put(active)
+		slog.Info("call bridge created", "call_id", active.CallID.String(), "bridge_id", bridge.ID())
 		_ = c.repo.UpdateCallStatus(ctx, active.CallID, "ringing", map[string]any{"asterisk_bridge_id": bridge.ID()})
 	}
 	callerData, err := c.client.Channel().Data(channelKey(active.CallerChannelID))
@@ -334,6 +415,7 @@ func (c *Controller) waitCalleeAnswered(ctx context.Context, callID uuid.UUID, h
 				c.registry.Put(active)
 			}
 			if strings.EqualFold(data.State, "Up") {
+				c.cancelOtherCalleeLegs(active, data.ID)
 				c.bridgeCallerAndCallee(ctx, active)
 				return
 			}
@@ -353,6 +435,7 @@ func (c *Controller) waitCalleeAnswered(ctx context.Context, callID uuid.UUID, h
 						active.CalleeChannelID = chData.ID
 						c.registry.Put(active)
 						_ = c.repo.UpdateCallLegChannel(ctx, active.TenantID, active.CallID, "callee", chData.ID)
+						c.cancelOtherCalleeLegs(active, chData.ID)
 						c.bridgeCallerAndCallee(ctx, active)
 						return
 					}
@@ -376,6 +459,10 @@ func (c *Controller) handleJoinLeg(ctx context.Context, channelID, callIDStr str
 	if !ok {
 		return
 	}
+	if active.AnsweredCalleeChannelID != "" && active.AnsweredCalleeChannelID != channelID {
+		c.hangup(channelID)
+		return
+	}
 	if active.CalleeChannelID == "" {
 		active.CalleeChannelID = channelID
 		active.HadCalleeLeg = true
@@ -385,12 +472,23 @@ func (c *Controller) handleJoinLeg(ctx context.Context, channelID, callIDStr str
 			legType = "human"
 		}
 		_ = c.repo.InsertCallLeg(ctx, active.TenantID, callID, legType, channelID, active.CalleeEndpointID)
-	} else if active.CalleeChannelID != channelID {
+	} else if active.CalleeChannelID != channelID && active.AnsweredCalleeChannelID == "" {
 		slog.Warn("join leg channel mismatch", "expected", active.CalleeChannelID, "got", channelID)
 	}
 	if active.TransferInProgress && active.AiSessionID != uuid.Nil {
 		c.completeAiTransfer(ctx, active, channelID)
 	}
+}
+
+func (c *Controller) cancelOtherCalleeLegs(active *calls.ActiveCall, winnerChannelID string) {
+	for _, ch := range active.PendingCalleeChannelIDs {
+		if ch != "" && ch != winnerChannelID {
+			c.hangup(ch)
+		}
+	}
+	active.AnsweredCalleeChannelID = winnerChannelID
+	active.CalleeChannelID = winnerChannelID
+	c.registry.Put(active)
 }
 
 func (c *Controller) markAnsweredAndBridged(ctx context.Context, active *calls.ActiveCall) {
@@ -505,7 +603,10 @@ func (c *Controller) onChannelStateChange(ctx context.Context, ev *ari.ChannelSt
 	if active.TransferInProgress && active.AiSessionID != uuid.Nil && ev.Channel.ID == active.CalleeChannelID {
 		c.completeAiTransfer(ctx, active, ev.Channel.ID)
 	}
-	if ev.Channel.ID == active.CalleeChannelID {
+	if ev.Channel.ID == active.CalleeChannelID || containsString(active.PendingCalleeChannelIDs, ev.Channel.ID) {
+		if active.AnsweredCalleeChannelID == "" {
+			c.cancelOtherCalleeLegs(active, ev.Channel.ID)
+		}
 		c.bridgeCallerAndCallee(ctx, active)
 	}
 }
@@ -581,7 +682,16 @@ func (c *Controller) finalizeCall(ctx context.Context, active *calls.ActiveCall,
 	if active.RecordingStarted {
 		c.finalizeRecording(ctx, active)
 	}
+	c.destroyCallBridge(active)
 	c.registry.Remove(active.CallID)
+}
+
+func (c *Controller) destroyCallBridge(active *calls.ActiveCall) {
+	if active.BridgeID == "" || c.client == nil {
+		return
+	}
+	_ = c.client.Bridge().Delete(bridgeKey(active.BridgeID))
+	active.BridgeID = ""
 }
 
 func (c *Controller) hangup(channelID string) {

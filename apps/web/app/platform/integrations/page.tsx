@@ -22,6 +22,7 @@ export default function IntegrationsOverviewPage() {
   const cards = [
     { href: '/platform/integrations/ai', title: 'AI Providers', desc: 'OpenAI, Gemini, Azure OpenAI, Anthropic, custom' },
     { href: '/platform/integrations/sip-carriers', title: 'SIP Carriers', desc: 'Platform carrier profiles and tenant assignments' },
+    { href: '/platform/telephony/twilio', title: 'Twilio Elastic SIP', desc: 'Twilio Production trunk sync, test DID, and IL number provisioning' },
     { href: '/platform/integrations/stripe', title: 'Stripe', desc: 'Test and live payment credentials' },
     { href: '/platform/integrations/audit', title: 'Audit History', desc: 'Credential lifecycle audit events' },
   ];

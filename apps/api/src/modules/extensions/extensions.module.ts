@@ -6,7 +6,7 @@ import { ExtensionsController } from './extensions.controller.js';
 import { ExtensionsService } from './extensions.service.js';
 
 @Module({
-  imports: [forwardRef(() => TelephonyModule), RecordingsModule, TenantsModule],
+  imports: [forwardRef(() => TelephonyModule), RecordingsModule, forwardRef(() => TenantsModule)],
   controllers: [ExtensionsController],
   providers: [ExtensionsService],
   exports: [ExtensionsService],

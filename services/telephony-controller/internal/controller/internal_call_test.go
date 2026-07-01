@@ -43,12 +43,19 @@ func TestEndpointStateOffline(t *testing.T) {
 	}
 }
 
-func TestEndpointAvailable(t *testing.T) {
+func TestDestroyCallBridgeNoopWithoutBridge(t *testing.T) {
 	t.Parallel()
-	if !endpointAvailable("online") || !endpointAvailable("not in use") || !endpointAvailable("In Use") {
-		t.Fatal("expected reachable endpoint states")
-	}
-	if endpointAvailable("offline") || endpointAvailable("unavailable") || endpointAvailable("unknown") {
-		t.Fatal("offline endpoint must not be available for originate")
+	active := &calls.ActiveCall{}
+	ctrl := &Controller{}
+	ctrl.destroyCallBridge(active)
+}
+
+func TestDestroyCallBridgeNoopWithoutClient(t *testing.T) {
+	t.Parallel()
+	active := &calls.ActiveCall{BridgeID: "bridge-test"}
+	ctrl := &Controller{}
+	ctrl.destroyCallBridge(active)
+	if active.BridgeID != "bridge-test" {
+		t.Fatalf("expected bridge id unchanged without client")
 	}
 }

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { redactObject } from '@pbx/shared';
+import { appendIsraeliOutboundDialplan } from './israel-dialplan.js';
 import type {
   ConfigManifest,
   GeneratedTelephonyConfig,
@@ -28,7 +29,9 @@ export function generateTelephonyConfig(
   extensions: TelephonyExtensionRecord[],
   aiAgents: TelephonyAiAgentRecord[] = [],
   version?: string,
+  outboundTenantSlugs?: Iterable<string>,
 ): GeneratedTelephonyConfig {
+  const outboundSlugs = new Set(outboundTenantSlugs ?? []);
   const activeTenants = tenants.filter((t) => t.status === 'active');
   const tenantSlugSet = new Set(activeTenants.map((t) => t.slug));
 
@@ -84,6 +87,21 @@ export function generateTelephonyConfig(
         ` same => n,Stasis(${STASIS_APP},${tenant.slug},\${CALLERID(num)},ai,${agent.routeNumber})`,
         ' same => n,Hangup()',
       );
+    }
+
+    const tenantExtensions = activeExtensions
+      .filter((e) => e.tenantSlug === tenant.slug)
+      .sort((a, b) => a.extensionNumber.localeCompare(b.extensionNumber, undefined, { numeric: true }));
+    for (const ext of tenantExtensions) {
+      dialplanLines.push(
+        `exten => ${ext.extensionNumber},1,NoOp(PBX internal \${CALLERID(num)} -> ${ext.extensionNumber} tenant ${tenant.slug})`,
+        ` same => n,Stasis(${STASIS_APP},${tenant.slug},\${CALLERID(num)},${ext.extensionNumber})`,
+        ' same => n,Hangup()',
+      );
+    }
+
+    if (outboundSlugs.has(tenant.slug)) {
+      appendIsraeliOutboundDialplan(dialplanLines, tenant.slug);
     }
 
     dialplanLines.push(

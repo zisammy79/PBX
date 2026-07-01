@@ -223,6 +223,7 @@ export class PstnService {
           maxConcurrentCalls: Number(cfg.maxConcurrentCalls ?? 5),
           maxCallDurationSeconds: Number(cfg.maxCallDurationSeconds ?? 3600),
           allowedDestinationCountries: (cfg.allowedDestinationCountries as string[]) ?? ['US'],
+          providerAdapter: row.providerAdapter,
         };
         if (endpoints[0]?.host) record.registrar = endpoints[0].host;
         if (username) record.username = username;
@@ -231,13 +232,19 @@ export class PstnService {
         if (typeof cfg.allowedCallerId === 'string') record.allowedCallerId = cfg.allowedCallerId;
         if (typeof cfg.spendLimitCents === 'number') record.spendLimitCents = cfg.spendLimitCents;
         if (typeof cfg.failureRoute === 'string') record.failureRoute = cfg.failureRoute;
+        if (Array.isArray(cfg.inboundIpCidrs)) {
+          record.inboundIpCidrs = cfg.inboundIpCidrs.filter((v): v is string => typeof v === 'string');
+        }
         trunks.push(record);
       }
 
-      const inboundRows = await db.select().from(inboundRoutes).where(eq(inboundRoutes.tenantId, tenantId));
+      const inboundRows = await db
+        .select()
+        .from(inboundRoutes)
+        .where(and(eq(inboundRoutes.tenantId, tenantId), eq(inboundRoutes.isActive, true)));
       const inbound: TelephonyInboundRouteRecord[] = [];
+      const defaultTrunk = trunkRows.find((t) => t.isActive) ?? trunkRows[0];
       for (const route of inboundRows) {
-        const trunk = trunkRows.find((t) => t.id === route.destinationId) ?? trunkRows[0];
         let destValue = '';
         if (route.destinationType === 'extension' && route.destinationId) {
           const [ext] = await db
@@ -254,11 +261,14 @@ export class PstnService {
           didPattern: route.didPattern,
           destinationType: route.destinationType as 'extension' | 'ai_agent',
           destinationValue: destValue,
-          trunkAsteriskId: trunk?.asteriskTrunkId ?? `${tenant.slug}_trunk_default`,
+          trunkAsteriskId: defaultTrunk?.asteriskTrunkId ?? `${tenant.slug}_trunk_default`,
         });
       }
 
-      const outboundRows = await db.select().from(outboundRoutes).where(eq(outboundRoutes.tenantId, tenantId));
+      const outboundRows = await db
+        .select()
+        .from(outboundRoutes)
+        .where(and(eq(outboundRoutes.tenantId, tenantId), eq(outboundRoutes.isActive, true)));
       const outbound: TelephonyOutboundRouteRecord[] = outboundRows.map((route) => {
         const trunk = trunkRows.find((t) => t.id === route.trunkId);
         const policy = (route.callerIdPolicy ?? {}) as Record<string, string>;

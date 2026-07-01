@@ -7,12 +7,40 @@
         "parameters": [],
         "responses": {
           "201": {
-            "description": ""
+            "description": "Authentication successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         },
         "tags": [
           "Auth"
-        ]
+        ],
+        "summary": "Authenticate user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/auth/change-password": {
@@ -26,6 +54,12 @@
         },
         "tags": [
           "Auth"
+        ],
+        "summary": "Change authenticated user password",
+        "security": [
+          {
+            "bearer": []
+          }
         ]
       }
     },
@@ -35,11 +69,27 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Current user profile"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         },
         "tags": [
           "Auth"
+        ],
+        "summary": "Get current authenticated user and tenant memberships",
+        "security": [
+          {
+            "bearer": []
+          }
         ]
       }
     },
@@ -63,12 +113,25 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "healthy"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
           "Health"
-        ]
+        ],
+        "summary": "Liveness probe — process alive"
       }
     },
     "/api/v1/health/ready": {
@@ -77,12 +140,29 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Required dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            }
           }
         },
         "tags": [
           "Health"
-        ]
+        ],
+        "summary": "Readiness probe — fails when required dependencies are unavailable"
       }
     },
     "/api/v1/tenants": {
@@ -96,7 +176,23 @@
         },
         "tags": [
           "Tenants"
-        ]
+        ],
+        "summary": "Create tenant and owner membership",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantRequest"
+              }
+            }
+          }
+        }
       },
       "get": {
         "operationId": "TenantsController_list",
@@ -108,6 +204,12 @@
         },
         "tags": [
           "Tenants"
+        ],
+        "summary": "List tenants (platform permission required)",
+        "security": [
+          {
+            "bearer": []
+          }
         ]
       }
     },
@@ -139,9 +241,9 @@
         ]
       }
     },
-    "/api/v1/tenants/{tenantId}": {
+    "/api/v1/tenants/{tenantId}/provisioning": {
       "get": {
-        "operationId": "TenantsController_get",
+        "operationId": "TenantsController_getProvisioning",
         "parameters": [],
         "responses": {
           "200": {
@@ -153,9 +255,9 @@
         ]
       }
     },
-    "/api/v1/tenants/{tenantId}/extensions": {
+    "/api/v1/tenants/{tenantId}/provision": {
       "post": {
-        "operationId": "ExtensionsController_create",
+        "operationId": "TenantsController_provision",
         "parameters": [],
         "responses": {
           "201": {
@@ -163,8 +265,85 @@
           }
         },
         "tags": [
-          "Extensions"
+          "Tenants"
         ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/entitlements": {
+      "get": {
+        "operationId": "TenantsController_entitlements",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tenants"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}": {
+      "get": {
+        "operationId": "TenantsController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tenants"
+        ],
+        "summary": "Get tenant by ID",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/extensions": {
+      "post": {
+        "operationId": "ExtensionsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Extension created; SIP secret returned once",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionCreateResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Extensions"
+        ],
+        "summary": "Create extension with one-time SIP credential secret",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExtensionRequest"
+              }
+            }
+          }
+        }
       },
       "get": {
         "operationId": "ExtensionsController_list",
@@ -176,6 +355,15 @@
         },
         "tags": [
           "Extensions"
+        ],
+        "summary": "List extensions without SIP secrets",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
         ]
       }
     },
@@ -185,11 +373,26 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionReadResponse"
+                }
+              }
+            }
           }
         },
         "tags": [
           "Extensions"
+        ],
+        "summary": "Get extension metadata without SIP secret",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
         ]
       },
       "delete": {
@@ -708,6 +911,15 @@
         },
         "tags": [
           "Billing"
+        ],
+        "summary": "Current tenant subscription and plan entitlements",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
         ]
       }
     },
@@ -994,6 +1206,15 @@
         },
         "tags": [
           "Dashboard"
+        ],
+        "summary": "Tenant operational dashboard summary",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "tenant": []
+          }
         ]
       }
     },
@@ -1008,6 +1229,12 @@
         },
         "tags": [
           "Dashboard"
+        ],
+        "summary": "Platform admin global dashboard summary",
+        "security": [
+          {
+            "bearer": []
+          }
         ]
       }
     },
@@ -1789,6 +2016,254 @@
         },
         "tags": [
           "Recordings"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/users": {
+      "get": {
+        "operationId": "MembershipsController_listUsers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Memberships"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/invitations": {
+      "get": {
+        "operationId": "MembershipsController_listInvitations",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Memberships"
+        ]
+      },
+      "post": {
+        "operationId": "MembershipsController_invite",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Memberships"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/invitations/{invitationId}/resend": {
+      "post": {
+        "operationId": "MembershipsController_resend",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Memberships"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/invitations/{invitationId}/revoke": {
+      "post": {
+        "operationId": "MembershipsController_revoke",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Memberships"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/memberships/{membershipId}": {
+      "patch": {
+        "operationId": "MembershipsController_updateMembership",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Memberships"
+        ]
+      }
+    },
+    "/api/v1/invitations/accept": {
+      "post": {
+        "operationId": "InvitationsPublicController_accept",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "InvitationsPublic"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/extensions/{extensionId}/devices": {
+      "get": {
+        "operationId": "DevicesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Devices"
+        ]
+      },
+      "post": {
+        "operationId": "DevicesController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Devices"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/extensions/{extensionId}/devices/{deviceId}/rotate-credential": {
+      "post": {
+        "operationId": "DevicesController_rotate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Devices"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/extensions/{extensionId}/devices/{deviceId}/disable": {
+      "patch": {
+        "operationId": "DevicesController_disable",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Devices"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/extensions/{extensionId}/devices/{deviceId}/reactivate": {
+      "patch": {
+        "operationId": "DevicesController_reactivate",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Devices"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/extensions/{extensionId}/devices/{deviceId}/revoke": {
+      "patch": {
+        "operationId": "DevicesController_revoke",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Devices"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/sip-domain": {
+      "get": {
+        "operationId": "SipDomainsController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SipDomains"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/sip-domain/request": {
+      "post": {
+        "operationId": "SipDomainsController_request",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SipDomains"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/sip-domain/validate": {
+      "post": {
+        "operationId": "SipDomainsController_validate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SipDomains"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/sip-domain/activate": {
+      "post": {
+        "operationId": "SipDomainsController_activate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SipDomains"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/sip-domain/disable": {
+      "post": {
+        "operationId": "SipDomainsController_disable",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SipDomains"
         ]
       }
     }

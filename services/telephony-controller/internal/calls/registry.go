@@ -34,6 +34,8 @@ type ActiveCall struct {
 	CallerChannelID         string
 	CalleeChannelID         string
 	CalleeEndpointID        string
+	PendingCalleeChannelIDs []string
+	AnsweredCalleeChannelID string
 	BridgeID                  string
 	HadCalleeLeg              bool
 	IsAiCall                  bool
@@ -82,6 +84,11 @@ func (r *Registry) Put(call *ActiveCall) {
 	if call.CalleeChannelID != "" {
 		r.byChan[call.CalleeChannelID] = call.CallID
 	}
+	for _, ch := range call.PendingCalleeChannelIDs {
+		if ch != "" {
+			r.byChan[ch] = call.CallID
+		}
+	}
 }
 
 func (r *Registry) Get(id uuid.UUID) (*ActiveCall, bool) {
@@ -114,6 +121,9 @@ func (r *Registry) Remove(id uuid.UUID) {
 	}
 	if call.CalleeChannelID != "" {
 		delete(r.byChan, call.CalleeChannelID)
+	}
+	for _, ch := range call.PendingCalleeChannelIDs {
+		delete(r.byChan, ch)
 	}
 }
 

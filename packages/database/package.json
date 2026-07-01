@@ -26,7 +26,9 @@
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/seed.ts",
     "demo:seed": "tsx src/demo-seed.ts --seed",
-    "demo:reset": "tsx src/demo-seed.ts --reset"
+    "demo:reset": "tsx src/demo-seed.ts --reset",
+    "demo:multitenant-seed": "tsx src/multitenant-demo-seed.ts",
+    "backfill:legacy-devices": "tsx src/backfill-legacy-sip-devices.ts"
   },
   "dependencies": {
     "@pbx/contracts": "workspace:*",

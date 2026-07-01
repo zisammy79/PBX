@@ -64,9 +64,9 @@ export class ExtensionsService {
     input: CreateExtensionInput,
   ) {
     await this.assertTenantAccess(actor, tenantId);
-    await this.tenantLimitsService.assertCanCreateExtension(tenantId);
 
     const created = await withTenantContext(this.database.db, tenantId, async (db) => {
+      await this.tenantLimitsService.assertCanCreateExtensionInTx(db, tenantId);
       const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
       if (!tenant) throw notFound('Tenant');
       if (tenant.status === 'suspended') {
@@ -522,9 +522,20 @@ export class ExtensionsService {
   }
 
   private resolveSipDomain(tenantSlug: string): string {
+    const apiHost = this.resolvePublicApiHostname();
+    if (apiHost && /^\d+\.\d+\.\d+\.\d+$/.test(apiHost)) {
+      return apiHost;
+    }
     if (this.config.sipPublicDomain) {
       return this.config.sipPublicDomain;
     }
+    if (apiHost) {
+      return apiHost;
+    }
+    return `${tenantSlug}.pbx.local`;
+  }
+
+  private resolvePublicApiHostname(): string | null {
     try {
       const host = new URL(this.config.publicApiUrl).hostname;
       if (host && host !== 'localhost' && host !== '127.0.0.1') {
@@ -533,7 +544,7 @@ export class ExtensionsService {
     } catch {
       // fall through
     }
-    return `${tenantSlug}.pbx.local`;
+    return null;
   }
 
   private defaultSetupInfo(): ExtensionSetupInfo {

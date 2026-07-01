@@ -70,6 +70,11 @@ export const tenantMemberships = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     roles: text('roles').array().notNull().default([]),
+    status: varchar('status', { length: 32 }).notNull().default('active'),
+    invitedAt: timestamp('invited_at', { withTimezone: true }),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    suspendedAt: timestamp('suspended_at', { withTimezone: true }),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -77,6 +82,33 @@ export const tenantMemberships = pgTable(
     uniqueIndex('tenant_memberships_tenant_user_uidx').on(table.tenantId, table.userId),
     index('tenant_memberships_user_idx').on(table.userId),
     index('tenant_memberships_tenant_idx').on(table.tenantId),
+    index('tenant_memberships_status_idx').on(table.tenantId, table.status),
+  ],
+);
+
+export const tenantInvitations = pgTable(
+  'tenant_invitations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    email: varchar('email', { length: 320 }).notNull(),
+    role: varchar('role', { length: 64 }).notNull(),
+    tokenHash: varchar('token_hash', { length: 128 }).notNull(),
+    status: varchar('status', { length: 32 }).notNull().default('pending'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    deliveryStatus: varchar('delivery_status', { length: 32 }).notNull().default('delivery_pending'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('tenant_invitations_token_hash_uidx').on(table.tokenHash),
+    index('tenant_invitations_tenant_idx').on(table.tenantId),
+    index('tenant_invitations_email_idx').on(table.email),
   ],
 );
 

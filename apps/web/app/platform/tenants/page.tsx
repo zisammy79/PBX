@@ -9,6 +9,7 @@ import type { PlatformCustomerSummary } from '@pbx/contracts';
 export default function PlatformCustomersPage() {
   const [customers, setCustomers] = useState<PlatformCustomerSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [panelError, setPanelError] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: '',
     slug: '',
@@ -27,21 +28,23 @@ export default function PlatformCustomersPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
+    setPanelError(null);
     try {
       await api.post('tenants', form);
       setForm({ name: '', slug: '', ownerEmail: '', ownerDisplayName: '' });
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create customer');
+      setPanelError(err instanceof Error ? err.message : 'Failed to create customer');
     }
   }
 
-  async function suspendCustomer(tenantId: string) {
+  async function transition(tenantId: string, status: string) {
+    setPanelError(null);
     try {
-      await api.patch(`tenants/${tenantId}/lifecycle`, { status: 'suspended' });
+      await api.patch(`tenants/${tenantId}/lifecycle`, { status });
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to suspend customer');
+      setPanelError(err instanceof Error ? err.message : 'Lifecycle update failed');
     }
   }
 
@@ -50,8 +53,10 @@ export default function PlatformCustomersPage() {
   return (
     <>
       <PageHeader title="Customers" description="Platform-wide customer lifecycle and health." />
+      {panelError ? <ErrorAlert message={panelError} /> : null}
       <section className="card" style={{ marginBottom: '1rem' }}>
         <h2>Create customer</h2>
+        <p className="muted">New customers start in draft until provisioned and activated.</p>
         <form onSubmit={onCreate}>
           <div className="field"><label className="label">Name</label><input className="input" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
           <div className="field"><label className="label">Slug</label><input className="input" required value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} /></div>
@@ -69,10 +74,12 @@ export default function PlatformCustomersPage() {
               <tr>
                 <th>Customer</th>
                 <th>Status</th>
+                <th>Owner</th>
                 <th>Users</th>
                 <th>Extensions</th>
                 <th>Online</th>
                 <th>Calls</th>
+                <th>SIP domain</th>
                 <th>Recording</th>
                 <th>Health</th>
                 <th />
@@ -84,18 +91,45 @@ export default function PlatformCustomersPage() {
                   <td>
                     <Link href={`/platform/tenants/${customer.id}`}>{customer.name}</Link>
                     <div className="muted">{customer.slug}</div>
+                    {customer.status === 'draft' || customer.status === 'provisioning' || customer.status === 'failed' ? (
+                      <div>
+                        <Link href={`/platform/tenants/${customer.id}/provision`}>Provision</Link>
+                      </div>
+                    ) : null}
                   </td>
                   <td>{customer.status}</td>
+                  <td className="muted">{customer.primaryOwnerEmail ?? '—'}</td>
                   <td>{customer.activeUsers}</td>
                   <td>{customer.activeExtensions}</td>
                   <td>{customer.onlineRegistrations}</td>
                   <td>{customer.concurrentCalls}</td>
+                  <td>{customer.sipDomain ?? `shared (${customer.sipDomainMode})`}</td>
                   <td>{customer.recordCallsByDefault ? 'On' : 'Off'}</td>
                   <td>{customer.health}</td>
-                  <td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {customer.status === 'draft' ? (
+                      <button type="button" className="btn btn-secondary" onClick={() => void transition(customer.id, 'provisioning')}>
+                        Provision
+                      </button>
+                    ) : null}
+                    {customer.status === 'provisioning' || customer.status === 'failed' ? (
+                      <Link href={`/platform/tenants/${customer.id}/provision`} className="btn btn-primary" style={{ marginLeft: '0.25rem' }}>
+                        Continue provisioning
+                      </Link>
+                    ) : null}
                     {customer.status === 'active' ? (
-                      <button type="button" className="btn btn-secondary" onClick={() => void suspendCustomer(customer.id)}>
+                      <button type="button" className="btn btn-secondary" onClick={() => void transition(customer.id, 'suspended')}>
                         Suspend
+                      </button>
+                    ) : null}
+                    {customer.status === 'suspended' ? (
+                      <button type="button" className="btn btn-primary" onClick={() => void transition(customer.id, 'active')}>
+                        Reactivate
+                      </button>
+                    ) : null}
+                    {customer.status !== 'archived' ? (
+                      <button type="button" className="btn btn-danger" style={{ marginLeft: '0.25rem' }} onClick={() => void transition(customer.id, 'archived')}>
+                        Archive
                       </button>
                     ) : null}
                   </td>

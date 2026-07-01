@@ -23,6 +23,10 @@ var/
 .local/
 packages/database/.local/
 infrastructure/asterisk/generated/active/*.conf
+infrastructure/asterisk/generated/staging/pjsip-tenants.conf
+infrastructure/asterisk/generated/staging/extensions-tenants.conf
+infrastructure/asterisk/generated/last-known-good/pjsip-tenants.conf
+infrastructure/asterisk/generated/last-known-good/extensions-tenants.conf
 infrastructure/asterisk/secrets/
 .stage7-provision.env
 .stage7-provision.secrets.json

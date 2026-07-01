@@ -118,6 +118,16 @@ export default function ExtensionDetailPage() {
     provisioning: { status: string; reason?: string };
   } | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [devices, setDevices] = useState<Array<{
+    id: string;
+    name: string;
+    deviceType: string;
+    status: string;
+    provisioningStatus: string;
+    sipUsername: string | null;
+    registrationStatus: string | null;
+  }> | null>(null);
+  const [devicesWarning, setDevicesWarning] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
@@ -139,10 +149,26 @@ export default function ExtensionDetailPage() {
     setRegistration(reg);
   }
 
+  async function loadDevices() {
+    try {
+      const rows = await api.get<NonNullable<typeof devices>>(
+        `tenants/${tenantId}/extensions/${extensionId}/devices`,
+        tenantId,
+      );
+      setDevices(rows);
+      setDevicesWarning(null);
+    } catch (err) {
+      setDevices([]);
+      setDevicesWarning(
+        err instanceof Error ? err.message : 'Device list could not be loaded.',
+      );
+    }
+  }
+
   async function load() {
     const detail = await api.get(`tenants/${tenantId}/extensions/${extensionId}`, tenantId);
     setData(detail as typeof data);
-    await Promise.all([loadRegistration(), loadRecordings(1)]);
+    await Promise.all([loadRegistration(), loadRecordings(1), loadDevices()]);
   }
 
   useEffect(() => {
@@ -397,6 +423,45 @@ export default function ExtensionDetailPage() {
               {data.recordingEffective?.orgRecordCallsByDefault ? 'On' : 'Off'}
             </p>
           ) : null}
+        </section>
+      ) : null}
+
+      {!isDeleted ? (
+        <section className="card" style={{ marginBottom: '1rem' }}>
+          <h2>Devices</h2>
+          {devicesWarning ? (
+            <p className="muted">Extensions loaded, but devices could not be loaded: {devicesWarning}</p>
+          ) : null}
+          {!devices ? (
+            <LoadingBlock />
+          ) : devices.length === 0 ? (
+            <p className="muted">No devices yet.</p>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Registration</th>
+                    <th>Username</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {devices.map((d) => (
+                    <tr key={d.id}>
+                      <td>{d.name}</td>
+                      <td>{d.deviceType}</td>
+                      <td>{d.status}</td>
+                      <td>{d.registrationStatus ?? 'unknown'}</td>
+                      <td>{d.sipUsername ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       ) : null}
 
