@@ -90,4 +90,34 @@ describe('trunk generator', () => {
     expect(cfg.inboundDialplan).toContain('exten => +97233820386,1');
     expect(cfg.inboundDialplan).toContain('Stasis(pbx-platform,acme,${CALLERID(num)},100)');
   });
+
+  it('generates consolidated outbound PSTN dialplan with E164 dial target', () => {
+    const cfg = generateTrunkConfig(
+      [trunk],
+      [],
+      [
+        {
+          tenantId: trunk.tenantId,
+          tenantSlug: trunk.tenantSlug,
+          asteriskContext: 't_acme',
+          pattern: '^05\\d{8}$',
+          callerId: '+97233820386',
+          trunkAsteriskId: trunk.asteriskTrunkId,
+        },
+        {
+          tenantId: trunk.tenantId,
+          tenantSlug: trunk.tenantSlug,
+          asteriskContext: 't_acme',
+          pattern: '^\\+972[2-9]\\d{7,8}$',
+          callerId: '+97233820386',
+          trunkAsteriskId: trunk.asteriskTrunkId,
+        },
+      ],
+    );
+    expect(cfg.outboundDialplan).toContain('[outbound-pstn-acme]');
+    expect(cfg.outboundDialplan).toContain('exten => _+X.,1');
+    expect(cfg.outboundDialplan).toContain('Set(CALLERID(num)=+97233820386)');
+    expect(cfg.outboundDialplan).toContain('Dial(PJSIP/${EXTEN}@acme_trunk_carrier_a,,g)');
+    expect(cfg.outboundDialplan.match(/\[outbound-pstn-acme\]/g)?.length).toBe(1);
+  });
 });

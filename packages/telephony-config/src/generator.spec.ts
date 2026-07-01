@@ -52,6 +52,15 @@ describe('telephony config generator', () => {
     expect(config.pjsipTenants).not.toContain('qualify_frequency=0');
     expect(config.extensionsTenants).toContain('[t_acme]');
     expect(config.extensionsTenants).toContain('Stasis(pbx-platform,acme');
+    expect(config.extensionsTenants).toContain('exten => 1001,1');
+    expect(config.extensionsTenants).toContain('exten => 1002,1');
+  });
+
+  it('adds Israeli outbound patterns for tenants with PSTN routes', () => {
+    const config = generateTelephonyConfig([tenant], extensions, [], 'v1', new Set(['acme']));
+    expect(config.extensionsTenants).toContain('_05XXXXXXXX');
+    expect(config.extensionsTenants).toContain('Goto(outbound-pstn-acme,${PBX_OUTBOUND_E164},1)');
+    expect(config.extensionsTenants).toContain('_+972X.');
   });
 
   it('allows duplicate extension numbers across tenants', () => {

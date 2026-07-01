@@ -216,14 +216,25 @@ export function generateTrunkConfig(
     }
   }
 
+  const outboundByTenant = new Map<string, { trunkAsteriskId: string; callerId: string }>();
   for (const route of outbound) {
     assertSafeIdentifier(route.tenantSlug, 'tenant slug');
+    assertE164(route.callerId);
+    if (!outboundByTenant.has(route.tenantSlug)) {
+      outboundByTenant.set(route.tenantSlug, {
+        trunkAsteriskId: route.trunkAsteriskId,
+        callerId: route.callerId,
+      });
+    }
+  }
+  for (const [tenantSlug, meta] of outboundByTenant) {
     outboundLines.push(
       '',
-      `[outbound-pstn-${route.tenantSlug}]`,
-      `exten => ${route.pattern},1,NoOp(PSTN outbound \${EXTEN})`,
-      ` same => n,Set(CALLERID(num)=${route.callerId})`,
-      ` same => n,Dial(PJSIP/\${EXTEN}@${route.trunkAsteriskId},,g)` ,
+      `[outbound-pstn-${tenantSlug}]`,
+      `exten => _+X.,1,NoOp(PSTN outbound \${EXTEN})`,
+      ` same => n,Set(CALLERID(num)=${meta.callerId})`,
+      ` same => n,Set(CALLERID(name)=PBX Outbound)`,
+      ` same => n,Dial(PJSIP/\${EXTEN}@${meta.trunkAsteriskId},,g)`,
       ' same => n,Hangup()',
     );
   }

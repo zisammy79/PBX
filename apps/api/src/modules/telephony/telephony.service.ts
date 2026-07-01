@@ -123,12 +123,14 @@ export class TelephonyService {
 
     const loaded = await this.loadTelephonyRecords();
     const trunkLoaded = await this.loadGlobalTrunkRecords();
+    const outboundTenantSlugs = new Set(trunkLoaded.outbound.map((route) => route.tenantSlug));
     const generated = mergeTelephonyWithTrunks(
       generateTelephonyConfig(
         loaded.tenants,
         loaded.extensions,
         loaded.aiAgents,
         `global-${Date.now()}`,
+        outboundTenantSlugs,
       ),
       generateTrunkConfig(trunkLoaded.trunks, trunkLoaded.inbound, trunkLoaded.outbound),
     );
