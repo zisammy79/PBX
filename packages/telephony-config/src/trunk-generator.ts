@@ -151,6 +151,8 @@ export function generateTrunkConfig(
       'direct_media=no',
       'rtp_symmetric=yes',
       'force_rport=yes',
+      'rewrite_contact=yes',
+      'rtp_keepalive=30',
       `dtmf_mode=${trunk.dtmfMode}`,
     );
 
