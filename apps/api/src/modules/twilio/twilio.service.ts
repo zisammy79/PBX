@@ -8,9 +8,11 @@ import type { AppConfig } from '../../config.js';
 import { isTwilioConfigured, requireTwilioConfig, type TwilioConfig } from '../../config.js';
 import { assertIsraeliE164 } from './twilio-israel.js';
 import {
+  buildTwilioAvailableNumbersQuery,
   dedupeAvailableNumbers,
   filterAvailableNumbers,
   mapTwilioAvailableNumber,
+  postFilterAvailableNumbers,
 } from './twilio-number-search.js';
 import { redactE164, redactSid, redactUri } from './twilio-redact.js';
 
@@ -268,17 +270,21 @@ export class TwilioService {
     return { trunkSid: cfg.trunkSid };
   }
 
-  async searchAvailableNumbers(query: TwilioNumberSearchQuery): Promise<TwilioAvailableNumberRow[]> {
+  async searchAvailableNumbers(query: TwilioNumberSearchQuery): Promise<{
+    numbers: TwilioAvailableNumberRow[];
+    appliedFilters: { areaCodeInput?: string; e164Prefix?: string };
+  }> {
     const client = this.createClient();
     const country = query.country.toUpperCase();
-    const listParams: { limit: number; contains?: string; areaCode?: number } = {
-      limit: query.limit,
-    };
-    if (query.contains) listParams.contains = query.contains;
-    if (query.areaCode) {
-      const parsedAreaCode = Number.parseInt(query.areaCode, 10);
-      if (!Number.isNaN(parsedAreaCode)) listParams.areaCode = parsedAreaCode;
+
+    let normalized;
+    try {
+      normalized = buildTwilioAvailableNumbersQuery(query);
+    } catch {
+      throw validationError({ areaCode: 'Invalid area or prefix for the selected country' });
     }
+
+    const listParams = normalized.twilioParams;
 
     const types =
       query.type === 'any'
@@ -311,13 +317,19 @@ export class TwilioService {
       }
     }
 
-    const filtered = filterAvailableNumbers(rows, {
+    const capabilityFiltered = filterAvailableNumbers(rows, {
       voiceRequired: query.voiceRequired,
       ...(query.smsCapable !== undefined ? { smsCapable: query.smsCapable } : {}),
       ...(query.mmsCapable !== undefined ? { mmsCapable: query.mmsCapable } : {}),
     });
 
-    return dedupeAvailableNumbers(filtered).slice(0, query.limit);
+    const prefixFiltered = postFilterAvailableNumbers(capabilityFiltered, normalized.postFilters);
+    const numbers = dedupeAvailableNumbers(prefixFiltered).slice(0, query.limit);
+
+    return {
+      numbers,
+      appliedFilters: normalized.appliedFilters,
+    };
   }
 
   async purchaseIncomingNumber(e164: string, friendlyName?: string): Promise<{ sid: string; e164: string }> {

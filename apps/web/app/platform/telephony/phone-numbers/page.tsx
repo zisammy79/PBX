@@ -58,6 +58,9 @@ export default function PlatformPhoneNumbersPage() {
   const [areaCode, setAreaCode] = useState('');
   const [contains, setContains] = useState('');
   const [limit, setLimit] = useState<number>(25);
+  const [appliedFilters, setAppliedFilters] = useState<{ areaCodeInput?: string; e164Prefix?: string } | null>(
+    null,
+  );
 
   const [selected, setSelected] = useState<AvailableNumber | null>(null);
   const [destinationType, setDestinationType] = useState('extension');
@@ -117,9 +120,19 @@ export default function PlatformPhoneNumbersPage() {
       });
       if (areaCode) params.set('areaCode', areaCode);
       if (contains) params.set('contains', contains);
-      const res = await api.get<{ numbers: AvailableNumber[] }>(`twilio/numbers/search?${params}`);
+      const res = await api.get<{
+        numbers: AvailableNumber[];
+        appliedFilters?: { areaCodeInput?: string; e164Prefix?: string };
+      }>(`twilio/numbers/search?${params}`);
       setAvailable(res.numbers);
-      setMessage(`Found ${res.numbers.length} available numbers`);
+      setAppliedFilters(res.appliedFilters ?? null);
+      if (res.numbers.length === 0 && res.appliedFilters?.e164Prefix) {
+        setMessage(
+          `No numbers found for ${res.appliedFilters.e164Prefix}. Try clearing the prefix or using 02 / 04 / 09 / 076.`,
+        );
+      } else {
+        setMessage(`Found ${res.numbers.length} available numbers`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed');
     } finally {
@@ -164,6 +177,13 @@ export default function PlatformPhoneNumbersPage() {
     [],
   );
 
+  const areaCodeLabel =
+    country === 'IL'
+      ? 'Area / prefix (e.g. 03, 02, 04, 076)'
+      : country === 'US' || country === 'CA'
+        ? 'Area code'
+        : 'Area / prefix';
+
   if (loading) return <LoadingBlock />;
 
   return (
@@ -192,7 +212,7 @@ export default function PlatformPhoneNumbersPage() {
             </select>
           </label>
           <label>
-            Area code
+            {areaCodeLabel}
             <input value={areaCode} onChange={(e) => setAreaCode(e.target.value)} style={{ width: '100%' }} />
           </label>
           <label>
@@ -210,6 +230,14 @@ export default function PlatformPhoneNumbersPage() {
             </select>
           </label>
         </div>
+        {appliedFilters?.areaCodeInput && appliedFilters.e164Prefix ? (
+          <p className="muted" style={{ marginTop: '0.75rem', marginBottom: 0 }}>
+            Applied filter:{' '}
+            <span className="badge">
+              {appliedFilters.areaCodeInput} → {appliedFilters.e164Prefix}
+            </span>
+          </p>
+        ) : null}
         <button type="button" className="btn btn-primary" style={{ marginTop: '0.75rem' }} disabled={searching} onClick={() => void runSearch()}>
           {searching ? 'Searching…' : 'Search available numbers'}
         </button>

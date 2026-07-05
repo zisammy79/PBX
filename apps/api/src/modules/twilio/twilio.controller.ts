@@ -58,8 +58,12 @@ export class TwilioController {
   async searchNumbers(@Query() query: unknown) {
     this.numbersService.assertTwilioConfigured();
     const parsed = TwilioNumberSearchQuerySchema.parse(query);
-    const numbers = await this.twilioService.searchAvailableNumbers(parsed);
-    return { numbers, count: numbers.length };
+    const result = await this.twilioService.searchAvailableNumbers(parsed);
+    return {
+      numbers: result.numbers,
+      count: result.numbers.length,
+      appliedFilters: result.appliedFilters,
+    };
   }
 
   @Get('numbers/owned')
