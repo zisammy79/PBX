@@ -1,0 +1,55 @@
+# PBX production reverse proxy (host-installed Caddy, not Docker).
+# Requires DNS A record: pbx.calasso.co.il -> server public IP before domain TLS can issue.
+
+pbx.calasso.co.il {
+	encode gzip zstd
+
+	@api_v1 path /api/v1/*
+	handle @api_v1 {
+		reverse_proxy 127.0.0.1:3001 {
+			header_up Host {http.request.host}
+			header_up X-Forwarded-For {http.request.remote.host}
+			header_up X-Forwarded-Proto {http.request.scheme}
+			header_up X-Forwarded-Host {http.request.host}
+		}
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:3000 {
+			header_up Host {http.request.host}
+			header_up X-Forwarded-For {http.request.remote.host}
+			header_up X-Forwarded-Proto {http.request.scheme}
+			header_up X-Forwarded-Host {http.request.host}
+		}
+	}
+}
+
+# Interim HTTPS on public IP (internal CA) until domain DNS + Let's Encrypt cert are live.
+https://165.245.254.97 {
+	tls internal
+	encode gzip zstd
+
+	@api_v1 path /api/v1/*
+	handle @api_v1 {
+		reverse_proxy 127.0.0.1:3001 {
+			header_up Host {http.request.host}
+			header_up X-Forwarded-For {http.request.remote.host}
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Host {http.request.host}
+		}
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:3000 {
+			header_up Host {http.request.host}
+			header_up X-Forwarded-For {http.request.remote.host}
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Host {http.request.host}
+		}
+	}
+}
+
+# Redirect plain HTTP to HTTPS on IP (interim). After DNS is live, prefer redirect to the domain.
+http://165.245.254.97 {
+	redir https://165.245.254.97{uri} permanent
+}
