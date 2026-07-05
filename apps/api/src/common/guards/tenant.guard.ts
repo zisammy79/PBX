@@ -62,7 +62,10 @@ export class TenantGuard implements CanActivate {
   }
 
   private async assertTenantActive(tenantId: string, request?: RequestWithUser): Promise<boolean> {
-    const [tenant] = await this.db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+    let [tenant] = await this.db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+    if (!tenant) {
+      [tenant] = await this.db.select().from(tenants).where(eq(tenants.slug, tenantId)).limit(1);
+    }
     if (!tenant || tenant.status === 'closed' || tenant.status === 'archived') {
       throw tenantAccessDenied();
     }
@@ -74,7 +77,7 @@ export class TenantGuard implements CanActivate {
     }
 
     if (request) {
-      request.activeTenantId = tenantId;
+      request.activeTenantId = tenant.id;
       (request as RequestWithUser & { tenantSlug?: string }).tenantSlug = tenant.slug;
     }
     return true;

@@ -1,7 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   notFound,
+  tenantAccessDenied,
   validationError,
+  type AssignableDestinationsResponse,
   type TenantPhoneNumberRow,
   type TwilioNumberAssignment,
   type TwilioOutboundCallerIdPolicy,
@@ -9,11 +11,14 @@ import {
 } from '@pbx/contracts';
 import { and, eq } from 'drizzle-orm';
 import {
+  aiAgents,
   auditEvents,
   extensions,
   inboundRoutes,
   phoneNumbers,
+  sipCredentials,
   sipTrunks,
+  tenants,
   withBypassRls,
   withTenantContext,
 } from '@pbx/database';
@@ -23,6 +28,10 @@ import { isTwilioConfigured } from '../../config.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
 import { TelephonyService } from '../telephony/telephony.service.js';
 import { assertIsraeliE164 } from './twilio-israel.js';
+import {
+  isTenantUuid,
+  mapExtensionRowsToDestinations,
+} from './assignable-destinations.js';
 import { TwilioProvisioningService } from './twilio-provisioning.service.js';
 import { TwilioService } from './twilio.service.js';
 
@@ -48,6 +57,85 @@ export class TwilioNumbersService {
     if (!isTwilioConfigured(this.config)) {
       throw validationError({ twilio: 'Twilio is not configured on this platform' });
     }
+  }
+
+  async resolveTenantRef(ref: string): Promise<{ id: string; slug: string; status: string }> {
+    return withBypassRls(this.database.db, async (db) => {
+      const [tenant] = await db
+        .select({
+          id: tenants.id,
+          slug: tenants.slug,
+          status: tenants.status,
+        })
+        .from(tenants)
+        .where(isTenantUuid(ref) ? eq(tenants.id, ref) : eq(tenants.slug, ref))
+        .limit(1);
+
+      if (!tenant) {
+        throw notFound('Tenant');
+      }
+
+      return tenant;
+    });
+  }
+
+  async listAssignableDestinations(tenantRef: string): Promise<AssignableDestinationsResponse> {
+    const tenant = await this.resolveTenantRef(tenantRef);
+    if (tenant.status === 'closed' || tenant.status === 'archived') {
+      throw tenantAccessDenied();
+    }
+
+    return withBypassRls(this.database.db, async (db) => {
+      const extensionRows = await db
+        .select({
+          id: extensions.id,
+          extensionNumber: extensions.extensionNumber,
+          displayName: extensions.displayName,
+          status: extensions.status,
+          sipUsername: sipCredentials.username,
+        })
+        .from(extensions)
+        .leftJoin(sipCredentials, eq(sipCredentials.extensionId, extensions.id))
+        .where(and(eq(extensions.tenantId, tenant.id), eq(extensions.status, 'active')))
+        .orderBy(extensions.extensionNumber);
+
+      const agentRows = await db
+        .select({
+          id: aiAgents.id,
+          name: aiAgents.name,
+          status: aiAgents.status,
+          routeNumber: aiAgents.routeNumber,
+          isActive: aiAgents.isActive,
+        })
+        .from(aiAgents)
+        .where(and(eq(aiAgents.tenantId, tenant.id), eq(aiAgents.isActive, true)))
+        .orderBy(aiAgents.name);
+
+      const destinations = [
+        ...mapExtensionRowsToDestinations(
+          extensionRows.map((row) => ({
+            ...row,
+            sipUsername: row.sipUsername ?? null,
+          })),
+        ),
+        ...agentRows.map((agent) => ({
+          type: 'ai_agent' as const,
+          id: agent.id,
+          value: agent.id,
+          label: agent.routeNumber ? `${agent.name} (${agent.routeNumber})` : agent.name,
+          status: agent.status,
+          metadata: {
+            routeNumber: agent.routeNumber,
+          },
+        })),
+      ];
+
+      return {
+        tenantId: tenant.id,
+        tenantSlug: tenant.slug,
+        destinations,
+      };
+    });
   }
 
   async listTenantPhoneNumbers(tenantId: string): Promise<TenantPhoneNumberRow[]> {
@@ -161,6 +249,12 @@ export class TwilioNumbersService {
     assignment: NumberAssignmentInput,
   ): Promise<TenantPhoneNumberRow> {
     this.assertTwilioConfigured();
+    const tenant = await this.resolveTenantRef(assignment.tenantId);
+    if (tenant.status === 'closed' || tenant.status === 'archived') {
+      throw tenantAccessDenied();
+    }
+    const normalizedAssignment = { ...assignment, tenantId: tenant.id };
+
     const owned = (await this.twilioService.listOwnedNumbers()).find((n) => n.sid === phoneNumberSid);
     if (!owned) throw notFound('Twilio phone number');
 
@@ -169,59 +263,59 @@ export class TwilioNumbersService {
 
     const trunkAttached = owned.trunkSid === this.config.twilioTrunkSid;
     if (!trunkAttached) {
-      await this.attachToTrunk(actor, phoneNumberSid, assignment.tenantId);
+      await this.attachToTrunk(actor, phoneNumberSid, normalizedAssignment.tenantId);
     }
 
     try {
       const pbxTrunkId = await this.provisioningService.ensurePbxTwilioTrunkPublic(
         actor,
-        assignment.tenantId,
+        normalizedAssignment.tenantId,
         e164,
-        assignment.outboundCallerIdPolicy,
+        normalizedAssignment.outboundCallerIdPolicy,
       );
 
-      if (assignment.destinationType !== 'reserve_only') {
-        const destinationId = await this.resolveDestination(assignment);
+      if (normalizedAssignment.destinationType !== 'reserve_only') {
+        const destinationId = await this.resolveDestination(normalizedAssignment);
         await this.provisioningService.ensureInboundRoutePublic(
-          assignment.tenantId,
+          normalizedAssignment.tenantId,
           pbxTrunkId,
           e164,
-          assignment.destinationType,
+          normalizedAssignment.destinationType,
           destinationId,
         );
         await this.provisioningService.ensureOutboundRoutesPublic(
-          assignment.tenantId,
+          normalizedAssignment.tenantId,
           pbxTrunkId,
           e164,
-          assignment.outboundCallerIdPolicy,
+          normalizedAssignment.outboundCallerIdPolicy,
         );
       }
 
-      await this.upsertTenantPhoneNumber(assignment.tenantId, {
+      await this.upsertTenantPhoneNumber(normalizedAssignment.tenantId, {
         e164,
         providerSid: phoneNumberSid,
         trunkId: pbxTrunkId,
         friendlyName: owned.friendlyName,
         capabilities: owned.capabilities ?? {},
-        status: assignment.destinationType === 'reserve_only' ? 'reserved' : 'active',
-        outboundCallerIdPolicy: assignment.outboundCallerIdPolicy,
+        status: normalizedAssignment.destinationType === 'reserve_only' ? 'reserved' : 'active',
+        outboundCallerIdPolicy: normalizedAssignment.outboundCallerIdPolicy,
       });
 
-      await this.telephonyService.provisionGlobalConfiguration(actor, assignment.tenantId);
+      await this.telephonyService.provisionGlobalConfiguration(actor, normalizedAssignment.tenantId);
 
-      await this.recordAudit(actor, assignment.tenantId, 'twilio.number.assigned', {
+      await this.recordAudit(actor, normalizedAssignment.tenantId, 'twilio.number.assigned', {
         e164,
         twilioNumberSid: phoneNumberSid,
-        destinationType: assignment.destinationType,
-        outboundCallerIdPolicy: assignment.outboundCallerIdPolicy,
+        destinationType: normalizedAssignment.destinationType,
+        outboundCallerIdPolicy: normalizedAssignment.outboundCallerIdPolicy,
       });
 
-      const rows = await this.listTenantPhoneNumbers(assignment.tenantId);
+      const rows = await this.listTenantPhoneNumbers(normalizedAssignment.tenantId);
       const row = rows.find((r) => r.e164 === e164);
       if (!row) throw validationError({ phoneNumber: 'Assignment completed but phone number row missing' });
       return row;
     } catch (error) {
-      await this.updatePhoneNumberStatus(assignment.tenantId, e164, 'attached_route_pending', {
+      await this.updatePhoneNumberStatus(normalizedAssignment.tenantId, e164, 'attached_route_pending', {
         providerSid: phoneNumberSid,
       });
       throw error;
@@ -233,7 +327,12 @@ export class TwilioNumbersService {
     input: TwilioPurchaseAndAssign,
   ): Promise<TenantPhoneNumberRow> {
     this.assertTwilioConfigured();
+    const tenant = await this.resolveTenantRef(input.tenantId);
+    if (tenant.status === 'closed' || tenant.status === 'archived') {
+      throw tenantAccessDenied();
+    }
     const e164 = assertIsraeliE164(input.e164);
+    const assignmentInput = { ...input, tenantId: tenant.id };
 
     const purchased = await this.purchaseNumber(actor, {
       e164,
@@ -241,9 +340,9 @@ export class TwilioNumbersService {
     });
 
     try {
-      await this.attachToTrunk(actor, purchased.sid, input.tenantId);
+      await this.attachToTrunk(actor, purchased.sid, tenant.id);
     } catch (error) {
-      await this.upsertTenantPhoneNumber(input.tenantId, {
+      await this.upsertTenantPhoneNumber(tenant.id, {
         e164,
         providerSid: purchased.sid,
         status: 'owned_not_attached',
@@ -254,13 +353,26 @@ export class TwilioNumbersService {
     }
 
     return this.assignNumberToTenant(actor, purchased.sid, {
-      tenantId: input.tenantId,
-      destinationType: input.destinationType,
-      outboundCallerIdPolicy: input.outboundCallerIdPolicy,
-      ...(input.destinationExtensionNumber
-        ? { destinationExtensionNumber: input.destinationExtensionNumber }
+      tenantId: assignmentInput.tenantId,
+      destinationType: assignmentInput.destinationType,
+      outboundCallerIdPolicy: assignmentInput.outboundCallerIdPolicy,
+      ...(assignmentInput.destinationExtensionNumber
+        ? { destinationExtensionNumber: assignmentInput.destinationExtensionNumber }
         : {}),
-      ...(input.destinationId ? { destinationId: input.destinationId } : {}),
+      ...(assignmentInput.destinationId ? { destinationId: assignmentInput.destinationId } : {}),
+    });
+  }
+
+  private destinationNotFoundForTenant(
+    tenantId: string,
+    destinationType: string,
+    destinationValue: string,
+  ): never {
+    throw validationError({
+      code: 'DESTINATION_NOT_FOUND_FOR_TENANT',
+      tenantId,
+      destinationType,
+      destinationValue,
     });
   }
 
@@ -283,7 +395,9 @@ export class TwilioNumbersService {
             ),
           )
           .limit(1);
-        if (!ext) throw validationError({ extension: `Extension ${extNum} not found` });
+        if (!ext || ext.status !== 'active') {
+          this.destinationNotFoundForTenant(assignment.tenantId, 'extension', extNum);
+        }
         return ext.id;
       }
 
@@ -291,6 +405,14 @@ export class TwilioNumbersService {
         const destinationId = assignment.destinationId;
         if (!destinationId) {
           throw validationError({ destination: 'AI agent id is required' });
+        }
+        const [agent] = await db
+          .select()
+          .from(aiAgents)
+          .where(and(eq(aiAgents.tenantId, assignment.tenantId), eq(aiAgents.id, destinationId)))
+          .limit(1);
+        if (!agent || !agent.isActive) {
+          this.destinationNotFoundForTenant(assignment.tenantId, 'ai_agent', destinationId);
         }
         return destinationId;
       }
@@ -310,7 +432,9 @@ export class TwilioNumbersService {
             ),
           )
           .limit(1);
-        if (!ext) throw validationError({ extension: `Extension ${extNum} not found` });
+        if (!ext || ext.status !== 'active') {
+          this.destinationNotFoundForTenant(assignment.tenantId, 'voicemail', extNum);
+        }
         return ext.id;
       }
 

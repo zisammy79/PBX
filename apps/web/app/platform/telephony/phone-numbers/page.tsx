@@ -1,8 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { AssignableDestination } from '@pbx/contracts';
 import { api } from '@/lib/api-client';
 import { ErrorAlert, LoadingBlock, PageHeader } from '@/components/app-shell';
+import {
+  buildPurchaseAndAssignPayload,
+  filterAssignableDestinationsByTarget,
+  pickDefaultDestinationValue,
+  sortActiveTenantsForAssignment,
+  type TenantOption,
+} from '@/lib/phone-number-assignment';
 
 type AvailableNumber = {
   e164: string;
@@ -36,14 +44,15 @@ type TenantNumber = {
   isActive: boolean;
 };
 
-type Extension = { id: string; extensionNumber: string; displayName: string };
-
 const LIMITS = [10, 25, 50] as const;
 
 export default function PlatformPhoneNumbersPage() {
-  const [tenants, setTenants] = useState<Array<{ id: string; name: string }>>([]);
-  const [tenantId, setTenantId] = useState('');
-  const [extensions, setExtensions] = useState<Extension[]>([]);
+  const [tenants, setTenants] = useState<TenantOption[]>([]);
+  const [routingTenantId, setRoutingTenantId] = useState('');
+  const [assignmentTenantId, setAssignmentTenantId] = useState('');
+  const [assignableDestinations, setAssignableDestinations] = useState<AssignableDestination[]>([]);
+  const [destinationsLoading, setDestinationsLoading] = useState(false);
+  const [destinationsError, setDestinationsError] = useState<string | null>(null);
   const [available, setAvailable] = useState<AvailableNumber[]>([]);
   const [owned, setOwned] = useState<OwnedNumber[]>([]);
   const [tenantNumbers, setTenantNumbers] = useState<TenantNumber[]>([]);
@@ -63,11 +72,14 @@ export default function PlatformPhoneNumbersPage() {
   );
 
   const [selected, setSelected] = useState<AvailableNumber | null>(null);
-  const [destinationType, setDestinationType] = useState('extension');
-  const [extensionNumber, setExtensionNumber] = useState('100');
-  const [destinationId, setDestinationId] = useState('');
+  const [destinationType, setDestinationType] = useState<'extension' | 'ai_agent' | 'voicemail' | 'reserve_only'>(
+    'extension',
+  );
+  const [destinationValue, setDestinationValue] = useState('');
   const [callerIdPolicy, setCallerIdPolicy] = useState('tenant_default');
   const [confirmChecked, setConfirmChecked] = useState(false);
+
+  const activeTenants = useMemo(() => sortActiveTenantsForAssignment(tenants), [tenants]);
 
   const refreshOwned = useCallback(async () => {
     const res = await api.get<{ numbers: OwnedNumber[] }>('twilio/numbers/owned');
@@ -79,16 +91,43 @@ export default function PlatformPhoneNumbersPage() {
       setTenantNumbers([]);
       return;
     }
-    const res = await api.get<{ numbers: TenantNumber[] }>(`tenants/${tid}/phone-numbers`);
+    const res = await api.get<{ numbers: TenantNumber[] }>(`tenants/${tid}/phone-numbers`, tid);
     setTenantNumbers(res.numbers);
+  }, []);
+
+  const loadAssignableDestinations = useCallback(async (tid: string) => {
+    if (!tid) {
+      setAssignableDestinations([]);
+      setDestinationsError(null);
+      return;
+    }
+
+    setDestinationsLoading(true);
+    setDestinationsError(null);
+    try {
+      const res = await api.get<{
+        tenantId: string;
+        tenantSlug: string;
+        destinations: AssignableDestination[];
+      }>(`tenants/${tid}/assignable-destinations`, tid);
+      setAssignableDestinations(res.destinations);
+    } catch (err) {
+      setAssignableDestinations([]);
+      setDestinationsError(err instanceof Error ? err.message : 'Failed to load destinations');
+    } finally {
+      setDestinationsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     void (async () => {
       try {
-        const tenantRows = await api.get<Array<{ id: string; name: string }>>('tenants');
+        const tenantRows = await api.get<TenantOption[]>('tenants');
         setTenants(tenantRows);
-        if (tenantRows[0]) setTenantId(tenantRows[0].id);
+        const active = sortActiveTenantsForAssignment(tenantRows);
+        if (active[0]) {
+          setRoutingTenantId(active[0].id);
+        }
         await refreshOwned();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load');
@@ -99,13 +138,44 @@ export default function PlatformPhoneNumbersPage() {
   }, [refreshOwned]);
 
   useEffect(() => {
-    if (!tenantId) return;
-    void refreshTenantNumbers(tenantId).catch(() => undefined);
-    void api
-      .get<Extension[]>(`tenants/${tenantId}/extensions`)
-      .then(setExtensions)
-      .catch(() => setExtensions([]));
-  }, [tenantId, refreshTenantNumbers]);
+    if (!routingTenantId) return;
+    void refreshTenantNumbers(routingTenantId).catch(() => undefined);
+  }, [routingTenantId, refreshTenantNumbers]);
+
+  useEffect(() => {
+    if (!assignmentTenantId) {
+      setAssignableDestinations([]);
+      setDestinationValue('');
+      setDestinationsError(null);
+      return;
+    }
+    void loadAssignableDestinations(assignmentTenantId);
+  }, [assignmentTenantId, loadAssignableDestinations]);
+
+  const destinationOptions = useMemo(
+    () => filterAssignableDestinationsByTarget(assignableDestinations, destinationType),
+    [assignableDestinations, destinationType],
+  );
+
+  useEffect(() => {
+    if (destinationType === 'reserve_only') {
+      setDestinationValue('');
+      return;
+    }
+    setDestinationValue((current) =>
+      pickDefaultDestinationValue(destinationOptions, current || undefined),
+    );
+  }, [destinationOptions, destinationType]);
+
+  function openPurchaseModal(number: AvailableNumber) {
+    setSelected(number);
+    setConfirmChecked(false);
+    setAssignmentTenantId('');
+    setAssignableDestinations([]);
+    setDestinationValue('');
+    setDestinationsError(null);
+    setDestinationType('extension');
+  }
 
   async function runSearch() {
     setSearching(true);
@@ -141,26 +211,28 @@ export default function PlatformPhoneNumbersPage() {
   }
 
   async function purchaseAndAssign() {
-    if (!selected || !tenantId || !confirmChecked) return;
+    if (!selected || !assignmentTenantId || !confirmChecked) return;
     setBusy(true);
     setError(null);
     setMessage(null);
     try {
-      await api.post('twilio/numbers/purchase-and-assign', {
-        tenantId,
-        e164: selected.e164,
-        confirmPurchase: true,
-        destinationType,
-        ...(destinationType === 'extension' || destinationType === 'voicemail'
-          ? { destinationExtensionNumber: extensionNumber }
-          : {}),
-        ...(destinationType === 'ai_agent' && destinationId ? { destinationId } : {}),
-        outboundCallerIdPolicy: callerIdPolicy,
-      });
+      await api.post(
+        'twilio/numbers/purchase-and-assign',
+        buildPurchaseAndAssignPayload({
+          tenantId: assignmentTenantId,
+          e164: selected.e164,
+          destinationType,
+          destinationExtensionNumber: destinationValue,
+          destinationId: destinationType === 'ai_agent' ? destinationValue : '',
+          outboundCallerIdPolicy: callerIdPolicy,
+        }),
+        assignmentTenantId,
+      );
       setMessage(`Purchased and assigned ${selected.e164}`);
       setSelected(null);
       setConfirmChecked(false);
-      await Promise.all([refreshOwned(), refreshTenantNumbers(tenantId)]);
+      setAssignmentTenantId('');
+      await Promise.all([refreshOwned(), refreshTenantNumbers(assignmentTenantId)]);
       setAvailable([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Purchase failed');
@@ -170,6 +242,7 @@ export default function PlatformPhoneNumbersPage() {
   }
 
   const selectedBlocked = selected?.regulatoryStatus === 'requires_regulatory_setup';
+  const assignmentTenant = activeTenants.find((tenant) => tenant.id === assignmentTenantId);
 
   const capabilityLabel = useMemo(
     () => (caps: { voice: boolean; sms: boolean; mms: boolean }) =>
@@ -265,7 +338,7 @@ export default function PlatformPhoneNumbersPage() {
                 <td>{capabilityLabel(n.capabilities)}</td>
                 <td>{n.regulatoryStatus === 'requires_regulatory_setup' ? 'Requires setup' : 'OK'}</td>
                 <td>
-                  <button type="button" className="btn" onClick={() => { setSelected(n); setConfirmChecked(false); }}>
+                  <button type="button" className="btn" onClick={() => openPurchaseModal(n)}>
                     Select
                   </button>
                 </td>
@@ -306,10 +379,14 @@ export default function PlatformPhoneNumbersPage() {
         <h2>Assignment / Routing (tenant)</h2>
         <label>
           Tenant
-          <select value={tenantId} onChange={(e) => setTenantId(e.target.value)} style={{ display: 'block', width: '100%', marginBottom: '0.5rem' }}>
-            {tenants.map((t) => (
+          <select
+            value={routingTenantId}
+            onChange={(e) => setRoutingTenantId(e.target.value)}
+            style={{ display: 'block', width: '100%', marginBottom: '0.5rem' }}
+          >
+            {activeTenants.map((t) => (
               <option key={t.id} value={t.id}>
-                {t.name}
+                {t.name} ({t.slug})
               </option>
             ))}
           </select>
@@ -346,14 +423,45 @@ export default function PlatformPhoneNumbersPage() {
           <h2>Confirm purchase and assignment</h2>
           <ul>
             <li>Number: {selected.e164}</li>
-            <li>Tenant: {tenants.find((t) => t.id === tenantId)?.name ?? tenantId}</li>
             <li>Trunk: Twilio Production</li>
             <li>Regulatory: {selected.regulatoryStatus === 'requires_regulatory_setup' ? 'Requires regulatory setup' : 'None'}</li>
             <li>Monthly price: {selected.monthlyPrice ?? 'See Twilio console'}</li>
           </ul>
           <label>
+            Tenant
+            <select
+              value={assignmentTenantId}
+              onChange={(e) => {
+                setAssignmentTenantId(e.target.value);
+                setDestinationValue('');
+                setDestinationsError(null);
+              }}
+              style={{ display: 'block', width: '100%', marginBottom: '0.5rem' }}
+            >
+              <option value="">Select tenant…</option>
+              {activeTenants.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({t.slug})
+                </option>
+              ))}
+            </select>
+          </label>
+          {assignmentTenant ? (
+            <p className="muted" style={{ marginTop: '-0.25rem', marginBottom: '0.75rem' }}>
+              Assigning to {assignmentTenant.name} ({assignmentTenant.slug})
+            </p>
+          ) : null}
+          <label>
             Assignment target
-            <select value={destinationType} onChange={(e) => setDestinationType(e.target.value)} style={{ display: 'block', width: '100%', marginBottom: '0.5rem' }}>
+            <select
+              value={destinationType}
+              onChange={(e) => {
+                setDestinationType(e.target.value as typeof destinationType);
+                setDestinationValue('');
+              }}
+              style={{ display: 'block', width: '100%', marginBottom: '0.5rem' }}
+              disabled={!assignmentTenantId}
+            >
               <option value="extension">Extension</option>
               <option value="ai_agent">AI agent</option>
               <option value="voicemail">Voicemail</option>
@@ -365,24 +473,57 @@ export default function PlatformPhoneNumbersPage() {
           </p>
           {destinationType === 'extension' || destinationType === 'voicemail' ? (
             <label>
-              Extension
-              <select value={extensionNumber} onChange={(e) => setExtensionNumber(e.target.value)} style={{ display: 'block', width: '100%', marginBottom: '0.5rem' }}>
-                {extensions.map((ext) => (
-                  <option key={ext.id} value={ext.extensionNumber}>
-                    {ext.extensionNumber} — {ext.displayName}
+              {destinationType === 'voicemail' ? 'Voicemail extension' : 'Extension'}
+              {destinationsLoading ? (
+                <p className="muted" style={{ margin: '0.5rem 0' }}>
+                  Loading destinations…
+                </p>
+              ) : null}
+              {destinationsError ? <ErrorAlert message={destinationsError} /> : null}
+              {!destinationsLoading && assignmentTenantId && destinationOptions.length === 0 && !destinationsError ? (
+                <p className="muted" style={{ margin: '0.5rem 0' }}>
+                  No active extensions found for this tenant.
+                </p>
+              ) : null}
+              <select
+                value={destinationValue}
+                onChange={(e) => setDestinationValue(e.target.value)}
+                style={{ display: 'block', width: '100%', marginBottom: '0.5rem' }}
+                disabled={!assignmentTenantId || destinationsLoading || destinationOptions.length === 0}
+              >
+                {destinationOptions.map((destination) => (
+                  <option key={destination.id} value={destination.value}>
+                    {destination.label}
                   </option>
                 ))}
               </select>
             </label>
           ) : destinationType === 'ai_agent' ? (
             <label>
-              AI agent ID
-              <input
-                value={destinationId}
-                onChange={(e) => setDestinationId(e.target.value)}
-                placeholder="UUID of AI agent"
+              AI agent
+              {destinationsLoading ? (
+                <p className="muted" style={{ margin: '0.5rem 0' }}>
+                  Loading destinations…
+                </p>
+              ) : null}
+              {destinationsError ? <ErrorAlert message={destinationsError} /> : null}
+              {!destinationsLoading && assignmentTenantId && destinationOptions.length === 0 && !destinationsError ? (
+                <p className="muted" style={{ margin: '0.5rem 0' }}>
+                  No active AI agents found for this tenant.
+                </p>
+              ) : null}
+              <select
+                value={destinationValue}
+                onChange={(e) => setDestinationValue(e.target.value)}
                 style={{ display: 'block', width: '100%', marginBottom: '0.5rem' }}
-              />
+                disabled={!assignmentTenantId || destinationsLoading || destinationOptions.length === 0}
+              >
+                {destinationOptions.map((destination) => (
+                  <option key={destination.id} value={destination.value}>
+                    {destination.label}
+                  </option>
+                ))}
+              </select>
             </label>
           ) : null}
           <label>
@@ -401,12 +542,26 @@ export default function PlatformPhoneNumbersPage() {
             <button
               type="button"
               className="btn btn-primary"
-              disabled={busy || !confirmChecked || selectedBlocked || !tenantId}
+              disabled={
+                busy ||
+                !confirmChecked ||
+                selectedBlocked ||
+                !assignmentTenantId ||
+                (destinationType !== 'reserve_only' && !destinationValue)
+              }
               onClick={() => void purchaseAndAssign()}
             >
               Purchase and assign number
             </button>
-            <button type="button" className="btn" onClick={() => { setSelected(null); setConfirmChecked(false); }}>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                setSelected(null);
+                setConfirmChecked(false);
+                setAssignmentTenantId('');
+              }}
+            >
               Cancel
             </button>
           </div>

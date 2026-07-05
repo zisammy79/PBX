@@ -89,9 +89,21 @@ export class TenantsController {
     Permission.PLATFORM_INTEGRATIONS_READ,
     Permission.PLATFORM_INTEGRATIONS_MANAGE,
   )
-  async listPhoneNumbers(@Param('tenantId') tenantId: string) {
+  async listPhoneNumbers(@Req() req: RequestWithUser, @Param('tenantId') _tenantId: string) {
+    const tenantId = req.activeTenantId!;
     const numbers = await this.twilioNumbersService.listTenantPhoneNumbers(tenantId);
     return { numbers };
+  }
+
+  @Get(':tenantId/assignable-destinations')
+  @UseGuards(TenantGuard)
+  @RequireAnyPermission(
+    Permission.TENANT_NUMBER_MANAGE,
+    Permission.PLATFORM_INTEGRATIONS_READ,
+    Permission.PLATFORM_INTEGRATIONS_MANAGE,
+  )
+  async listAssignableDestinations(@Req() req: RequestWithUser, @Param('tenantId') _tenantId: string) {
+    return this.twilioNumbersService.listAssignableDestinations(req.activeTenantId!);
   }
 
   @Get(':tenantId/entitlements')

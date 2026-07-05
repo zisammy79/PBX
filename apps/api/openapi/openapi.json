@@ -297,6 +297,20 @@
         ]
       }
     },
+    "/api/v1/tenants/{tenantId}/assignable-destinations": {
+      "get": {
+        "operationId": "TenantsController_listAssignableDestinations",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tenants"
+        ]
+      }
+    },
     "/api/v1/tenants/{tenantId}/entitlements": {
       "get": {
         "operationId": "TenantsController_entitlements",

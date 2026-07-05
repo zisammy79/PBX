@@ -36,6 +36,32 @@ export const TwilioNumberDestinationTypeSchema = z.enum([
 ]);
 export type TwilioNumberDestinationType = z.infer<typeof TwilioNumberDestinationTypeSchema>;
 
+export const AssignableDestinationTypeSchema = z.enum([
+  'extension',
+  'ai_agent',
+  'voicemail',
+  'reserve_only',
+]);
+export type AssignableDestinationType = z.infer<typeof AssignableDestinationTypeSchema>;
+
+export type AssignableDestination = {
+  type: AssignableDestinationType;
+  id: string;
+  value: string;
+  label: string;
+  status?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type AssignableDestinationsResponse = {
+  tenantId: string;
+  tenantSlug: string;
+  destinations: AssignableDestination[];
+};
+
+/** Tenant route/body reference: canonical UUID or tenant slug. */
+export const TenantRefSchema = z.string().min(1).max(128);
+
 export const TwilioOutboundCallerIdPolicySchema = z.enum([
   'tenant_default',
   'extension_only',
@@ -44,7 +70,7 @@ export const TwilioOutboundCallerIdPolicySchema = z.enum([
 export type TwilioOutboundCallerIdPolicy = z.infer<typeof TwilioOutboundCallerIdPolicySchema>;
 
 export const TwilioNumberAssignmentSchema = z.object({
-  tenantId: z.string().uuid(),
+  tenantId: TenantRefSchema,
   destinationType: TwilioNumberDestinationTypeSchema.default('extension'),
   destinationExtensionNumber: z.string().regex(/^\d{3,6}$/).optional(),
   destinationId: z.string().uuid().optional(),
