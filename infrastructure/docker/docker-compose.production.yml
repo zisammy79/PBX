@@ -245,6 +245,7 @@ services:
       - pbx_asterisk_generated:/etc/asterisk/pbx-generated
       - pbx_asterisk_logs:/var/log/asterisk
       - ../asterisk/config/production:/opt/pbx-asterisk/production:ro
+      - ${CALL_RECORDING_HOST_ROOT:?required}:/var/spool/asterisk/recording
     ports:
       - "${SIP_UDP_PUBLISH:-5060}:5060/udp"
       - "${SIP_TCP_PUBLISH:-5060}:5060/tcp"
@@ -276,6 +277,9 @@ services:
       AI_MEDIA_GATEWAY_URL: http://ai-media-gateway:8091
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?required}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      CALL_RECORDING_LOCAL_ROOT: /var/lib/pbx/recordings
+    volumes:
+      - ${CALL_RECORDING_HOST_ROOT:?required}:/var/lib/pbx/recordings
     depends_on:
       postgres:
         condition: service_healthy

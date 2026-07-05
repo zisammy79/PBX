@@ -4,6 +4,13 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { CONFIG } from './tokens.js';
 import type { AppConfig } from '../config.js';
 
+export interface ObjectStorageStreamResult {
+  stream: NodeJS.ReadableStream;
+  contentType: string;
+  contentLength: number;
+  contentRange?: { start: number; end: number; total: number };
+}
+
 @Injectable()
 export class ObjectStorageService {
   private client: S3Client | null = null;
@@ -64,6 +71,73 @@ export class ObjectStorageService {
     } catch {
       return false;
     }
+  }
+
+  async openReadStream(
+    storageKey: string,
+    format: string | null | undefined,
+    rangeHeader?: string,
+  ): Promise<ObjectStorageStreamResult> {
+    const client = this.getClient();
+    const contentType = this.resolveContentType(format);
+    const head = await client.send(
+      new HeadObjectCommand({
+        Bucket: this.config.s3Bucket!,
+        Key: storageKey,
+      }),
+    );
+    const total = Number(head.ContentLength ?? 0);
+    if (!total) {
+      throw new Error('recording_empty');
+    }
+
+    if (!rangeHeader) {
+      const response = await client.send(
+        new GetObjectCommand({
+          Bucket: this.config.s3Bucket!,
+          Key: storageKey,
+          ResponseContentType: contentType,
+        }),
+      );
+      if (!response.Body) {
+        throw new Error('recording_unavailable');
+      }
+      return {
+        stream: response.Body as NodeJS.ReadableStream,
+        contentType,
+        contentLength: total,
+      };
+    }
+
+    const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
+    if (!match) {
+      throw new RangeError('invalid_range');
+    }
+    const start = match[1] ? Number.parseInt(match[1], 10) : 0;
+    const end = match[2] ? Number.parseInt(match[2], 10) : total - 1;
+    if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= total) {
+      throw new RangeError('invalid_range');
+    }
+    const boundedEnd = Math.min(end, total - 1);
+    const rangeValue = `bytes=${start}-${boundedEnd}`;
+    const response = await client.send(
+      new GetObjectCommand({
+        Bucket: this.config.s3Bucket!,
+        Key: storageKey,
+        Range: rangeValue,
+        ResponseContentType: contentType,
+      }),
+    );
+    if (!response.Body) {
+      throw new Error('recording_unavailable');
+    }
+    const contentLength = boundedEnd - start + 1;
+    return {
+      stream: response.Body as NodeJS.ReadableStream,
+      contentType,
+      contentLength,
+      contentRange: { start, end: boundedEnd, total },
+    };
   }
 
   private getClient(): S3Client {

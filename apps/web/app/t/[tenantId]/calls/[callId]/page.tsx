@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api-client';
+import { recordingBrowserContentPath } from '@/lib/recording-playback';
 import { formatDate, formatDuration } from '@/lib/format';
 import { ErrorAlert, LoadingBlock, PageHeader } from '@/components/app-shell';
 
@@ -66,8 +67,6 @@ export default function CallDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeRecordingId, setActiveRecordingId] = useState<string | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
-  const [playbackLoading, setPlaybackLoading] = useState(false);
-  const [loadingRecordingId, setLoadingRecordingId] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -120,24 +119,9 @@ export default function CallDetailPage() {
       setPlaybackUrl(null);
       return;
     }
-    setPlaybackLoading(true);
-    setLoadingRecordingId(recording.id);
-    try {
-      const blobUrl = await api.fetchBlob(
-        `tenants/${tenantId}/recordings/${recording.id}/content`,
-        tenantId,
-      );
-      if (playbackUrl?.startsWith('blob:')) URL.revokeObjectURL(playbackUrl);
-      setPlaybackUrl(blobUrl);
-      setActiveRecordingId(recording.id);
-    } catch (err) {
-      setPlaybackError(playbackErrorMessage(err));
-      setActiveRecordingId(null);
-      setPlaybackUrl(null);
-    } finally {
-      setPlaybackLoading(false);
-      setLoadingRecordingId(null);
-    }
+    if (playbackUrl?.startsWith('blob:')) URL.revokeObjectURL(playbackUrl);
+    setActiveRecordingId(recording.id);
+    setPlaybackUrl(recordingBrowserContentPath(tenantId, recording.id));
   }
 
   if (error) return <ErrorAlert message={error} />;
@@ -203,14 +187,9 @@ export default function CallDetailPage() {
                         <button
                           type="button"
                           className="btn btn-secondary"
-                          disabled={playbackLoading && loadingRecordingId !== row.id}
                           onClick={() => void playRecording(row)}
                         >
-                          {loadingRecordingId === row.id
-                            ? 'Loading…'
-                            : activeRecordingId === row.id
-                              ? 'Stop'
-                              : 'Play'}
+                          {activeRecordingId === row.id ? 'Stop' : 'Play'}
                         </button>
                       ) : (
                         <span className="muted">
@@ -226,7 +205,6 @@ export default function CallDetailPage() {
             </table>
           </div>
         )}
-        {playbackLoading ? <p className="muted">Loading recording…</p> : null}
         {playbackUrl ? (
           <audio
             ref={audioRef}
@@ -234,6 +212,7 @@ export default function CallDetailPage() {
             preload="none"
             src={playbackUrl}
             style={{ width: '100%', marginTop: '1rem' }}
+            onError={() => setPlaybackError('Playback failed')}
           />
         ) : null}
       </section>

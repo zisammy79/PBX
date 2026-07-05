@@ -1,5 +1,10 @@
 import { ApiError } from '@/lib/api-client';
 
+/** Same-origin authenticated BFF path for browser audio playback over HTTPS. */
+export function recordingBrowserContentPath(tenantId: string, recordingId: string): string {
+  return `/api/backend/tenants/${tenantId}/recordings/${recordingId}/content`;
+}
+
 export function validateWavBytes(bytes: Uint8Array): void {
   if (bytes.length < 12) {
     throw new ApiError('INVALID_AUDIO', 'Recording response is not a valid RIFF/WAVE file', 200);

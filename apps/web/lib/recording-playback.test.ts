@@ -3,6 +3,7 @@ import { ApiError } from '@/lib/api-client';
 import {
   fetchRecordingBlobUrl,
   isRecordingContentType,
+  recordingBrowserContentPath,
   validateWavBytes,
 } from '@/lib/recording-playback';
 
@@ -19,6 +20,12 @@ describe('recording-playback', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it('uses same-origin BFF path for browser playback', () => {
+    expect(recordingBrowserContentPath('tenant-a', 'rec-1')).toBe(
+      '/api/backend/tenants/tenant-a/recordings/rec-1/content',
+    );
   });
 
   it('accepts audio and octet-stream content types', () => {

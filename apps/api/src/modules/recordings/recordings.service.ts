@@ -20,6 +20,10 @@ import { LocalRecordingStorageService } from '../../common/local-recording-stora
 import { hasAnyPermission, resolveEffectivePermissions } from '@pbx/contracts';
 import type { FastifyReply } from 'fastify';
 import { TenantTelephonySettingsService } from '../telephony/tenant-telephony-settings.service.js';
+import {
+  recordingBrowserContentPath,
+  recordingContentDisposition,
+} from './recording-urls.js';
 
 @Injectable()
 export class RecordingsService {
@@ -100,7 +104,9 @@ export class RecordingsService {
       for (const row of rows) {
         if (seen.has(row.recording.id)) continue;
         seen.add(row.recording.id);
-        data.push(this.serializeExtensionRecording(row.recording, row.call, extensionId, tenantId));
+        data.push(
+          await this.serializeExtensionRecording(row.recording, row.call, extensionId, tenantId),
+        );
       }
 
       return paginate(data, query.page, query.pageSize, total);
@@ -121,9 +127,8 @@ export class RecordingsService {
     if (this.config.callRecordingStorageBackend === 'local' && this.localStorage.isActive()) {
       const exists = await this.localStorage.objectExists(row.recording.storageKey);
       if (!exists) throw notFound('Recording');
-      const playbackUrl = `${this.config.publicApiUrl}/api/v1/tenants/${tenantId}/recordings/${recordingId}/content`;
       return {
-        playbackUrl,
+        playbackUrl: recordingBrowserContentPath(tenantId, recordingId),
         expiresAt: null,
         contentType: row.recording.mimeType ?? this.localStorage.resolveContentType(row.recording.format),
         durationSeconds: row.recording.durationSeconds,
@@ -135,14 +140,10 @@ export class RecordingsService {
     }
     const exists = await this.objectStorage.objectExists(row.recording.storageKey);
     if (!exists) throw notFound('Recording');
-    const signed = await this.objectStorage.createPlaybackUrl(
-      row.recording.storageKey,
-      row.recording.format,
-    );
     return {
-      playbackUrl: signed.playbackUrl,
-      expiresAt: signed.expiresAt,
-      contentType: signed.contentType,
+      playbackUrl: recordingBrowserContentPath(tenantId, recordingId),
+      expiresAt: null,
+      contentType: row.recording.mimeType ?? this.objectStorage.resolveContentType(row.recording.format),
       durationSeconds: row.recording.durationSeconds,
     };
   }
@@ -168,19 +169,15 @@ export class RecordingsService {
       await res.status(404).send({ message: 'Recording unavailable' });
       return;
     }
-    if (this.config.callRecordingStorageBackend !== 'local' || !this.localStorage.isActive()) {
-      await res.status(501).send({ message: 'Local streaming backend not active' });
-      return;
-    }
 
     try {
-      const streamResult = await this.localStorage.openReadStream(
-        row.recording.storageKey,
-        row.recording.format,
-        rangeHeader,
-      );
+      const streamResult = await this.openRecordingStream(row.recording.storageKey, row.recording.format, rangeHeader);
       void res.header('Accept-Ranges', 'bytes');
       void res.header('Content-Type', streamResult.contentType);
+      void res.header(
+        'Content-Disposition',
+        recordingContentDisposition(recordingId, row.recording.format),
+      );
       if (streamResult.contentRange) {
         void res.status(206);
         void res.header(
@@ -199,6 +196,20 @@ export class RecordingsService {
       }
       await res.status(404).send({ message: 'Recording unavailable' });
     }
+  }
+
+  private async openRecordingStream(
+    storageKey: string,
+    format: string | null | undefined,
+    rangeHeader: string | undefined,
+  ) {
+    if (this.config.callRecordingStorageBackend === 'local' && this.localStorage.isActive()) {
+      return this.localStorage.openReadStream(storageKey, format, rangeHeader);
+    }
+    if (this.objectStorage.isConfigured()) {
+      return this.objectStorage.openReadStream(storageKey, format, rangeHeader);
+    }
+    throw notFound('Recording');
   }
 
   async getEffectiveExtensionRecording(
@@ -251,18 +262,18 @@ export class RecordingsService {
       failureCode: recording.failureCode,
       ...(playbackAvailable
         ? {
-            playbackUrl: `${this.config.publicApiUrl}/api/v1/tenants/${tenantId}/recordings/${recording.id}/content`,
+            playbackUrl: recordingBrowserContentPath(tenantId, recording.id),
           }
         : {}),
     };
   }
 
-  private serializeExtensionRecording(
+  private async serializeExtensionRecording(
     recording: typeof callRecordings.$inferSelect,
     call: typeof calls.$inferSelect,
     extensionId: string,
     tenantId: string,
-  ): ExtensionRecordingListItem {
+  ): Promise<ExtensionRecordingListItem> {
     const isFrom = call.fromExtensionId === extensionId;
     const direction =
       call.direction === 'internal' ? (isFrom ? 'outbound' : 'inbound') : call.direction;
@@ -282,19 +293,23 @@ export class RecordingsService {
       callDurationSeconds: call.durationSeconds,
       recordingDurationSeconds: recording.durationSeconds,
       format: recording.format,
-      playbackAvailable:
-        recording.status === 'available' &&
-        Boolean(recording.storageKey) &&
-        (this.localStorage.isActive() || this.objectStorage.isConfigured()),
+      playbackAvailable: await this.isPlaybackAvailable(recording),
     };
+  }
+
+  private async storageObjectExists(storageKey: string): Promise<boolean> {
+    if (this.config.callRecordingStorageBackend === 'local' && this.localStorage.isActive()) {
+      return this.localStorage.objectExists(storageKey);
+    }
+    if (this.objectStorage.isConfigured()) {
+      return this.objectStorage.objectExists(storageKey);
+    }
+    return false;
   }
 
   private async isPlaybackAvailable(recording: typeof callRecordings.$inferSelect): Promise<boolean> {
     if (recording.status !== 'available' || !recording.storageKey) return false;
-    if (this.config.callRecordingStorageBackend === 'local' && this.localStorage.isActive()) {
-      return this.localStorage.objectExists(recording.storageKey);
-    }
-    return this.objectStorage.isConfigured() && this.objectStorage.objectExists(recording.storageKey);
+    return this.storageObjectExists(recording.storageKey);
   }
 
   private async assertRecordingRead(actor: AuthenticatedUser, tenantId: string) {

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api-client';
+import { recordingBrowserContentPath } from '@/lib/recording-playback';
 import { formatDate } from '@/lib/format';
 import { ErrorAlert, LoadingBlock, PageHeader } from '@/components/app-shell';
 import { ConfirmDialog, OneTimeSecretPanel } from '@/components/ui-panels';
@@ -274,24 +275,16 @@ export default function ExtensionDetailPage() {
   async function playRecording(recordingId: string) {
     setPlaybackError(null);
     if (playingId === recordingId && playbackUrl) {
-      audioRef.current?.play().catch(() => undefined);
+      audioRef.current?.pause();
+      setPlayingId(null);
+      setPlaybackUrl(null);
       return;
     }
     if (audioRef.current) {
       audioRef.current.pause();
     }
     setPlayingId(recordingId);
-    setPlaybackUrl(null);
-    try {
-      const play = await api.get<{ playbackUrl: string }>(
-        `tenants/${tenantId}/recordings/${recordingId}/play`,
-        tenantId,
-      );
-      setPlaybackUrl(play.playbackUrl);
-    } catch (err) {
-      setPlaybackError(err instanceof Error ? err.message : 'Playback failed');
-      setPlayingId(null);
-    }
+    setPlaybackUrl(recordingBrowserContentPath(tenantId, recordingId));
   }
 
   if (error && !data) return <ErrorAlert message={error} />;
