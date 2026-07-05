@@ -1,12 +1,17 @@
-import { Body, Controller, Get, Inject, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Post, Query, Req } from '@nestjs/common';
 import {
-  AssignExistingTwilioNumberSchema,
   Permission,
-  ProvisionTenantPhoneNumberSchema,
+  TwilioNumberAssignmentSchema,
+  TwilioNumberSearchQuerySchema,
+  TwilioPurchaseAndAssignSchema,
+  TwilioPurchaseNumberSchema,
+  AssignExistingTwilioNumberSchema,
   PurchaseTwilioNumberSchema,
+  ProvisionTenantPhoneNumberSchema,
 } from '@pbx/contracts';
 import type { RequestWithUser } from '../../common/guards/auth.guard.js';
 import { RequireAnyPermission, RequirePermissions } from '../../common/guards/auth.guard.js';
+import { TwilioNumbersService } from './twilio-numbers.service.js';
 import { TwilioProvisioningService } from './twilio-provisioning.service.js';
 import { TwilioService } from './twilio.service.js';
 
@@ -15,6 +20,7 @@ export class TwilioController {
   constructor(
     @Inject(TwilioService) private readonly twilioService: TwilioService,
     @Inject(TwilioProvisioningService) private readonly provisioningService: TwilioProvisioningService,
+    @Inject(TwilioNumbersService) private readonly numbersService: TwilioNumbersService,
   ) {}
 
   @Get('status')
@@ -47,14 +53,72 @@ export class TwilioController {
     return this.twilioService.syncTrunk();
   }
 
-  @Get('numbers')
+  @Get('numbers/search')
   @RequireAnyPermission(Permission.PLATFORM_INTEGRATIONS_READ, Permission.PLATFORM_INTEGRATIONS_MANAGE)
-  async numbers() {
+  async searchNumbers(@Query() query: unknown) {
+    this.numbersService.assertTwilioConfigured();
+    const parsed = TwilioNumberSearchQuerySchema.parse(query);
+    const numbers = await this.twilioService.searchAvailableNumbers(parsed);
+    return { numbers, count: numbers.length };
+  }
+
+  @Get('numbers/owned')
+  @RequireAnyPermission(Permission.PLATFORM_INTEGRATIONS_READ, Permission.PLATFORM_INTEGRATIONS_MANAGE)
+  async ownedNumbers() {
     if (!this.twilioService.isConfigured()) {
       return { configured: false, numbers: [] };
     }
     const numbers = await this.twilioService.listOwnedNumbers();
     return { numbers };
+  }
+
+  /** Legacy alias — prefer GET /twilio/numbers/owned */
+  @Get('numbers')
+  @RequireAnyPermission(Permission.PLATFORM_INTEGRATIONS_READ, Permission.PLATFORM_INTEGRATIONS_MANAGE)
+  async numbers() {
+    return this.ownedNumbers();
+  }
+
+  @Post('numbers/purchase')
+  @RequirePermissions(Permission.PLATFORM_INTEGRATIONS_MANAGE)
+  async purchaseNumber(@Req() req: RequestWithUser, @Body() body: unknown) {
+    const parsed = TwilioPurchaseNumberSchema.parse(body);
+    return this.numbersService.purchaseNumber(req.user!, {
+      e164: parsed.e164,
+      ...(parsed.friendlyName ? { friendlyName: parsed.friendlyName } : {}),
+    });
+  }
+
+  @Post('numbers/:phoneNumberSid/attach-to-trunk')
+  @RequirePermissions(Permission.PLATFORM_INTEGRATIONS_MANAGE)
+  async attachToTrunk(
+    @Req() req: RequestWithUser,
+    @Param('phoneNumberSid') phoneNumberSid: string,
+    @Body() body: unknown,
+  ) {
+    const tenantId =
+      body && typeof body === 'object' && 'tenantId' in body && typeof body.tenantId === 'string'
+        ? body.tenantId
+        : undefined;
+    return this.numbersService.attachToTrunk(req.user!, phoneNumberSid, tenantId);
+  }
+
+  @Post('numbers/:phoneNumberSid/assign')
+  @RequirePermissions(Permission.PLATFORM_INTEGRATIONS_MANAGE)
+  async assignNumber(
+    @Req() req: RequestWithUser,
+    @Param('phoneNumberSid') phoneNumberSid: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = TwilioNumberAssignmentSchema.parse(body);
+    return this.numbersService.assignNumberToTenant(req.user!, phoneNumberSid, parsed);
+  }
+
+  @Post('numbers/purchase-and-assign')
+  @RequirePermissions(Permission.PLATFORM_INTEGRATIONS_MANAGE)
+  async purchaseAndAssign(@Req() req: RequestWithUser, @Body() body: unknown) {
+    const parsed = TwilioPurchaseAndAssignSchema.parse(body);
+    return this.numbersService.purchaseAndAssign(req.user!, parsed);
   }
 
   @Post('numbers/assign-existing')
@@ -69,9 +133,10 @@ export class TwilioController {
     );
   }
 
-  @Post('numbers/purchase-and-assign')
+  /** Legacy one-click purchase (no explicit confirm flag) — use Phone Numbers UI for new flow. */
+  @Post('numbers/purchase-and-assign-legacy')
   @RequirePermissions(Permission.PLATFORM_INTEGRATIONS_MANAGE)
-  async purchaseAndAssign(@Req() req: RequestWithUser, @Body() body: unknown) {
+  async purchaseAndAssignLegacy(@Req() req: RequestWithUser, @Body() body: unknown) {
     const parsed = PurchaseTwilioNumberSchema.parse(body);
     return this.provisioningService.purchaseAndAssign(
       req.user!,
@@ -80,7 +145,6 @@ export class TwilioController {
     );
   }
 
-  /** Tenant-scoped phone provisioning (maps to detailed-order DID assignment in current architecture). */
   @Post('tenants/:tenantId/provision-phone-number')
   @RequirePermissions(Permission.PLATFORM_INTEGRATIONS_MANAGE)
   async provisionTenantPhone(
@@ -104,7 +168,6 @@ export class TwilioController {
   }
 }
 
-/** Alias route shape requested for order provisioning — orderId is tenantId until a billing order entity exists. */
 @Controller('orders')
 export class TwilioOrdersController {
   constructor(@Inject(TwilioProvisioningService) private readonly provisioningService: TwilioProvisioningService) {}

@@ -269,6 +269,34 @@
         ]
       }
     },
+    "/api/v1/tenants/{tenantId}/provision-phone-number": {
+      "post": {
+        "operationId": "TenantsController_provisionPhoneNumber",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tenants"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/phone-numbers": {
+      "get": {
+        "operationId": "TenantsController_listPhoneNumbers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tenants"
+        ]
+      }
+    },
     "/api/v1/tenants/{tenantId}/entitlements": {
       "get": {
         "operationId": "TenantsController_entitlements",
@@ -2264,6 +2292,230 @@
         },
         "tags": [
           "SipDomains"
+        ]
+      }
+    },
+    "/api/v1/twilio/status": {
+      "get": {
+        "operationId": "TwilioController_status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Twilio"
+        ]
+      }
+    },
+    "/api/v1/twilio/validate": {
+      "post": {
+        "operationId": "TwilioController_validate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Twilio"
+        ]
+      }
+    },
+    "/api/v1/twilio/trunk": {
+      "get": {
+        "operationId": "TwilioController_trunk",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Twilio"
+        ]
+      }
+    },
+    "/api/v1/twilio/trunk/sync": {
+      "post": {
+        "operationId": "TwilioController_syncTrunk",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Twilio"
+        ]
+      }
+    },
+    "/api/v1/twilio/numbers/search": {
+      "get": {
+        "operationId": "TwilioController_searchNumbers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Twilio"
+        ]
+      }
+    },
+    "/api/v1/twilio/numbers/owned": {
+      "get": {
+        "operationId": "TwilioController_ownedNumbers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Twilio"
+        ]
+      }
+    },
+    "/api/v1/twilio/numbers": {
+      "get": {
+        "operationId": "TwilioController_numbers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Twilio"
+        ]
+      }
+    },
+    "/api/v1/twilio/numbers/purchase": {
+      "post": {
+        "operationId": "TwilioController_purchaseNumber",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Twilio"
+        ]
+      }
+    },
+    "/api/v1/twilio/numbers/{phoneNumberSid}/attach-to-trunk": {
+      "post": {
+        "operationId": "TwilioController_attachToTrunk",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Twilio"
+        ]
+      }
+    },
+    "/api/v1/twilio/numbers/{phoneNumberSid}/assign": {
+      "post": {
+        "operationId": "TwilioController_assignNumber",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Twilio"
+        ]
+      }
+    },
+    "/api/v1/twilio/numbers/purchase-and-assign": {
+      "post": {
+        "operationId": "TwilioController_purchaseAndAssign",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Twilio"
+        ]
+      }
+    },
+    "/api/v1/twilio/numbers/assign-existing": {
+      "post": {
+        "operationId": "TwilioController_assignExisting",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Twilio"
+        ]
+      }
+    },
+    "/api/v1/twilio/numbers/purchase-and-assign-legacy": {
+      "post": {
+        "operationId": "TwilioController_purchaseAndAssignLegacy",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Twilio"
+        ]
+      }
+    },
+    "/api/v1/twilio/tenants/{tenantId}/provision-phone-number": {
+      "post": {
+        "operationId": "TwilioController_provisionTenantPhone",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Twilio"
+        ]
+      }
+    },
+    "/api/v1/twilio/tenants/{tenantId}/provisioning": {
+      "get": {
+        "operationId": "TwilioController_tenantProvisioning",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Twilio"
+        ]
+      }
+    },
+    "/api/v1/orders/{orderId}/provision-phone-number": {
+      "post": {
+        "operationId": "TwilioOrdersController_provisionOrderPhone",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TwilioOrders"
         ]
       }
     }

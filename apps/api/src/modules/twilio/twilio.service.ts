@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { TwilioAvailableNumberRow, TwilioNumberSearchQuery } from '@pbx/contracts';
 import { validationError } from '@pbx/contracts';
 import Twilio from 'twilio';
 import type { Twilio as TwilioClient } from 'twilio';
@@ -6,6 +7,11 @@ import { CONFIG } from '../../common/tokens.js';
 import type { AppConfig } from '../../config.js';
 import { isTwilioConfigured, requireTwilioConfig, type TwilioConfig } from '../../config.js';
 import { assertIsraeliE164 } from './twilio-israel.js';
+import {
+  dedupeAvailableNumbers,
+  filterAvailableNumbers,
+  mapTwilioAvailableNumber,
+} from './twilio-number-search.js';
 import { redactE164, redactSid, redactUri } from './twilio-redact.js';
 
 export type TwilioTrunkStatus = {
@@ -27,6 +33,8 @@ export type TwilioListedNumber = {
   e164: string;
   friendlyName: string | null;
   trunkSid: string | null;
+  capabilities?: { voice: boolean; sms: boolean; mms: boolean };
+  status?: string;
 };
 
 @Injectable()
@@ -238,6 +246,12 @@ export class TwilioService {
       e164: row.phoneNumber,
       friendlyName: row.friendlyName ?? null,
       trunkSid: row.trunkSid ?? null,
+      capabilities: {
+        voice: row.capabilities?.voice ?? false,
+        sms: row.capabilities?.sms ?? false,
+        mms: row.capabilities?.mms ?? false,
+      },
+      status: 'in-use',
     }));
   }
 
@@ -247,10 +261,89 @@ export class TwilioService {
     return numbers.find((n) => n.e164 === normalized) ?? null;
   }
 
-  async attachNumberToTrunk(phoneNumberSid: string): Promise<void> {
+  async attachNumberToTrunk(phoneNumberSid: string): Promise<{ trunkSid: string }> {
     const cfg = this.twilioConfig();
     const client = this.createClient();
     await client.incomingPhoneNumbers(phoneNumberSid).update({ trunkSid: cfg.trunkSid });
+    return { trunkSid: cfg.trunkSid };
+  }
+
+  async searchAvailableNumbers(query: TwilioNumberSearchQuery): Promise<TwilioAvailableNumberRow[]> {
+    const client = this.createClient();
+    const country = query.country.toUpperCase();
+    const listParams: { limit: number; contains?: string; areaCode?: number } = {
+      limit: query.limit,
+    };
+    if (query.contains) listParams.contains = query.contains;
+    if (query.areaCode) {
+      const parsedAreaCode = Number.parseInt(query.areaCode, 10);
+      if (!Number.isNaN(parsedAreaCode)) listParams.areaCode = parsedAreaCode;
+    }
+
+    const types =
+      query.type === 'any'
+        ? (['local', 'mobile', 'tollFree'] as const)
+        : query.type === 'toll_free'
+          ? (['tollFree'] as const)
+          : query.type === 'mobile'
+            ? (['mobile'] as const)
+            : (['local'] as const);
+
+    const rows: TwilioAvailableNumberRow[] = [];
+    for (const type of types) {
+      let available;
+      const resource = client.availablePhoneNumbers(country);
+      if (type === 'local') {
+        available = await resource.local.list(listParams);
+      } else if (type === 'mobile') {
+        available = await resource.mobile.list(listParams);
+      } else {
+        available = await resource.tollFree.list(listParams);
+      }
+      for (const row of available) {
+        rows.push(
+          mapTwilioAvailableNumber(
+            row,
+            country,
+            type === 'tollFree' ? 'toll_free' : type,
+          ),
+        );
+      }
+    }
+
+    const filtered = filterAvailableNumbers(rows, {
+      voiceRequired: query.voiceRequired,
+      ...(query.smsCapable !== undefined ? { smsCapable: query.smsCapable } : {}),
+      ...(query.mmsCapable !== undefined ? { mmsCapable: query.mmsCapable } : {}),
+    });
+
+    return dedupeAvailableNumbers(filtered).slice(0, query.limit);
+  }
+
+  async purchaseIncomingNumber(e164: string, friendlyName?: string): Promise<{ sid: string; e164: string }> {
+    const normalized = assertIsraeliE164(e164);
+    const client = this.createClient();
+    const owned = await this.findNumberByE164(normalized);
+    if (owned) {
+      return { sid: owned.sid, e164: owned.e164 };
+    }
+
+    try {
+      const purchased = await client.incomingPhoneNumbers.create({
+        phoneNumber: normalized,
+        ...(friendlyName ? { friendlyName } : {}),
+      });
+      return { sid: purchased.sid, e164: purchased.phoneNumber };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Twilio purchase failed';
+      if (/not available|no longer available|404|21608|21422/i.test(message)) {
+        throw validationError({ twilio: 'Number no longer available; search again' });
+      }
+      if (/address|regulatory|compliance|bundle|identity/i.test(message)) {
+        throw validationError({ twilio: 'Regulatory setup required before purchasing this number' });
+      }
+      throw error;
+    }
   }
 
   async searchAvailableIsraeliLocal(limit = 5): Promise<Array<{ e164: string; friendlyName: string | null }>> {

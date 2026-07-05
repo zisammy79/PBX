@@ -101,7 +101,7 @@ export class TwilioProvisioningService {
 
       const pbxTrunkId = await this.ensurePbxTwilioTrunk(actor, tenantId, e164);
       const destinationExtensionId = await this.resolveDestinationExtension(tenantId, options.inboundDestinationExtensionNumber);
-      await this.ensureInboundRoute(tenantId, pbxTrunkId, e164, destinationExtensionId);
+      await this.ensureInboundRoute(tenantId, pbxTrunkId, e164, 'extension', destinationExtensionId);
       await this.ensureOutboundRoutes(tenantId, pbxTrunkId, e164);
       await this.activateTrunk(tenantId, pbxTrunkId);
 
@@ -215,6 +215,45 @@ export class TwilioProvisioningService {
     throw validationError({ twilio: 'No phone number available for assignment; configure TWILIO_TEST_DID or enable auto mode' });
   }
 
+  async syncTrunkOnly(): Promise<void> {
+    await this.twilioService.syncTrunk();
+  }
+
+  async ensurePbxTwilioTrunkPublic(
+    actor: AuthenticatedUser,
+    tenantId: string,
+    e164: string,
+    outboundCallerIdPolicy: 'tenant_default' | 'extension_only' | 'inbound_only' = 'tenant_default',
+  ): Promise<string> {
+    const trunkId = await this.ensurePbxTwilioTrunk(actor, tenantId, e164);
+    if (outboundCallerIdPolicy !== 'inbound_only') {
+      await this.ensureOutboundRoutes(tenantId, trunkId, e164);
+    }
+    await this.activateTrunk(tenantId, trunkId);
+    return trunkId;
+  }
+
+  async ensureInboundRoutePublic(
+    tenantId: string,
+    trunkId: string,
+    e164: string,
+    destinationType: string,
+    destinationId: string | null,
+  ): Promise<string | undefined> {
+    if (destinationType === 'reserve_only' || !destinationId) return undefined;
+    return this.ensureInboundRoute(tenantId, trunkId, e164, destinationType, destinationId);
+  }
+
+  async ensureOutboundRoutesPublic(
+    tenantId: string,
+    trunkId: string,
+    callerId: string,
+    policy: 'tenant_default' | 'extension_only' | 'inbound_only',
+  ): Promise<void> {
+    if (policy === 'inbound_only') return;
+    await this.ensureOutboundRoutes(tenantId, trunkId, callerId);
+  }
+
   private async ensurePbxTwilioTrunk(actor: AuthenticatedUser, tenantId: string, e164: string): Promise<string> {
     return withTenantContext(this.database.db, tenantId, async (db) => {
       const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
@@ -308,9 +347,10 @@ export class TwilioProvisioningService {
     tenantId: string,
     trunkId: string,
     e164: string,
-    destinationExtensionId: string,
-  ): Promise<void> {
-    await withTenantContext(this.database.db, tenantId, async (db) => {
+    destinationType: string,
+    destinationId: string,
+  ): Promise<string> {
+    return withTenantContext(this.database.db, tenantId, async (db) => {
       const [existingRoute] = await db
         .select()
         .from(inboundRoutes)
@@ -325,15 +365,15 @@ export class TwilioProvisioningService {
             tenantId,
             name: `Inbound ${e164}`,
             didPattern: e164,
-            destinationType: 'extension',
-            destinationId: destinationExtensionId,
+            destinationType,
+            destinationId,
           })
           .returning();
         routeId = route!.id;
-      } else if (existingRoute.destinationId !== destinationExtensionId) {
+      } else {
         await db
           .update(inboundRoutes)
-          .set({ destinationId: destinationExtensionId, updatedAt: new Date() })
+          .set({ destinationType, destinationId, updatedAt: new Date() })
           .where(eq(inboundRoutes.id, existingRoute.id));
       }
 
@@ -348,18 +388,22 @@ export class TwilioProvisioningService {
           tenantId,
           e164,
           friendlyName: 'Twilio DID',
+          provider: 'twilio',
           trunkId,
           inboundRouteId: routeId,
           isActive: true,
+          status: 'active',
         });
       } else if (existingNumber.tenantId !== tenantId) {
         throw validationError({ e164: 'Phone number already assigned to another tenant' });
       } else {
         await db
           .update(phoneNumbers)
-          .set({ trunkId, inboundRouteId: routeId, isActive: true, updatedAt: new Date() })
+          .set({ trunkId, inboundRouteId: routeId, isActive: true, status: 'active', updatedAt: new Date() })
           .where(eq(phoneNumbers.id, existingNumber.id));
       }
+
+      return routeId!;
     });
   }
 

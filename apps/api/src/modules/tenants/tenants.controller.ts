@@ -10,6 +10,7 @@ import { TenantGuard } from '../../common/guards/tenant.guard.js';
 import { TenantLimitsService } from './tenant-limits.service.js';
 import { TenantProvisioningService } from './tenant-provisioning.service.js';
 import { TenantsService } from './tenants.service.js';
+import { TwilioNumbersService } from '../twilio/twilio-numbers.service.js';
 import { TwilioProvisioningService } from '../twilio/twilio-provisioning.service.js';
 
 @Controller('tenants')
@@ -19,6 +20,7 @@ export class TenantsController {
     @Inject(TenantLimitsService) private readonly tenantLimitsService: TenantLimitsService,
     @Inject(TenantProvisioningService) private readonly tenantProvisioningService: TenantProvisioningService,
     @Inject(TwilioProvisioningService) private readonly twilioProvisioningService: TwilioProvisioningService,
+    @Inject(TwilioNumbersService) private readonly twilioNumbersService: TwilioNumbersService,
   ) {}
 
   @Post()
@@ -78,6 +80,18 @@ export class TenantsController {
         : {}),
       ...(parsed.force ? { force: parsed.force } : {}),
     });
+  }
+
+  @Get(':tenantId/phone-numbers')
+  @UseGuards(TenantGuard)
+  @RequireAnyPermission(
+    Permission.TENANT_NUMBER_MANAGE,
+    Permission.PLATFORM_INTEGRATIONS_READ,
+    Permission.PLATFORM_INTEGRATIONS_MANAGE,
+  )
+  async listPhoneNumbers(@Param('tenantId') tenantId: string) {
+    const numbers = await this.twilioNumbersService.listTenantPhoneNumbers(tenantId);
+    return { numbers };
   }
 
   @Get(':tenantId/entitlements')

@@ -175,7 +175,7 @@ export default function PlatformTwilioPage() {
             onClick={() =>
               void run(
                 () =>
-                  api.post('twilio/numbers/purchase-and-assign', {
+                  api.post('twilio/numbers/purchase-and-assign-legacy', {
                     tenantId,
                     inboundDestinationExtensionNumber: extension,
                   }),
