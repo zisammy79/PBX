@@ -151,10 +151,10 @@ export default function PlatformPhoneNumbersPage() {
         e164: selected.e164,
         confirmPurchase: true,
         destinationType,
-        ...(destinationType === 'extension' ? { destinationExtensionNumber: extensionNumber } : {}),
-        ...(destinationType !== 'extension' && destinationType !== 'reserve_only' && destinationId
-          ? { destinationId }
+        ...(destinationType === 'extension' || destinationType === 'voicemail'
+          ? { destinationExtensionNumber: extensionNumber }
           : {}),
+        ...(destinationType === 'ai_agent' && destinationId ? { destinationId } : {}),
         outboundCallerIdPolicy: callerIdPolicy,
       });
       setMessage(`Purchased and assigned ${selected.e164}`);
@@ -355,14 +355,15 @@ export default function PlatformPhoneNumbersPage() {
             Assignment target
             <select value={destinationType} onChange={(e) => setDestinationType(e.target.value)} style={{ display: 'block', width: '100%', marginBottom: '0.5rem' }}>
               <option value="extension">Extension</option>
-              <option value="ivr">IVR</option>
-              <option value="queue">Queue</option>
-              <option value="ring_group">Ring group</option>
               <option value="ai_agent">AI agent</option>
+              <option value="voicemail">Voicemail</option>
               <option value="reserve_only">Reserve only</option>
             </select>
           </label>
-          {destinationType === 'extension' ? (
+          <p className="muted" style={{ marginTop: '-0.25rem', marginBottom: '0.75rem' }}>
+            IVR, queue, and ring group routing are coming soon — telephony config does not generate live routes for those targets yet.
+          </p>
+          {destinationType === 'extension' || destinationType === 'voicemail' ? (
             <label>
               Extension
               <select value={extensionNumber} onChange={(e) => setExtensionNumber(e.target.value)} style={{ display: 'block', width: '100%', marginBottom: '0.5rem' }}>
@@ -373,13 +374,13 @@ export default function PlatformPhoneNumbersPage() {
                 ))}
               </select>
             </label>
-          ) : destinationType !== 'reserve_only' ? (
+          ) : destinationType === 'ai_agent' ? (
             <label>
-              Destination ID
+              AI agent ID
               <input
                 value={destinationId}
                 onChange={(e) => setDestinationId(e.target.value)}
-                placeholder="UUID of IVR, queue, ring group, or AI agent"
+                placeholder="UUID of AI agent"
                 style={{ display: 'block', width: '100%', marginBottom: '0.5rem' }}
               />
             </label>

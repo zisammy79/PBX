@@ -30,10 +30,8 @@ export const TwilioNumberSearchQuerySchema = z.object({
 
 export const TwilioNumberDestinationTypeSchema = z.enum([
   'extension',
-  'ivr',
-  'queue',
-  'ring_group',
   'ai_agent',
+  'voicemail',
   'reserve_only',
 ]);
 export type TwilioNumberDestinationType = z.infer<typeof TwilioNumberDestinationTypeSchema>;

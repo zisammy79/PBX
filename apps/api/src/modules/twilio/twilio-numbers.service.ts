@@ -12,10 +12,7 @@ import {
   auditEvents,
   extensions,
   inboundRoutes,
-  ivrs,
   phoneNumbers,
-  queues,
-  ringGroups,
   sipTrunks,
   withBypassRls,
   withTenantContext,
@@ -290,32 +287,31 @@ export class TwilioNumbersService {
         return ext.id;
       }
 
-      const destinationId = assignment.destinationId;
-      if (!destinationId) {
-        throw validationError({ destination: 'Destination id is required' });
-      }
-
-      const table =
-        assignment.destinationType === 'ivr'
-          ? ivrs
-          : assignment.destinationType === 'queue'
-            ? queues
-            : assignment.destinationType === 'ring_group'
-              ? ringGroups
-              : null;
-
-      if (table) {
-        const [row] = await db
-          .select()
-          .from(table)
-          .where(and(eq(table.tenantId, assignment.tenantId), eq(table.id, destinationId)))
-          .limit(1);
-        if (!row) throw validationError({ destination: `${assignment.destinationType} not found` });
-        return destinationId;
-      }
-
       if (assignment.destinationType === 'ai_agent') {
+        const destinationId = assignment.destinationId;
+        if (!destinationId) {
+          throw validationError({ destination: 'AI agent id is required' });
+        }
         return destinationId;
+      }
+
+      if (assignment.destinationType === 'voicemail') {
+        const extNum = assignment.destinationExtensionNumber;
+        if (!extNum) {
+          throw validationError({ destination: 'Extension number is required for voicemail routing' });
+        }
+        const [ext] = await db
+          .select()
+          .from(extensions)
+          .where(
+            and(
+              eq(extensions.tenantId, assignment.tenantId),
+              eq(extensions.extensionNumber, extNum),
+            ),
+          )
+          .limit(1);
+        if (!ext) throw validationError({ extension: `Extension ${extNum} not found` });
+        return ext.id;
       }
 
       throw validationError({ destination: `Unsupported destination type ${assignment.destinationType}` });
