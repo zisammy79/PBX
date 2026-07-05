@@ -10,8 +10,8 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { callDirectionEnum, callStatusEnum, recordingStatusEnum } from './enums';
-import { tenants } from './tenants';
+import { callDirectionEnum, callStatusEnum, recordingStatusEnum } from './enums.js';
+import { tenants } from './tenants.js';
 
 export const calls = pgTable(
   'calls',

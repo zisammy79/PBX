@@ -11,10 +11,10 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { aiSessionStatusEnum } from './enums';
-import { extensions } from './telephony';
-import { tenants } from './tenants';
-import { users } from './users';
+import { aiSessionStatusEnum } from './enums.js';
+import { extensions } from './telephony.js';
+import { tenants } from './tenants.js';
+import { users } from './users.js';
 
 export const aiProviderConnections = pgTable(
   'ai_provider_connections',

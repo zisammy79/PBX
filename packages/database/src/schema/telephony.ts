@@ -10,9 +10,9 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { extensionStatusEnum, sipTransportEnum } from './enums';
-import { tenants } from './tenants';
-import { users } from './users';
+import { extensionStatusEnum, sipTransportEnum } from './enums.js';
+import { tenants } from './tenants.js';
+import { users } from './users.js';
 
 export const extensions = pgTable(
   'extensions',

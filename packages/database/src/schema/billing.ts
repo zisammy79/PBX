@@ -11,8 +11,8 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { invoiceStatusEnum, subscriptionStatusEnum } from './enums';
-import { tenants } from './tenants';
+import { invoiceStatusEnum, subscriptionStatusEnum } from './enums.js';
+import { tenants } from './tenants.js';
 
 export const usageEvents = pgTable(
   'usage_events',

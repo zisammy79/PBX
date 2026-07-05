@@ -10,8 +10,8 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { tenantStatusEnum } from './enums';
-import { users } from './users';
+import { tenantStatusEnum } from './enums.js';
+import { users } from './users.js';
 
 export const tenants = pgTable(
   'tenants',

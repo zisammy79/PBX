@@ -10,8 +10,8 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { tenants } from './tenants';
-import { users } from './users';
+import { tenants } from './tenants.js';
+import { users } from './users.js';
 
 export const integrationConnections = pgTable(
   'integration_connections',
