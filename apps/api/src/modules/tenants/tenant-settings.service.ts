@@ -27,7 +27,7 @@ export class TenantSettingsService {
 
   async getSettings(actor: AuthenticatedUser, tenantId: string): Promise<TenantFeatureSettings> {
     await this.assertManage(actor, tenantId);
-    return withTenantContext(this.database.db, tenantId, async (db) => this.readAllSettings(db));
+    return withTenantContext(this.database.db, tenantId, async (db) => this.readAllSettings(db, tenantId));
   }
 
   async updateSettings(
@@ -38,28 +38,28 @@ export class TenantSettingsService {
     await this.assertManage(actor, tenantId);
     return withTenantContext(this.database.db, tenantId, async (db) => {
       if (input.telephony?.recording) {
-        const current = await this.readRecordingSettings(db);
+        const current = await this.readRecordingSettings(db, tenantId);
         await this.upsertSetting(db, tenantId, TELEPHONY_RECORDING_KEY, {
           ...current,
           ...input.telephony.recording,
         });
       }
       if (input.phoneNumbers) {
-        const current = await this.readPhoneNumbersFeatures(db);
+        const current = await this.readPhoneNumbersFeatures(db, tenantId);
         await this.upsertSetting(db, tenantId, PHONE_NUMBERS_FEATURES_KEY, {
           ...current,
           ...input.phoneNumbers,
         });
       }
       if (input.calls) {
-        const current = await this.readCallsFeatures(db);
+        const current = await this.readCallsFeatures(db, tenantId);
         await this.upsertSetting(db, tenantId, CALLS_FEATURES_KEY, {
           ...current,
           ...input.calls,
         });
       }
 
-      const updated = await this.readAllSettings(db);
+      const updated = await this.readAllSettings(db, tenantId);
       await db.insert(auditEvents).values({
         tenantId,
         actorUserId: actor.id,
@@ -76,10 +76,11 @@ export class TenantSettingsService {
 
   private async readAllSettings(
     db: Parameters<Parameters<typeof withTenantContext>[2]>[0],
+    tenantId: string,
   ): Promise<TenantFeatureSettings> {
-    const recording = await this.readRecordingSettings(db);
-    const phoneNumbers = await this.readPhoneNumbersFeatures(db);
-    const calls = await this.readCallsFeatures(db);
+    const recording = await this.readRecordingSettings(db, tenantId);
+    const phoneNumbers = await this.readPhoneNumbersFeatures(db, tenantId);
+    const calls = await this.readCallsFeatures(db, tenantId);
     return {
       telephony: { recording },
       phoneNumbers,
@@ -89,16 +90,18 @@ export class TenantSettingsService {
 
   private async readRecordingSettings(
     db: Parameters<Parameters<typeof withTenantContext>[2]>[0],
+    tenantId: string,
   ): Promise<{ recordCallsByDefault: boolean }> {
-    const row = await this.readSettingRow(db, TELEPHONY_RECORDING_KEY);
+    const row = await this.readSettingRow(db, tenantId, TELEPHONY_RECORDING_KEY);
     const value = (row?.value ?? {}) as { recordCallsByDefault?: boolean };
     return { recordCallsByDefault: value.recordCallsByDefault ?? false };
   }
 
   private async readPhoneNumbersFeatures(
     db: Parameters<Parameters<typeof withTenantContext>[2]>[0],
+    tenantId: string,
   ): Promise<TenantPhoneNumbersFeatureSettings> {
-    const row = await this.readSettingRow(db, PHONE_NUMBERS_FEATURES_KEY);
+    const row = await this.readSettingRow(db, tenantId, PHONE_NUMBERS_FEATURES_KEY);
     const value = (row?.value ?? {}) as Partial<TenantPhoneNumbersFeatureSettings>;
     return {
       ...DEFAULT_TENANT_PHONE_NUMBERS_FEATURES,
@@ -110,8 +113,9 @@ export class TenantSettingsService {
 
   private async readCallsFeatures(
     db: Parameters<Parameters<typeof withTenantContext>[2]>[0],
+    tenantId: string,
   ): Promise<TenantCallsFeatureSettings> {
-    const row = await this.readSettingRow(db, CALLS_FEATURES_KEY);
+    const row = await this.readSettingRow(db, tenantId, CALLS_FEATURES_KEY);
     const value = (row?.value ?? {}) as Partial<TenantCallsFeatureSettings>;
     return {
       ...DEFAULT_TENANT_CALLS_FEATURES,
@@ -121,12 +125,13 @@ export class TenantSettingsService {
 
   private async readSettingRow(
     db: Parameters<Parameters<typeof withTenantContext>[2]>[0],
+    tenantId: string,
     key: string,
   ) {
     const [row] = await db
       .select()
       .from(tenantSettings)
-      .where(eq(tenantSettings.key, key))
+      .where(and(eq(tenantSettings.tenantId, tenantId), eq(tenantSettings.key, key)))
       .limit(1);
     return row;
   }

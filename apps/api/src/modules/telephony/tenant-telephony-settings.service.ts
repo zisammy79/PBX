@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { tenantAccessDenied, type TenantTelephonySettings } from '@pbx/contracts';
 import { Permission } from '@pbx/contracts';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { tenantSettings, withTenantContext } from '@pbx/database';
 import { CONFIG, DATABASE } from '../../common/tokens.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
@@ -59,7 +59,7 @@ export class TenantTelephonySettingsService {
     const [row] = await db
       .select()
       .from(tenantSettings)
-      .where(eq(tenantSettings.key, TELEPHONY_RECORDING_KEY))
+      .where(and(eq(tenantSettings.tenantId, tenantId), eq(tenantSettings.key, TELEPHONY_RECORDING_KEY)))
       .limit(1);
     const value = (row?.value ?? {}) as { recordCallsByDefault?: boolean };
     return { recordCallsByDefault: value.recordCallsByDefault ?? false };
