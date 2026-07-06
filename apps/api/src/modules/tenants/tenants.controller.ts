@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Inject, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
-import { CreateTenantRequestSchema, Permission, ProvisionTenantPhoneNumberSchema, ProvisionTenantRequestSchema } from '@pbx/contracts';
+import { CreateTenantRequestSchema, Permission, ProvisionTenantPhoneNumberSchema, ProvisionTenantRequestSchema, UpdateTenantFeatureSettingsSchema } from '@pbx/contracts';
 import { UpdateTenantLifecycleSchema } from '@pbx/contracts';
 import type { RequestWithUser } from '../../common/guards/auth.guard.js';
 import {
@@ -9,6 +9,7 @@ import {
 import { TenantGuard } from '../../common/guards/tenant.guard.js';
 import { TenantLimitsService } from './tenant-limits.service.js';
 import { TenantProvisioningService } from './tenant-provisioning.service.js';
+import { TenantSettingsService } from './tenant-settings.service.js';
 import { TenantsService } from './tenants.service.js';
 import { TwilioNumbersService } from '../twilio/twilio-numbers.service.js';
 import { TwilioProvisioningService } from '../twilio/twilio-provisioning.service.js';
@@ -21,6 +22,7 @@ export class TenantsController {
     @Inject(TenantProvisioningService) private readonly tenantProvisioningService: TenantProvisioningService,
     @Inject(TwilioProvisioningService) private readonly twilioProvisioningService: TwilioProvisioningService,
     @Inject(TwilioNumbersService) private readonly twilioNumbersService: TwilioNumbersService,
+    @Inject(TenantSettingsService) private readonly tenantSettingsService: TenantSettingsService,
   ) {}
 
   @Post()
@@ -104,6 +106,25 @@ export class TenantsController {
   )
   async listAssignableDestinations(@Req() req: RequestWithUser, @Param('tenantId') _tenantId: string) {
     return this.twilioNumbersService.listAssignableDestinations(req.activeTenantId!);
+  }
+
+  @Get(':tenantId/settings')
+  @UseGuards(TenantGuard)
+  @RequireAnyPermission(Permission.TENANT_UPDATE, Permission.PLATFORM_TENANT_UPDATE)
+  async getSettings(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string) {
+    return this.tenantSettingsService.getSettings(req.user!, tenantId);
+  }
+
+  @Patch(':tenantId/settings')
+  @UseGuards(TenantGuard)
+  @RequireAnyPermission(Permission.TENANT_UPDATE, Permission.PLATFORM_TENANT_UPDATE)
+  async updateSettings(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = UpdateTenantFeatureSettingsSchema.parse(body);
+    return this.tenantSettingsService.updateSettings(req.user!, tenantId, parsed);
   }
 
   @Get(':tenantId/entitlements')

@@ -9,6 +9,7 @@ import { TenantLifecycleTelephonyService } from './tenant-lifecycle-telephony.se
 import { TenantLimitsService } from './tenant-limits.service.js';
 import { TenantsService } from './tenants.service.js';
 import { TenantProvisioningService } from './tenant-provisioning.service.js';
+import { TenantSettingsService } from './tenant-settings.service.js';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { TenantProvisioningService } from './tenant-provisioning.service.js';
     TenantLifecycleService,
     TenantLifecycleTelephonyService,
     TenantProvisioningService,
+    TenantSettingsService,
   ],
   exports: [
     TenantsService,
@@ -31,6 +33,7 @@ import { TenantProvisioningService } from './tenant-provisioning.service.js';
     TenantLifecycleService,
     TenantLifecycleTelephonyService,
     TenantProvisioningService,
+    TenantSettingsService,
   ],
 })
 export class TenantsModule {}

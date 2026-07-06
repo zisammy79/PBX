@@ -30,8 +30,8 @@ start_one() {
   fi
 }
 
-start_one pbx-api "pnpm --filter @pbx/api dev"
-start_one pbx-web "pnpm --filter @pbx/web dev"
-start_one pbx-worker "pnpm --filter @pbx/worker dev"
+start_one pbx-api "pnpm --filter @pbx/api start"
+start_one pbx-web "pnpm --filter @pbx/web start"
+start_one pbx-worker "pnpm --filter @pbx/worker start"
 
 pm2 save --force

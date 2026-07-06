@@ -23,3 +23,4 @@ export * from './devices.js';
 export * from './sip-domains.js';
 export * from './entitlements.js';
 export * from './twilio.js';
+export * from './tenant-settings.js';
