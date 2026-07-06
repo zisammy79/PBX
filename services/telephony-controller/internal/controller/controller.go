@@ -146,6 +146,10 @@ func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 		c.handleJoinLeg(ctx, channelID, callIDStr)
 		return
 	}
+	if isPstnOutboundStasis(args) {
+		c.onPstnOutboundStart(ctx, channelID, args[0], args[1], args[3])
+		return
+	}
 	if len(args) < 3 {
 		slog.Warn("stasis start missing args", "channel", channelID, "args", args)
 		return

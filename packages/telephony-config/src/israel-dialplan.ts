@@ -2,33 +2,45 @@
  * Israeli PSTN dial patterns for tenant contexts (local 0-prefix → E.164).
  */
 
+const STASIS_APP = 'pbx-platform';
+
+function stasisOutboundLine(tenantSlug: string, destinationExpr: string): string {
+  return ` same => n,Stasis(${STASIS_APP},${tenantSlug},\${CALLERID(num)},outbound,${destinationExpr})`;
+}
+
 export function appendIsraeliOutboundDialplan(
   lines: string[],
   tenantSlug: string,
 ): void {
-  const outboundCtx = `outbound-pstn-${tenantSlug}`;
   lines.push(
-    '; Israeli PSTN outbound — normalize local dialing then hand off to trunk context',
+    '; Israeli PSTN outbound — normalize local dialing then enter controller Stasis lifecycle',
     'exten => _05XXXXXXXX,1,NoOp(PBX outbound local mobile ${EXTEN})',
     ' same => n,Set(PBX_OUTBOUND_E164=+972${EXTEN:1})',
-    ` same => n,Goto(${outboundCtx},\${PBX_OUTBOUND_E164},1)`,
+    stasisOutboundLine(tenantSlug, '${PBX_OUTBOUND_E164}'),
+    ' same => n,Hangup()',
     'exten => _07XXXXXXXX,1,NoOp(PBX outbound local ${EXTEN})',
     ' same => n,Set(PBX_OUTBOUND_E164=+972${EXTEN:1})',
-    ` same => n,Goto(${outboundCtx},\${PBX_OUTBOUND_E164},1)`,
+    stasisOutboundLine(tenantSlug, '${PBX_OUTBOUND_E164}'),
+    ' same => n,Hangup()',
     'exten => _0[2-489]XXXXXXX,1,NoOp(PBX outbound local landline ${EXTEN})',
     ' same => n,Set(PBX_OUTBOUND_E164=+972${EXTEN:1})',
-    ` same => n,Goto(${outboundCtx},\${PBX_OUTBOUND_E164},1)`,
+    stasisOutboundLine(tenantSlug, '${PBX_OUTBOUND_E164}'),
+    ' same => n,Hangup()',
     'exten => _08XXXXXXX,1,NoOp(PBX outbound local ${EXTEN})',
     ' same => n,Set(PBX_OUTBOUND_E164=+972${EXTEN:1})',
-    ` same => n,Goto(${outboundCtx},\${PBX_OUTBOUND_E164},1)`,
+    stasisOutboundLine(tenantSlug, '${PBX_OUTBOUND_E164}'),
+    ' same => n,Hangup()',
     'exten => _09XXXXXXX,1,NoOp(PBX outbound local ${EXTEN})',
     ' same => n,Set(PBX_OUTBOUND_E164=+972${EXTEN:1})',
-    ` same => n,Goto(${outboundCtx},\${PBX_OUTBOUND_E164},1)`,
+    stasisOutboundLine(tenantSlug, '${PBX_OUTBOUND_E164}'),
+    ' same => n,Hangup()',
     'exten => _+972X.,1,NoOp(PBX outbound E164 ${EXTEN})',
-    ` same => n,Goto(${outboundCtx},\${EXTEN},1)`,
+    stasisOutboundLine(tenantSlug, '${EXTEN}'),
+    ' same => n,Hangup()',
     'exten => _972X.,1,NoOp(PBX outbound 972 ${EXTEN})',
     ' same => n,Set(PBX_OUTBOUND_E164=+${EXTEN})',
-    ` same => n,Goto(${outboundCtx},\${PBX_OUTBOUND_E164},1)`,
+    stasisOutboundLine(tenantSlug, '${PBX_OUTBOUND_E164}'),
+    ' same => n,Hangup()',
   );
 }
 

@@ -139,8 +139,8 @@ describe('trunk generator', () => {
     );
     expect(cfg.outboundDialplan).toContain('[outbound-pstn-acme]');
     expect(cfg.outboundDialplan).toContain('exten => _+X.,1');
-    expect(cfg.outboundDialplan).toContain('Set(CALLERID(num)=+97233820386)');
-    expect(cfg.outboundDialplan).toContain('Dial(PJSIP/${EXTEN}@acme_trunk_carrier_a,,g)');
+    expect(cfg.outboundDialplan).toContain('legacy outbound blocked');
+    expect(cfg.outboundDialplan).not.toContain('Dial(PJSIP/${EXTEN}@acme_trunk_carrier_a');
     expect(cfg.outboundDialplan.match(/\[outbound-pstn-acme\]/g)?.length).toBe(1);
   });
 });

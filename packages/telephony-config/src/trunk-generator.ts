@@ -260,14 +260,12 @@ export function generateTrunkConfig(
       });
     }
   }
-  for (const [tenantSlug, meta] of outboundByTenant) {
+  for (const [tenantSlug] of outboundByTenant) {
     outboundLines.push(
       '',
       `[outbound-pstn-${tenantSlug}]`,
-      `exten => _+X.,1,NoOp(PSTN outbound \${EXTEN})`,
-      ` same => n,Set(CALLERID(num)=${meta.callerId})`,
-      ` same => n,Set(CALLERID(name)=PBX Outbound)`,
-      ` same => n,Dial(PJSIP/\${EXTEN}@${meta.trunkAsteriskId},,g)`,
+      '; Legacy direct-dial context — tenant contexts now route outbound via Stasis',
+      `exten => _+X.,1,NoOp(legacy outbound blocked for \${EXTEN})`,
       ' same => n,Hangup()',
     );
   }

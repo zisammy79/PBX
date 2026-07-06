@@ -59,7 +59,7 @@ describe('telephony config generator', () => {
   it('adds Israeli outbound patterns for tenants with PSTN routes', () => {
     const config = generateTelephonyConfig([tenant], extensions, [], 'v1', new Set(['acme']));
     expect(config.extensionsTenants).toContain('_05XXXXXXXX');
-    expect(config.extensionsTenants).toContain('Goto(outbound-pstn-acme,${PBX_OUTBOUND_E164},1)');
+    expect(config.extensionsTenants).toContain('Stasis(pbx-platform,acme,${CALLERID(num)},outbound,');
     expect(config.extensionsTenants).toContain('_+972X.');
   });
 
