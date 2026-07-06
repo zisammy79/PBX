@@ -3,20 +3,19 @@
  *
  * Usage:
  *   PBX_PLATFORM_TOKEN_NAME="production-automation" \
- *   pnpm exec tsx scripts/create-platform-api-token.ts
+ *   DATABASE_URL=... pnpm exec tsx scripts/create-platform-api-token.ts
  *
  * Optional:
  *   PBX_WRITE_TOKEN_TO_ROOT_FILE=true  -> writes token to /root/.pbx-platform-api-token (mode 600)
  */
 import { chmodSync, writeFileSync } from 'node:fs';
-import { createDatabase, platformApiTokens, users, withBypassRls } from '@pbx/database';
 import {
   formatPlatformApiToken,
   generatePlatformApiTokenPrefix,
   generatePlatformApiTokenSecret,
   hashPlatformApiTokenSecret,
 } from '@pbx/shared';
-import { eq } from 'drizzle-orm';
+import postgres from 'postgres';
 
 function resolveDatabaseUrl(): string {
   const url = process.env.DATABASE_URL?.trim();
@@ -34,48 +33,65 @@ async function main() {
     throw new Error('PBX_PLATFORM_TOKEN_EXPIRES_AT is invalid');
   }
 
-  const db = createDatabase({ url: resolveDatabaseUrl() });
   const prefix = generatePlatformApiTokenPrefix();
   const secret = generatePlatformApiTokenSecret();
   const token = formatPlatformApiToken(prefix, secret);
   const tokenHash = hashPlatformApiTokenSecret(secret);
 
-  const [admin] = await withBypassRls(db.db, async (tx) =>
-    tx.select().from(users).where(eq(users.email, 'admin@pbx.local')).limit(1),
-  );
+  const sql = postgres(resolveDatabaseUrl(), { max: 1 });
+  try {
+    const [admin] = await sql`
+      SELECT id FROM users WHERE email = 'admin@pbx.local' LIMIT 1
+    `;
 
-  const [row] = await withBypassRls(db.db, async (tx) =>
-    tx
-      .insert(platformApiTokens)
-      .values({
+    const [row] = await sql`
+      INSERT INTO platform_api_tokens (
         name,
-        tokenPrefix: prefix,
-        tokenHash,
-        status: 'active',
-        role: 'platform_super_admin',
-        scopes: ['*'],
-        createdByUserId: admin?.id ?? null,
-        expiresAt,
-        metadata: { source: 'create-platform-api-token.ts' },
-      })
-      .returning(),
-  );
+        token_prefix,
+        token_hash,
+        status,
+        role,
+        scopes,
+        created_by_user_id,
+        expires_at,
+        metadata
+      )
+      VALUES (
+        ${name},
+        ${prefix},
+        ${tokenHash},
+        'active',
+        'platform_super_admin',
+        '["*"]'::jsonb,
+        ${admin?.id ?? null},
+        ${expiresAt},
+        ${JSON.stringify({ source: 'create-platform-api-token.ts' })}::jsonb
+      )
+      RETURNING id, name, token_prefix, expires_at
+    `;
 
-  console.log(
-    JSON.stringify({
-      id: row!.id,
-      name: row!.name,
-      tokenPrefix: row!.tokenPrefix,
-      expiresAt: row!.expiresAt?.toISOString() ?? null,
-      token,
-    }),
-  );
+    if (!row) {
+      throw new Error('Failed to create platform API token');
+    }
 
-  if (process.env.PBX_WRITE_TOKEN_TO_ROOT_FILE === 'true') {
-    const target = '/root/.pbx-platform-api-token';
-    writeFileSync(target, `${token}\n`, { encoding: 'utf8', mode: 0o600 });
-    chmodSync(target, 0o600);
-    console.log(JSON.stringify({ writtenTo: target }));
+    console.log(
+      JSON.stringify({
+        id: row.id,
+        name: row.name,
+        tokenPrefix: row.token_prefix,
+        expiresAt: row.expires_at ? new Date(row.expires_at).toISOString() : null,
+        token,
+      }),
+    );
+
+    if (process.env.PBX_WRITE_TOKEN_TO_ROOT_FILE === 'true') {
+      const target = '/root/.pbx-platform-api-token';
+      writeFileSync(target, `${token}\n`, { encoding: 'utf8', mode: 0o600 });
+      chmodSync(target, 0o600);
+      console.log(JSON.stringify({ writtenTo: target }));
+    }
+  } finally {
+    await sql.end({ timeout: 5 });
   }
 }
 
