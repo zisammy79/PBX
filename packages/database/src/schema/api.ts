@@ -170,3 +170,28 @@ export const providerHealth = pgTable(
   },
   (table) => [index('provider_health_type_idx').on(table.providerType, table.providerId)],
 );
+
+export const platformApiTokens = pgTable(
+  'platform_api_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 255 }).notNull(),
+    tokenPrefix: varchar('token_prefix', { length: 16 }).notNull(),
+    tokenHash: text('token_hash').notNull(),
+    status: varchar('status', { length: 32 }).notNull().default('active'),
+    role: varchar('role', { length: 64 }).notNull().default('platform_super_admin'),
+    scopes: jsonb('scopes').notNull().default(['*']),
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    metadata: jsonb('metadata').notNull().default({}),
+    rotatedFromTokenId: uuid('rotated_from_token_id'),
+  },
+  (table) => [
+    index('platform_api_tokens_prefix_idx').on(table.tokenPrefix),
+    uniqueIndex('platform_api_tokens_prefix_active_uidx').on(table.tokenPrefix),
+    index('platform_api_tokens_status_idx').on(table.status),
+  ],
+);

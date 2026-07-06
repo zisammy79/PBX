@@ -17,11 +17,12 @@ import {
   type PlatformRole,
   type TenantRole,
 } from '@pbx/contracts';
-import { isApiKeyToken } from '@pbx/shared';
+import { isApiKeyToken, isPlatformApiToken } from '@pbx/shared';
 import type { FastifyRequest } from 'fastify';
 import { AuthService } from '../../modules/auth/auth.service.js';
 import type { AuthenticatedUser } from '../../modules/auth/auth.service.js';
 import { ApiKeyAuthService } from '../../modules/api-applications/api-key-auth.service.js';
+import { PlatformApiTokenAuthService } from '../../modules/platform-api-tokens/platform-api-token-auth.service.js';
 
 export type { AuthenticatedUser };
 
@@ -45,6 +46,8 @@ export class AuthGuard implements CanActivate {
   constructor(
     @Inject(AuthService) private readonly authService: AuthService,
     @Inject(ApiKeyAuthService) private readonly apiKeyAuth: ApiKeyAuthService,
+    @Inject(PlatformApiTokenAuthService)
+    private readonly platformApiTokenAuth: PlatformApiTokenAuthService,
     @Inject(Reflector) private readonly reflector: Reflector,
   ) {}
 
@@ -62,7 +65,9 @@ export class AuthGuard implements CanActivate {
     }
 
     const token = authHeader.slice(7);
-    if (isApiKeyToken(token)) {
+    if (isPlatformApiToken(token)) {
+      request.user = await this.platformApiTokenAuth.authenticate(token);
+    } else if (isApiKeyToken(token)) {
       const user = await this.apiKeyAuth.authenticate(token);
       request.user = user;
       if (user.apiKeyTenantId) {

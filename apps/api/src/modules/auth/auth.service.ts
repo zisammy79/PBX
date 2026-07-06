@@ -28,10 +28,12 @@ export interface AuthenticatedUser {
   supportSession?: JwtClaims['supportSession'];
   sessionId: string;
   mustChangePassword: boolean;
-  authMethod?: 'jwt' | 'api_key';
+  authMethod?: 'jwt' | 'api_key' | 'platform_api_token';
   apiKeyId?: string;
   apiKeyTenantId?: string;
   apiKeyScopes?: string[];
+  platformApiTokenId?: string;
+  platformApiTokenName?: string;
 }
 
 @Injectable()

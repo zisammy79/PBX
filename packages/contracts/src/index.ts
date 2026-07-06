@@ -24,3 +24,4 @@ export * from './sip-domains.js';
 export * from './entitlements.js';
 export * from './twilio.js';
 export * from './tenant-settings.js';
+export * from './platform-api-tokens.js';

@@ -13,6 +13,7 @@ import { hasAnyPermission, resolveEffectivePermissions } from '@pbx/contracts';
 import { and, eq } from 'drizzle-orm';
 import { auditEvents, tenantSettings, withTenantContext } from '@pbx/database';
 import { DATABASE } from '../../common/tokens.js';
+import { resolveAuditActor } from '../../common/audit-actor.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
 
 const TELEPHONY_RECORDING_KEY = 'telephony.recording';
@@ -60,14 +61,16 @@ export class TenantSettingsService {
       }
 
       const updated = await this.readAllSettings(db, tenantId);
+      const auditActor = resolveAuditActor(actor);
       await db.insert(auditEvents).values({
         tenantId,
-        actorUserId: actor.id,
-        actorType: 'user',
+        actorUserId: auditActor.actorUserId,
+        actorType: auditActor.actorType,
         action: 'tenant.settings.updated',
         resourceType: 'tenant_settings',
         metadata: {
           sections: Object.keys(input),
+          ...auditActor.actorMetadata,
         },
       });
       return updated;
