@@ -32,9 +32,9 @@ async function bootstrap() {
   app.useGlobalInterceptors(new CorrelationInterceptor());
   setupOpenApi(app);
 
-  await app.listen(config.apiPort, '0.0.0.0');
-  console.log(`API listening on http://0.0.0.0:${config.apiPort}/api/v1`);
-  console.log(`OpenAPI docs at http://0.0.0.0:${config.apiPort}/api/v1/openapi`);
+  await app.listen(config.apiPort, config.apiBindHost);
+  console.log(`API listening on http://${config.apiBindHost}:${config.apiPort}/api/v1`);
+  console.log(`OpenAPI docs at http://${config.apiBindHost}:${config.apiPort}/api/v1/openapi`);
 }
 
 bootstrap().catch((err) => {

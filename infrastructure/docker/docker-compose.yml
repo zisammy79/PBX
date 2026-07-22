@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: pbx_dev_password
       POSTGRES_DB: pbx
     ports:
-      - '5433:5432'
+      - '127.0.0.1:5433:5432'
     volumes:
       - pbx_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +22,7 @@ services:
     image: redis:7-alpine
     container_name: pbx-redis
     ports:
-      - '6379:6379'
+      - '127.0.0.1:6379:6379'
     volumes:
       - pbx_redis_data:/data
     healthcheck:
@@ -38,8 +38,8 @@ services:
     container_name: pbx-nats
     command: ['-js', '-m', '8222']
     ports:
-      - '4222:4222'
-      - '8222:8222'
+      - '127.0.0.1:4222:4222'
+      - '127.0.0.1:8222:8222'
     healthcheck:
       test: ['CMD', 'wget', '-q', '--spider', 'http://localhost:8222/healthz']
       interval: 5s
@@ -56,8 +56,8 @@ services:
       MINIO_ROOT_USER: pbx_minio
       MINIO_ROOT_PASSWORD: pbx_minio_secret
     ports:
-      - '9000:9000'
-      - '9001:9001'
+      - '127.0.0.1:9000:9000'
+      - '127.0.0.1:9001:9001'
     volumes:
       - pbx_minio_data:/data
     healthcheck:
