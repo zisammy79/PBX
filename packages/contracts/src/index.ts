@@ -15,6 +15,7 @@ export * from './pstn.js';
 export * from './stripe.js';
 export * from './integrations.js';
 export * from './recordings.js';
+export * from './recording-cloud-export.js';
 export * from './telephony.js';
 export * from './platform-customers.js';
 export * from './tenant-lifecycle.js';

@@ -285,13 +285,15 @@ func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 		return
 	}
 
-	if err := c.client.Channel().Ring(channelKey(channelID)); err != nil {
-		slog.Warn("caller ring indication failed", "error", err, "channel", channelID)
-	}
+	c.startCallerRingback(active)
 
 	active.CalleeEndpointID = available[0]
 	active.PendingCalleeChannelIDs = make([]string, 0, len(available))
 	originated := 0
+	originateCallerID := formatSipCallerID(externalCallerDisplayName(callerNum), callerNum)
+	if fromExt != nil {
+		originateCallerID = formatSipCallerID(fromExt.DisplayName, fromExt.ExtensionNumber)
+	}
 	for _, ep := range available {
 		endpoint := buildPjsipEndpointTarget(ep)
 		if pstnInbound {
@@ -301,7 +303,7 @@ func (c *Controller) onStasisStart(ctx context.Context, ev *ari.StasisStart) {
 			Endpoint:   endpoint,
 			App:        c.cfg.StasisApp,
 			AppArgs:    fmt.Sprintf("join,%s", callID.String()),
-			CallerID:   fmt.Sprintf("\"%s\" <%s>", callerNum, callerNum),
+			CallerID:   originateCallerID,
 			Timeout:    30,
 			Originator: channelID,
 		})
@@ -336,6 +338,7 @@ func (c *Controller) bridgeCallerAndCallee(ctx context.Context, active *calls.Ac
 	if active.CallerChannelID == "" || active.CalleeChannelID == "" {
 		return
 	}
+	c.stopCallerRingback(active)
 	calleeData, err := c.client.Channel().Data(channelKey(active.CalleeChannelID))
 	if err != nil || !strings.EqualFold(calleeData.State, "Up") {
 		return
@@ -417,6 +420,9 @@ func (c *Controller) waitCalleeAnswered(ctx context.Context, callID uuid.UUID, h
 			if data.ID != "" && data.ID != active.CalleeChannelID {
 				active.CalleeChannelID = data.ID
 				c.registry.Put(active)
+			}
+			if strings.EqualFold(data.State, "Ringing") {
+				c.startCallerRingback(active)
 			}
 			if strings.EqualFold(data.State, "Up") {
 				c.cancelOtherCalleeLegs(active, data.ID)
@@ -597,11 +603,17 @@ func (c *Controller) onChannelEnteredBridge(ctx context.Context, ev *ari.Channel
 }
 
 func (c *Controller) onChannelStateChange(ctx context.Context, ev *ari.ChannelStateChange) {
-	if ev.Channel.ID == "" || !strings.EqualFold(ev.Channel.State, "Up") {
+	if ev.Channel.ID == "" {
 		return
 	}
 	active, ok := c.registry.ByChannel(ev.Channel.ID)
 	if !ok || active == nil {
+		return
+	}
+	if isCalleeLeg(active, ev.Channel.ID) && strings.EqualFold(ev.Channel.State, "Ringing") {
+		c.startCallerRingback(active)
+	}
+	if !strings.EqualFold(ev.Channel.State, "Up") {
 		return
 	}
 	if active.TransferInProgress && active.AiSessionID != uuid.Nil && ev.Channel.ID == active.CalleeChannelID {
@@ -650,6 +662,7 @@ func (c *Controller) finalizeCall(ctx context.Context, active *calls.ActiveCall,
 	if !active.MarkEvent("finalized") {
 		return
 	}
+	c.stopCallerRingback(active)
 	if state == calls.StateComplete && (active.CalleeChannelID != "" || active.HadCalleeLeg) && active.State == calls.StateBridged {
 		c.ensureAnsweredAndBridged(ctx, active)
 	}

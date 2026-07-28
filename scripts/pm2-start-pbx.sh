@@ -23,6 +23,7 @@ cd "$ROOT"
 # Host Caddy reverse-proxies 127.0.0.1 only; never bind API/Web on all interfaces in production.
 export API_BIND_HOST="${API_BIND_HOST:-127.0.0.1}"
 export HOSTNAME="${WEB_BIND_HOST:-127.0.0.1}"
+export BACKEND_API_URL="${BACKEND_API_URL:-http://127.0.0.1:${API_PORT:-3001}}"
 
 start_one() {
   local name="$1"

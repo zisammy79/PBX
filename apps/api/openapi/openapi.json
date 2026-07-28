@@ -311,6 +311,32 @@
         ]
       }
     },
+    "/api/v1/tenants/{tenantId}/settings": {
+      "get": {
+        "operationId": "TenantsController_getSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tenants"
+        ]
+      },
+      "patch": {
+        "operationId": "TenantsController_updateSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tenants"
+        ]
+      }
+    },
     "/api/v1/tenants/{tenantId}/entitlements": {
       "get": {
         "operationId": "TenantsController_entitlements",
@@ -2530,6 +2556,224 @@
         },
         "tags": [
           "TwilioOrders"
+        ]
+      }
+    },
+    "/api/v1/platform/cloud-storage/connections": {
+      "get": {
+        "operationId": "PlatformCloudStorageController_listConnections",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformCloudStorage"
+        ]
+      }
+    },
+    "/api/v1/platform/cloud-storage/oauth/status": {
+      "get": {
+        "operationId": "PlatformCloudStorageController_oauthStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformCloudStorage"
+        ]
+      }
+    },
+    "/api/v1/platform/cloud-storage/oauth/{provider}/start": {
+      "get": {
+        "operationId": "PlatformCloudStorageController_startOAuth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformCloudStorage"
+        ]
+      }
+    },
+    "/api/v1/platform/cloud-storage/oauth/{provider}/callback": {
+      "get": {
+        "operationId": "PlatformCloudStorageController_oauthCallback",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformCloudStorage"
+        ]
+      }
+    },
+    "/api/v1/platform/cloud-storage/connections/{connectionId}/assign/{tenantId}": {
+      "post": {
+        "operationId": "PlatformCloudStorageController_assign",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformCloudStorage"
+        ]
+      },
+      "delete": {
+        "operationId": "PlatformCloudStorageController_unassign",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformCloudStorage"
+        ]
+      }
+    },
+    "/api/v1/platform/cloud-storage/connections/{connectionId}/assignments": {
+      "get": {
+        "operationId": "PlatformCloudStorageController_listAssignments",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformCloudStorage"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/cloud-storage/connections": {
+      "get": {
+        "operationId": "TenantCloudStorageController_listConnections",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TenantCloudStorage"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/cloud-storage/export-settings": {
+      "get": {
+        "operationId": "TenantCloudStorageController_getExportSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TenantCloudStorage"
+        ]
+      },
+      "patch": {
+        "operationId": "TenantCloudStorageController_updateExportSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TenantCloudStorage"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/cloud-storage/oauth/status": {
+      "get": {
+        "operationId": "TenantCloudStorageController_oauthStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TenantCloudStorage"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/cloud-storage/oauth/{provider}/start": {
+      "get": {
+        "operationId": "TenantCloudStorageController_startOAuth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TenantCloudStorage"
+        ]
+      }
+    },
+    "/api/v1/platform/api-tokens": {
+      "get": {
+        "operationId": "PlatformApiTokensController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformApiTokens"
+        ]
+      },
+      "post": {
+        "operationId": "PlatformApiTokensController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformApiTokens"
+        ]
+      }
+    },
+    "/api/v1/platform/api-tokens/{id}/rotate": {
+      "post": {
+        "operationId": "PlatformApiTokensController_rotate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformApiTokens"
+        ]
+      }
+    },
+    "/api/v1/platform/api-tokens/{id}/revoke": {
+      "post": {
+        "operationId": "PlatformApiTokensController_revoke",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformApiTokens"
         ]
       }
     }

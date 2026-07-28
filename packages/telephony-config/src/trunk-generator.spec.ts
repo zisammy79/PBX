@@ -91,6 +91,8 @@ describe('trunk generator', () => {
     expect(cfg.pjsipTrunks).toContain('from_user=+97233820386');
     expect(cfg.pjsipTrunks).toContain('send_pai=yes');
     expect(cfg.pjsipTrunks).toContain('trust_id_outbound=yes');
+    expect(cfg.pjsipTrunks).toContain('trust_id_inbound=yes');
+    expect(cfg.pjsipTrunks).toContain('callerid="Carrier A" <+97233820386>');
   });
 
   it('generates inbound PSTN dialplan for E.164 DID', () => {

@@ -49,6 +49,10 @@ const ConfigSchema = z.object({
   twilioNumberAssignmentMode: z.enum(['manual', 'auto', 'manual_or_auto']).default('manual_or_auto'),
   twilioSipUsername: z.string().min(1).optional(),
   twilioSipPassword: z.string().min(1).optional(),
+  googleDriveClientId: z.string().min(1).optional(),
+  googleDriveClientSecret: z.string().min(1).optional(),
+  microsoftOneDriveClientId: z.string().min(1).optional(),
+  microsoftOneDriveClientSecret: z.string().min(1).optional(),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
@@ -104,6 +108,10 @@ export function loadConfig(): AppConfig {
     twilioNumberAssignmentMode: process.env.TWILIO_NUMBER_ASSIGNMENT_MODE,
     twilioSipUsername: process.env.TWILIO_SIP_USERNAME,
     twilioSipPassword: process.env.TWILIO_SIP_PASSWORD,
+    googleDriveClientId: process.env.GOOGLE_DRIVE_CLIENT_ID,
+    googleDriveClientSecret: process.env.GOOGLE_DRIVE_CLIENT_SECRET,
+    microsoftOneDriveClientId: process.env.MICROSOFT_ONEDRIVE_CLIENT_ID,
+    microsoftOneDriveClientSecret: process.env.MICROSOFT_ONEDRIVE_CLIENT_SECRET,
   });
 
   if (!result.success) {

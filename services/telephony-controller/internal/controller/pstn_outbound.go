@@ -53,11 +53,17 @@ func (c *Controller) onPstnOutboundStart(ctx context.Context, channelID, tenantS
 		return
 	}
 
-	route, err := c.repo.LookupDefaultOutboundRoute(ctx, fromExt.TenantID)
+	route, err := c.repo.LookupOutboundRouteForDestination(ctx, fromExt.TenantID, destE164)
 	if err != nil {
 		slog.Error("outbound route lookup failed", "tenant", tenantSlug, "error", err)
 		c.hangup(channelID)
 		return
+	}
+
+	callerIDNumber := route.CallerID
+	callerIDName := fromExt.DisplayName
+	if strings.TrimSpace(callerIDName) == "" {
+		callerIDName = fromExt.ExtensionNumber
 	}
 
 	callID := uuid.New()
@@ -123,19 +129,10 @@ func (c *Controller) onPstnOutboundStart(ctx context.Context, channelID, tenantS
 		"caller_id", route.CallerID,
 	)
 
-	if callerData, dataErr := c.client.Channel().Data(channelKey(channelID)); dataErr == nil {
-		if !strings.EqualFold(callerData.State, "Up") {
-			if answerErr := c.client.Channel().Answer(channelKey(channelID)); answerErr != nil {
-				slog.Error("outbound answer caller failed", "error", answerErr, "callId", callID.String())
-				c.finalizeCall(ctx, active, calls.StateFailed, "answer_failed")
-				c.hangup(channelID)
-				return
-			}
-		}
-	}
+	c.startCallerRingback(active)
 
 	trunkTarget := buildPjsipTrunkDialTarget(destE164, route.TrunkAsteriskID)
-	callerID := fmt.Sprintf("\"PBX Outbound\" <%s>", route.CallerID)
+	callerID := formatSipCallerID(callerIDName, callerIDNumber)
 	calleeHandle, origErr := c.client.Channel().Originate(channelKey(channelID), ari.OriginateRequest{
 		Endpoint:   trunkTarget,
 		App:        c.cfg.StasisApp,

@@ -38,6 +38,7 @@ type ExtensionInfo struct {
 	TenantID           uuid.UUID
 	TenantSlug         string
 	ExtensionNumber    string
+	DisplayName        string
 	AsteriskEndpointID string
 }
 
@@ -83,11 +84,11 @@ func (r *Repository) LookupExtensionByEndpoint(ctx context.Context, endpointID s
 	var ext ExtensionInfo
 	err := r.withBypass(ctx, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
-			SELECT e.id, e.tenant_id, t.slug, e.extension_number, e.asterisk_endpoint_id
+			SELECT e.id, e.tenant_id, t.slug, e.extension_number, e.display_name, e.asterisk_endpoint_id
 			FROM extensions e
 			JOIN tenants t ON t.id = e.tenant_id
 			WHERE e.asterisk_endpoint_id = $1 AND e.status = 'active' AND t.status = 'active'
-		`, endpointID).Scan(&ext.ID, &ext.TenantID, &ext.TenantSlug, &ext.ExtensionNumber, &ext.AsteriskEndpointID)
+		`, endpointID).Scan(&ext.ID, &ext.TenantID, &ext.TenantSlug, &ext.ExtensionNumber, &ext.DisplayName, &ext.AsteriskEndpointID)
 	})
 	if err != nil {
 		return nil, err
@@ -99,11 +100,11 @@ func (r *Repository) LookupExtensionByTenantNumber(ctx context.Context, tenantSl
 	var ext ExtensionInfo
 	err := r.withBypass(ctx, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
-			SELECT e.id, e.tenant_id, t.slug, e.extension_number, e.asterisk_endpoint_id
+			SELECT e.id, e.tenant_id, t.slug, e.extension_number, e.display_name, e.asterisk_endpoint_id
 			FROM extensions e
 			JOIN tenants t ON t.id = e.tenant_id
 			WHERE t.slug = $1 AND e.extension_number = $2 AND e.status = 'active' AND t.status = 'active'
-		`, tenantSlug, number).Scan(&ext.ID, &ext.TenantID, &ext.TenantSlug, &ext.ExtensionNumber, &ext.AsteriskEndpointID)
+		`, tenantSlug, number).Scan(&ext.ID, &ext.TenantID, &ext.TenantSlug, &ext.ExtensionNumber, &ext.DisplayName, &ext.AsteriskEndpointID)
 	})
 	if err != nil {
 		return nil, err

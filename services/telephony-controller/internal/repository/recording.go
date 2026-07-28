@@ -61,6 +61,19 @@ type CallRecordingRow struct {
 	StorageKey string
 }
 
+func (r *Repository) GetCallCorrelationID(ctx context.Context, callID uuid.UUID) (uuid.UUID, error) {
+	var correlationID uuid.UUID
+	err := r.withBypass(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT correlation_id FROM calls WHERE id = $1
+		`, callID).Scan(&correlationID)
+	})
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return correlationID, nil
+}
+
 func (r *Repository) GetCallRecordingByCallID(ctx context.Context, callID uuid.UUID) (*CallRecordingRow, error) {
 	var row CallRecordingRow
 	err := r.withBypass(ctx, func(tx pgx.Tx) error {

@@ -2,15 +2,16 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import {
-  canManageBilling,
-  canReadBilling,
-  hasPermission,
+  canManageBillingForTenant,
+  canReadBillingForTenant,
+  hasPermissionForTenant,
   isPlatformAdmin,
 } from '@/lib/permissions';
 import { Permission } from '@pbx/contracts';
+import { api } from '@/lib/api-client';
 
 type NavItem = { href: string; label: string; show?: boolean };
 
@@ -27,13 +28,27 @@ export function AppShell({
   const { user, logout, activeTenantId, setActiveTenantId } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const tid = tenantId ?? activeTenantId ?? undefined;
+  const [tenantLabel, setTenantLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (mode !== 'tenant' || !tid) {
+      setTenantLabel(null);
+      return;
+    }
+    void api
+      .get<{ name: string; slug: string }>(`tenants/${tid}`, tid)
+      .then((row) => setTenantLabel(row.name || row.slug))
+      .catch(() => setTenantLabel(null));
+  }, [mode, tid]);
+
+  const can = (permission: Permission) => hasPermissionForTenant(user, permission, tid);
 
   const tenantNav: NavItem[] = [
     { href: `/t/${tid}/dashboard`, label: 'Dashboard', show: !!tid },
     {
       href: `/t/${tid}/users`,
       label: 'Users',
-      show: !!tid && hasPermission(user, Permission.TENANT_USER_MANAGE),
+      show: !!tid && can(Permission.TENANT_USER_MANAGE),
     },
     { href: `/t/${tid}/extensions`, label: 'Extensions', show: !!tid },
     { href: `/t/${tid}/calls`, label: 'Calls', show: !!tid },
@@ -41,52 +56,57 @@ export function AppShell({
     {
       href: `/t/${tid}/ai/providers`,
       label: 'AI Providers',
-      show: !!tid && hasPermission(user, Permission.AI_PROVIDER_CONNECTIONS_READ),
+      show: !!tid && can(Permission.AI_PROVIDER_CONNECTIONS_READ),
     },
     {
       href: `/t/${tid}/ai/agents`,
       label: 'AI Agents',
-      show: !!tid && hasPermission(user, Permission.AI_AGENTS_READ),
+      show: !!tid && can(Permission.AI_AGENTS_READ),
     },
     {
       href: `/t/${tid}/ai/sessions`,
       label: 'AI Sessions',
-      show: !!tid && hasPermission(user, Permission.AI_SESSIONS_READ),
+      show: !!tid && can(Permission.AI_SESSIONS_READ),
     },
     {
       href: `/t/${tid}/ai/tools`,
       label: 'AI Tools',
-      show: !!tid && hasPermission(user, Permission.AI_AGENTS_MANAGE),
+      show: !!tid && can(Permission.AI_AGENTS_MANAGE),
     },
     {
       href: `/t/${tid}/entitlements`,
       label: 'Entitlements',
-      show: !!tid && hasPermission(user, Permission.TENANT_USAGE_READ),
+      show: !!tid && can(Permission.TENANT_USAGE_READ),
     },
     {
       href: `/t/${tid}/billing/invoices`,
       label: 'Invoices',
-      show: !!tid && canReadBilling(user),
+      show: !!tid && canReadBillingForTenant(user, tid),
     },
     {
       href: `/t/${tid}/billing/plan`,
       label: 'Plan',
-      show: !!tid && canReadBilling(user),
+      show: !!tid && canReadBillingForTenant(user, tid),
     },
     {
       href: `/t/${tid}/billing/credits`,
       label: 'Credits',
-      show: !!tid && canManageBilling(user),
+      show: !!tid && canManageBillingForTenant(user, tid),
     },
     {
       href: `/t/${tid}/settings/telephony`,
-      label: 'Settings',
-      show: !!tid && hasPermission(user, Permission.TENANT_UPDATE),
+      label: 'Telephony',
+      show: !!tid && can(Permission.TENANT_UPDATE),
+    },
+    {
+      href: `/t/${tid}/settings/cloud-storage`,
+      label: 'Cloud backup',
+      show: !!tid && can(Permission.TENANT_UPDATE),
     },
     {
       href: `/t/${tid}/developers/webhooks`,
       label: 'Webhooks',
-      show: !!tid && hasPermission(user, Permission.TENANT_WEBHOOK_MANAGE),
+      show: !!tid && can(Permission.TENANT_WEBHOOK_MANAGE),
     },
   ];
 
@@ -97,8 +117,6 @@ export function AppShell({
     { href: '/platform/billing/prices', label: 'Prices', show: isPlatformAdmin(user) },
     { href: '/platform/health', label: 'Health', show: isPlatformAdmin(user) },
     { href: '/platform/integrations', label: 'Integrations', show: isPlatformAdmin(user) },
-    { href: '/platform/telephony/twilio', label: 'Twilio SIP', show: isPlatformAdmin(user) },
-    { href: '/platform/telephony/phone-numbers', label: 'Phone Numbers', show: isPlatformAdmin(user) },
   ];
 
   const nav = mode === 'platform' ? platformNav : tenantNav;
@@ -117,7 +135,14 @@ export function AppShell({
           flexShrink: 0,
         }}
       >
-        <div style={{ padding: '0 0.75rem 1rem', fontWeight: 700 }}>PBX Platform</div>
+        <div style={{ padding: '0 0.75rem 1rem', fontWeight: 700 }}>
+          {mode === 'tenant' ? tenantLabel ?? 'Your organization' : 'PBX Platform'}
+        </div>
+        {mode === 'tenant' && tenantLabel ? (
+          <p className="muted" style={{ padding: '0 0.75rem 0.75rem', margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>
+            Tenant workspace
+          </p>
+        ) : null}
         <button
           type="button"
           className="btn btn-secondary sidebar-toggle"

@@ -106,12 +106,14 @@ function appendTwilioTerminationEndpointOptions(
     return;
   }
   assertE164(callerId);
+  const callerLabel = trunk.name.trim() || trunk.tenantSlug;
   endpointTail.push(
     `from_domain=${trunk.registrar}`,
     `from_user=${callerId}`,
     'send_pai=yes',
     'trust_id_outbound=yes',
-    `callerid="PBX Outbound" <${callerId}>`,
+    'trust_id_inbound=yes',
+    `callerid="${callerLabel}" <${callerId}>`,
   );
 }
 

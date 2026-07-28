@@ -11,6 +11,7 @@ import {
 } from '@pbx/database/schema/api';
 import { eq } from 'drizzle-orm';
 import { processPendingDeliveries } from './webhook-deliverer.js';
+import { handleRecordingReady, retryFailedCloudExports } from './recording-cloud-export.js';
 
 const sc = StringCodec();
 
@@ -26,10 +27,15 @@ function loadConfig() {
     encryptionMasterKey,
     natsUrl,
     pollIntervalMs: Number(process.env.WORKER_POLL_INTERVAL_MS ?? 5000),
+    callRecordingLocalRoot: process.env.CALL_RECORDING_LOCAL_ROOT ?? '/var/lib/pbx/recordings',
+    googleDriveClientId: process.env.GOOGLE_DRIVE_CLIENT_ID,
+    googleDriveClientSecret: process.env.GOOGLE_DRIVE_CLIENT_SECRET,
+    microsoftOneDriveClientId: process.env.MICROSOFT_ONEDRIVE_CLIENT_ID,
+    microsoftOneDriveClientSecret: process.env.MICROSOFT_ONEDRIVE_CLIENT_SECRET,
   };
 }
 
-async function handleCallEvent(raw: string, db: ReturnType<typeof createDatabase>['db']) {
+async function handleCallEvent(raw: string, db: ReturnType<typeof createDatabase>['db'], workerConfig: ReturnType<typeof loadConfig>) {
   const parsed = JSON.parse(raw) as {
     tenantId: string;
     callId: string;
@@ -38,6 +44,15 @@ async function handleCallEvent(raw: string, db: ReturnType<typeof createDatabase
     occurredAt: string;
     payload: Record<string, unknown>;
   };
+
+  if (parsed.eventType === 'RECORDING_READY') {
+    try {
+      await handleRecordingReady(parsed, db, workerConfig);
+    } catch (err) {
+      console.error('Recording cloud export failed:', err);
+    }
+    return;
+  }
 
   const mapped = TELEPHONY_EVENT_MAP[parsed.eventType];
   if (!mapped) return;
@@ -96,7 +111,7 @@ async function handleCallEvent(raw: string, db: ReturnType<typeof createDatabase
 
 async function main() {
   const config = loadConfig();
-  console.log('PBX worker starting — webhook delivery + NATS call events');
+  console.log('PBX worker starting — webhook delivery + NATS call events + recording cloud export');
 
   const database = createDatabase({
     url: config.databaseUrl,
@@ -117,7 +132,7 @@ async function main() {
   void (async () => {
     for await (const msg of sub) {
       try {
-        await handleCallEvent(sc.decode(msg.data), db);
+        await handleCallEvent(sc.decode(msg.data), db, config);
       } catch (err) {
         console.error('Failed to process call event:', err);
       }
@@ -130,8 +145,12 @@ async function main() {
       if (count > 0) {
         console.log(`Processed webhook delivery batch (${count} candidates)`);
       }
+      const retryCount = await retryFailedCloudExports(db, config, 5);
+      if (retryCount > 0) {
+        console.log(`Retried recording cloud exports (${retryCount})`);
+      }
     } catch (err) {
-      console.error('Webhook delivery tick failed:', err);
+      console.error('Worker tick failed:', err);
     }
   };
 

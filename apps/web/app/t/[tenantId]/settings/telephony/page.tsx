@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api-client';
@@ -102,6 +103,9 @@ export default function TelephonySettingsPage() {
         <button type="button" className="btn btn-primary" disabled={saving} onClick={() => void save()}>
           Save settings
         </button>
+        <p className="muted" style={{ marginTop: '0.75rem' }}>
+          <Link href={`/t/${tenantId}/settings/cloud-storage`}>Cloud recording backup</Link> — save recordings to Google Drive or OneDrive
+        </p>
       </section>
       <section className="card">
         <h2>SIP domain</h2>

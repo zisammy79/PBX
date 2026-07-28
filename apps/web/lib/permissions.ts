@@ -1,14 +1,43 @@
-import { Permission, resolvePermissionsForRoles } from '@pbx/contracts';
+import {
+  Permission,
+  resolveEffectivePermissions,
+  type PlatformRole,
+  type TenantRole,
+} from '@pbx/contracts';
 import type { SessionUser } from './api-client';
 
-export function userPermissions(user: SessionUser | null): Set<Permission> {
+export function userPermissionsForTenant(
+  user: SessionUser | null,
+  tenantId?: string | null,
+): Set<Permission> {
   if (!user) return new Set();
-  const tenantRoles = user.tenantMemberships.flatMap((m) => m.roles);
-  return new Set(resolvePermissionsForRoles(user.platformRoles as never[], tenantRoles as never[]));
+  const tenantRoles = tenantId
+    ? (user.tenantMemberships.find((m) => m.tenantId === tenantId)?.roles ?? [])
+    : user.tenantMemberships.flatMap((m) => m.roles);
+  return new Set(
+    resolveEffectivePermissions(
+      user.platformRoles as PlatformRole[],
+      tenantRoles as TenantRole[],
+      tenantId ?? undefined,
+    ),
+  );
+}
+
+/** @deprecated Prefer userPermissionsForTenant with an active tenant id. */
+export function userPermissions(user: SessionUser | null): Set<Permission> {
+  return userPermissionsForTenant(user, null);
+}
+
+export function hasPermissionForTenant(
+  user: SessionUser | null,
+  permission: Permission,
+  tenantId?: string | null,
+): boolean {
+  return userPermissionsForTenant(user, tenantId).has(permission);
 }
 
 export function hasPermission(user: SessionUser | null, permission: Permission): boolean {
-  return userPermissions(user).has(permission);
+  return hasPermissionForTenant(user, permission, null);
 }
 
 export function isPlatformAdmin(user: SessionUser | null): boolean {
@@ -22,13 +51,21 @@ export function canAccessTenant(user: SessionUser | null, tenantId: string): boo
   return user.tenantMemberships.some((m) => m.tenantId === tenantId);
 }
 
+export function canManageBillingForTenant(user: SessionUser | null, tenantId?: string | null): boolean {
+  return hasPermissionForTenant(user, Permission.TENANT_BILLING_MANAGE, tenantId);
+}
+
+export function canReadBillingForTenant(user: SessionUser | null, tenantId?: string | null): boolean {
+  return (
+    hasPermissionForTenant(user, Permission.TENANT_BILLING_READ, tenantId) ||
+    hasPermissionForTenant(user, Permission.PLATFORM_BILLING_READ, tenantId)
+  );
+}
+
 export function canManageBilling(user: SessionUser | null): boolean {
-  return hasPermission(user, Permission.TENANT_BILLING_MANAGE);
+  return canManageBillingForTenant(user, null);
 }
 
 export function canReadBilling(user: SessionUser | null): boolean {
-  return (
-    hasPermission(user, Permission.TENANT_BILLING_READ) ||
-    hasPermission(user, Permission.PLATFORM_BILLING_READ)
-  );
+  return canReadBillingForTenant(user, null);
 }

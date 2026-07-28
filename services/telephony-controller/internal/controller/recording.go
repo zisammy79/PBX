@@ -286,7 +286,16 @@ func (c *Controller) completeRecordingFile(
 		"recordingId": recordingID.String(),
 		"durationMs":  durationMs,
 		"sizeBytes":   finalInfo.Size(),
+		"storageKey":  storageKey,
 	})
+	if correlationID, corrErr := c.repo.GetCallCorrelationID(dbCtx, callID); corrErr == nil {
+		_ = c.bus.PublishCallEvent(dbCtx, tenantID, callID, correlationID, "RECORDING_READY", map[string]any{
+			"recordingId": recordingID.String(),
+			"durationMs":  durationMs,
+			"sizeBytes":   finalInfo.Size(),
+			"storageKey":  storageKey,
+		})
+	}
 }
 
 func ensureRecordingDirsTraversable(root, finalPath string) {

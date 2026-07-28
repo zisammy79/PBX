@@ -4,6 +4,7 @@ export const IntegrationTypeSchema = z.enum([
   'ai',
   'sip_carrier',
   'stripe',
+  'cloud_storage',
   'email',
   'sms',
   'object_storage',

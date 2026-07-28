@@ -59,6 +59,7 @@ type ActiveCall struct {
 	LiveRecordingName     string
 	RecordingStarted      bool
 	RecordingStartedAt    time.Time
+	RingbackPlaybackID    string
 }
 
 type Registry struct {
