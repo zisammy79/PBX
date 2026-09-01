@@ -1,13 +1,21 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { notFound, tenantAccessDenied } from '@pbx/contracts';
-import { PaginationQuery, paginate } from '@pbx/contracts';
-import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
-import { calls, extensions, sipRegistrations, withTenantContext } from '@pbx/database';
+import { CallListQuery, notFound, paginate, tenantAccessDenied } from '@pbx/contracts';
+import { and, count, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
+import {
+  callRecordings,
+  calls,
+  extensions,
+  sipRegistrations,
+  withTenantContext,
+  type createDatabase,
+} from '@pbx/database';
 import { CONFIG, DATABASE } from '../../common/tokens.js';
 import type { AppConfig } from '../../config.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
 
 const ACTIVE_STATUSES = ['initiating', 'ringing', 'answered', 'held'] as const;
+
+type AppDb = ReturnType<typeof createDatabase>['db'];
 
 @Injectable()
 export class CallsService {
@@ -16,27 +24,27 @@ export class CallsService {
     @Inject(DATABASE) private readonly database: ReturnType<typeof import('@pbx/database').createDatabase>,
   ) {}
 
-  async listCalls(actor: AuthenticatedUser, tenantId: string, query: PaginationQuery) {
+  async listCalls(actor: AuthenticatedUser, tenantId: string, query: CallListQuery) {
     await this.assertTenantAccess(actor, tenantId);
     const offset = (query.page - 1) * query.pageSize;
+    const filters = this.buildListFilters(tenantId, query);
 
     return withTenantContext(this.database.db, tenantId, async (db) => {
-      const countRow = await db
-        .select({ total: count() })
-        .from(calls)
-        .where(eq(calls.tenantId, tenantId));
+      const countRow = await db.select({ total: count() }).from(calls).where(filters);
       const total = Number(countRow[0]?.total ?? 0);
 
       const rows = await db
         .select()
         .from(calls)
-        .where(eq(calls.tenantId, tenantId))
+        .where(filters)
         .orderBy(desc(calls.startedAt))
         .limit(query.pageSize)
         .offset(offset);
 
+      const recordingMap = await this.loadRecordingIdsForCalls(tenantId, rows.map((r) => r.id), db);
+
       return paginate(
-        rows.map((r) => this.serializeCall(r)),
+        rows.map((r) => this.serializeCall(r, recordingMap.get(r.id))),
         query.page,
         query.pageSize,
         total,
@@ -53,7 +61,8 @@ export class CallsService {
         .where(and(eq(calls.tenantId, tenantId), eq(calls.id, callId)))
         .limit(1);
       if (!row) throw notFound('Call');
-      return this.serializeCall(row);
+      const recordingMap = await this.loadRecordingIdsForCalls(tenantId, [row.id], db);
+      return this.serializeCall(row, recordingMap.get(row.id));
     });
   }
 
@@ -72,6 +81,71 @@ export class CallsService {
         )
         .orderBy(desc(calls.startedAt));
       return rows.map((r) => this.serializeCall(r));
+    });
+  }
+
+  async getOperatorPanel(actor: AuthenticatedUser, tenantId: string) {
+    await this.assertTenantAccess(actor, tenantId);
+    const observedAt = new Date().toISOString();
+
+    return withTenantContext(this.database.db, tenantId, async (db) => {
+      const extRows = await db
+        .select({
+          id: extensions.id,
+          extensionNumber: extensions.extensionNumber,
+          displayName: extensions.displayName,
+        })
+        .from(extensions)
+        .where(eq(extensions.tenantId, tenantId));
+
+      const extById = new Map(extRows.map((e) => [e.id, e]));
+
+      const activeRows = await db
+        .select()
+        .from(calls)
+        .where(
+          and(
+            eq(calls.tenantId, tenantId),
+            inArray(calls.status, [...ACTIVE_STATUSES]),
+            isNull(calls.endedAt),
+          ),
+        )
+        .orderBy(desc(calls.startedAt));
+
+      const activeCalls = activeRows.map((row) => {
+        const fromExt = row.fromExtensionId ? extById.get(row.fromExtensionId) : null;
+        const toExt = row.toExtensionId ? extById.get(row.toExtensionId) : null;
+        return {
+          ...this.serializeCall(row),
+          fromExtensionNumber: fromExt?.extensionNumber ?? null,
+          fromExtensionName: fromExt?.displayName ?? null,
+          toExtensionNumber: toExt?.extensionNumber ?? null,
+          toExtensionName: toExt?.displayName ?? null,
+        };
+      });
+
+      const regRows = await db
+        .select({ extensionId: sipRegistrations.extensionId })
+        .from(sipRegistrations)
+        .where(and(eq(sipRegistrations.tenantId, tenantId), eq(sipRegistrations.isRegistered, true)));
+
+      const registeredIds = new Set(regRows.map((r) => r.extensionId));
+
+      return {
+        observedAt,
+        extensions: {
+          total: extRows.length,
+          registered: extRows.filter((e) => registeredIds.has(e.id)).length,
+          unregistered: extRows.filter((e) => !registeredIds.has(e.id)).length,
+          items: extRows.map((e) => ({
+            id: e.id,
+            extensionNumber: e.extensionNumber,
+            displayName: e.displayName,
+            registered: registeredIds.has(e.id),
+          })),
+        },
+        activeCalls,
+      };
     });
   }
 
@@ -112,6 +186,61 @@ export class CallsService {
     });
   }
 
+  private buildListFilters(tenantId: string, query: CallListQuery) {
+    const clauses = [eq(calls.tenantId, tenantId)];
+
+    if (query.direction) {
+      clauses.push(eq(calls.direction, query.direction));
+    }
+    if (query.status) {
+      clauses.push(eq(calls.status, query.status as typeof calls.$inferSelect.status));
+    }
+    if (query.from) {
+      clauses.push(gte(calls.startedAt, new Date(query.from)));
+    }
+    if (query.to) {
+      clauses.push(lte(calls.startedAt, new Date(query.to)));
+    }
+    if (query.callerNumber) {
+      const needle = `%${query.callerNumber}%`;
+      clauses.push(sql`${calls.callerNumber} ilike ${needle}`);
+    }
+    if (query.calleeNumber) {
+      const needle = `%${query.calleeNumber}%`;
+      clauses.push(sql`${calls.calleeNumber} ilike ${needle}`);
+    }
+
+    return and(...clauses);
+  }
+
+  private async loadRecordingIdsForCalls(
+    tenantId: string,
+    callIds: string[],
+    db: Pick<AppDb, 'select'>,
+  ): Promise<Map<string, string>> {
+    if (callIds.length === 0) return new Map();
+
+    const rows = await db
+      .select({ callId: callRecordings.callId, id: callRecordings.id })
+      .from(callRecordings)
+      .where(
+        and(
+          eq(callRecordings.tenantId, tenantId),
+          inArray(callRecordings.callId, callIds),
+          eq(callRecordings.status, 'available'),
+        ),
+      )
+      .orderBy(desc(callRecordings.completedAt));
+
+    const map = new Map<string, string>();
+    for (const row of rows) {
+      if (!map.has(row.callId)) {
+        map.set(row.callId, row.id);
+      }
+    }
+    return map;
+  }
+
   private async fetchAriEndpointState(endpointId: string): Promise<string | undefined> {
     try {
       const base = this.config.asteriskAriUrl!.replace(/\/$/, '');
@@ -129,7 +258,10 @@ export class CallsService {
     }
   }
 
-  private serializeCall(row: typeof calls.$inferSelect) {
+  private serializeCall(
+    row: typeof calls.$inferSelect,
+    recordingId?: string | null,
+  ) {
     return {
       id: row.id,
       tenantId: row.tenantId,
@@ -148,6 +280,7 @@ export class CallsService {
       durationSeconds: row.durationSeconds,
       billableSeconds: row.billableSeconds,
       hangupCause: row.hangupCause,
+      recordingId: recordingId ?? null,
     };
   }
 

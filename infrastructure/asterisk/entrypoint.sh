@@ -81,6 +81,15 @@ chown asterisk:asterisk /var/spool/asterisk/recording /var/log/asterisk/cdr-csv 
 chmod 2775 /var/spool/asterisk/recording 2>/dev/null || true
 chmod 0750 /var/log/asterisk/cdr-csv 2>/dev/null || true
 
+# Prevent unbounded messages log growth if a volume persists across restarts.
+if [ -f /var/log/asterisk/messages ]; then
+  size="$(wc -c < /var/log/asterisk/messages 2>/dev/null || echo 0)"
+  if [ "$size" -gt 524288000 ]; then
+  echo "truncating oversized asterisk messages log (${size} bytes)" >&2
+  : > /var/log/asterisk/messages
+  fi
+fi
+
 # Ensure include placeholders exist before Asterisk starts
 for f in pjsip-tenants.conf extensions-tenants.conf asterisk-overrides.conf; do
   if [ ! -f "${PBX_GEN}/active/${f}" ]; then

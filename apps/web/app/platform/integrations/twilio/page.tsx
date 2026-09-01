@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api-client';
 import { ErrorAlert, LoadingBlock, PageHeader } from '@/components/app-shell';
@@ -75,12 +74,9 @@ export default function PlatformTwilioPage() {
 
   return (
     <>
-      <p className="muted" style={{ marginBottom: '0.75rem' }}>
-        <Link href="/platform/integrations">← Integrations</Link>
-      </p>
       <PageHeader
-        title="Twilio Elastic SIP Trunk"
-        description="Platform Administration → Twilio Production trunk, test DID assignment, and Israeli number provisioning."
+        title="Twilio Elastic SIP"
+        description="Trunk sync, test DID assignment, and Israeli number provisioning."
       />
       {error ? <ErrorAlert message={error} /> : null}
       {message ? <div className="alert alert-success">{message}</div> : null}

@@ -105,8 +105,8 @@ export default function TenantCloudStoragePage() {
   return (
     <>
       <PageHeader
-        title="Your cloud backup"
-        description="Connect your organization's Google Drive or Microsoft OneDrive. Every call recording is saved to your own account — not shared with other tenants."
+        title="Cloud backup"
+        description="Save call recordings to your organization's Google Drive or OneDrive."
       />
       {error ? <ErrorAlert message={error} /> : null}
       {message ? <div className="alert alert-success">{message}</div> : null}
@@ -116,11 +116,10 @@ export default function TenantCloudStoragePage() {
           and Microsoft (one-time server setup). Then each tenant can connect their own account here.
         </div>
       ) : null}
-      <section className="card" style={{ marginBottom: '1rem' }}>
-        <h2>Step 1 — Connect your account</h2>
-        <p className="muted">
-          Sign in with the Google or Microsoft account where recordings should be stored. Only your tenant uses these
-          credentials; other organizations cannot access your files.
+      <section className="card section-card">
+        <h2>Connect account</h2>
+        <p className="muted" style={{ marginBottom: '1rem' }}>
+          Sign in with the account where recordings should be stored. Only your organization uses these credentials.
         </p>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
           <button type="button" className="btn btn-primary" onClick={() => void connectCloud('google_drive')}>
@@ -143,11 +142,10 @@ export default function TenantCloudStoragePage() {
           <p className="muted">No personal cloud account connected yet.</p>
         )}
       </section>
-      <section className="card" style={{ marginBottom: '1rem' }}>
-        <h2>Step 2 — Automatic backup</h2>
-        <p className="muted">
-          When enabled, each completed call recording is uploaded to the connected account under a folder you choose
-          (default: <code>Call Recordings</code> in your drive).
+      <section className="card section-card">
+        <h2>Automatic backup</h2>
+        <p className="muted" style={{ marginBottom: '1rem' }}>
+          Upload each completed recording to your drive (default folder: <code>Call Recordings</code>).
         </p>
         <label className="field" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           <input
@@ -212,9 +210,6 @@ export default function TenantCloudStoragePage() {
           Save settings
         </button>
       </section>
-      <p className="muted">
-        <Link href={`/t/${tenantId}/settings/telephony`}>Telephony settings</Link>
-      </p>
     </>
   );
 }

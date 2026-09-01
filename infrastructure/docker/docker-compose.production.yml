@@ -44,7 +44,14 @@ services:
     image: redis:7-alpine
     <<: *default-security
     logging: *default-logging
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?required}", "--appendonly", "yes"]
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:?required}
+      - --appendonly
+      - "yes"
+      - --stop-writes-on-bgsave-error
+      - "no"
     volumes:
       - pbx_redis_data:/data
     healthcheck:

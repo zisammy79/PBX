@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api-client';
 import { formatApiError } from '@/lib/format-api-error';
@@ -92,12 +91,9 @@ export default function PlatformCloudStoragePage() {
 
   return (
     <>
-      <p className="muted" style={{ marginBottom: '0.75rem' }}>
-        <Link href="/platform/integrations">← Integrations</Link>
-      </p>
       <PageHeader
         title="Google Drive & OneDrive"
-        description="Register the PBX OAuth app (one-time). Each tenant then connects their own Google or Microsoft account under Cloud backup — recordings go to their drive, not a shared platform folder."
+        description="One-time OAuth app setup. Tenants connect their own accounts under Settings → Cloud backup."
       />
       {error ? <ErrorAlert message={error} /> : null}
       {oauthStatus && !oauthStatus.googleDrive && !oauthStatus.microsoftOneDrive ? (

@@ -11,6 +11,7 @@ import {
   LoadingBlock,
   PageHeader,
 } from '@/components/app-shell';
+import { downloadCsv } from '@/lib/csv-export';
 import { OneTimeSecretPanel } from '@/components/ui-panels';
 
 type Extension = {
@@ -173,6 +174,30 @@ export default function ExtensionsPage() {
       <PageHeader
         title="Extensions"
         description="Manage extensions and SIP credentials. Ready means configuration exists; Online means a phone is currently registered."
+        actions={
+          items.length > 0 ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                const headers = ['Number', 'Name', 'Enabled', 'Provisioning', 'Registration'];
+                const rows = items.map((ext) => {
+                  const reg = registrationById.get(ext.id);
+                  return [
+                    ext.extensionNumber,
+                    ext.displayName,
+                    ext.status,
+                    provisioningLabel(ext.provisioning?.status),
+                    registrationLabel(reg?.registrationStatus),
+                  ];
+                });
+                downloadCsv(`extensions-${tenantId.slice(0, 8)}.csv`, headers, rows);
+              }}
+            >
+              Export CSV
+            </button>
+          ) : null
+        }
       />
       {error ? <ErrorAlert message={error} /> : null}
       {secretPanel ? (

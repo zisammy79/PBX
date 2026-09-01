@@ -5,6 +5,7 @@ export * from './tenant.js';
 export * from './errors.js';
 export * from './health.js';
 export * from './pagination.js';
+export * from './calls.js';
 export * from './vertical-slice.js';
 export * from './billing.js';
 export * from './ai.js';

@@ -8,6 +8,7 @@ import {
 import { AppError } from '@pbx/contracts';
 import { createCorrelationId } from '@pbx/shared';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { ZodError } from 'zod';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -37,6 +38,43 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       return response.status(status).send({
         code: status === 401 ? 'UNAUTHORIZED' : status === 403 ? 'FORBIDDEN' : 'VALIDATION_ERROR',
         message: typeof body === 'string' ? body : (body as { message?: string }).message,
+        correlationId,
+      });
+    }
+
+    if (exception instanceof ZodError) {
+      return response.status(HttpStatus.BAD_REQUEST).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid request parameters',
+        correlationId,
+        details: { issues: exception.issues },
+      });
+    }
+
+    const errMessage =
+      exception instanceof Error ? exception.message : String(exception);
+    const errCode =
+      exception && typeof exception === 'object' && 'code' in exception
+        ? String((exception as { code?: string }).code ?? '')
+        : '';
+
+    if (
+      errMessage.includes('recovery mode') ||
+      errCode === '57P03' ||
+      errMessage.includes('too many clients already')
+    ) {
+      return response.status(HttpStatus.SERVICE_UNAVAILABLE).send({
+        code: 'DATABASE_UNAVAILABLE',
+        message:
+          'Database is temporarily unavailable. Try again in a few minutes or contact support.',
+        correlationId,
+      });
+    }
+
+    if (errMessage.includes('MISCONF Redis') || errMessage.includes('READONLY')) {
+      return response.status(HttpStatus.SERVICE_UNAVAILABLE).send({
+        code: 'CACHE_UNAVAILABLE',
+        message: 'Session cache is temporarily unavailable. Try again shortly.',
         correlationId,
       });
     }

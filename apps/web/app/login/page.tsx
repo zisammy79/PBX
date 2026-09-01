@@ -1,9 +1,15 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { loginRequest, useAuth } from '@/lib/auth';
 import { ErrorAlert } from '@/components/app-shell';
+
+type ReadyHealth = {
+  ready?: boolean;
+  status?: string;
+  dependencies?: Array<{ name: string; status: string; message?: string }>;
+};
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,6 +18,29 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [platformIssue, setPlatformIssue] = useState<string | null>(null);
+
+  useEffect(() => {
+    void fetch('/api/v1/health/ready', { cache: 'no-store' })
+      .then(async (res) => {
+        const body = (await res.json().catch(() => null)) as ReadyHealth | null;
+        if (!body || body.ready) {
+          setPlatformIssue(null);
+          return;
+        }
+        const bad = body.dependencies?.filter((d) => d.status !== 'healthy') ?? [];
+        const summary = bad
+          .map((d) => `${d.name}: ${d.message ?? d.status}`)
+          .slice(0, 2)
+          .join(' · ');
+        setPlatformIssue(
+          summary
+            ? `Platform services are degraded (${summary}). Sign-in may fail until this is resolved.`
+            : 'Platform services are degraded. Sign-in may fail until this is resolved.',
+        );
+      })
+      .catch(() => undefined);
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -33,6 +62,9 @@ export default function LoginPage() {
       <div className="card">
         <h1 style={{ marginTop: 0 }}>Sign in</h1>
         <p className="muted">Use your tenant or platform administrator account.</p>
+        {platformIssue ? (
+          <div className="alert alert-warning" role="status">{platformIssue}</div>
+        ) : null}
         {error ? <ErrorAlert message={error} /> : null}
         <form onSubmit={onSubmit}>
           <div className="field">

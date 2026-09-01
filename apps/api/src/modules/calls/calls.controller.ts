@@ -1,5 +1,5 @@
 import { Controller, Get, Inject, Param, Query, Req, UseGuards } from '@nestjs/common';
-import { PaginationQuerySchema, Permission } from '@pbx/contracts';
+import { CallListQuerySchema, Permission } from '@pbx/contracts';
 import type { RequestWithUser } from '../../common/guards/auth.guard.js';
 import { RequireAnyPermission } from '../../common/guards/auth.guard.js';
 import { TenantGuard } from '../../common/guards/tenant.guard.js';
@@ -19,8 +19,14 @@ export class CallsController {
   @RequireAnyPermission(Permission.TENANT_CALL_READ, Permission.PLATFORM_TENANT_READ)
   async list(@Req() req: RequestWithUser, @Query() query: unknown) {
     const tenantId = req.activeTenantId!;
-    const parsed = PaginationQuerySchema.parse(query);
+    const parsed = CallListQuerySchema.parse(query);
     return this.callsService.listCalls(req.user!, tenantId, parsed);
+  }
+
+  @Get('calls/operator')
+  @RequireAnyPermission(Permission.TENANT_CALL_READ, Permission.PLATFORM_TENANT_READ)
+  async operator(@Req() req: RequestWithUser) {
+    return this.callsService.getOperatorPanel(req.user!, req.activeTenantId!);
   }
 
   @Get('calls/active')

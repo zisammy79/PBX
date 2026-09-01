@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { tenantAccessDenied } from '@pbx/contracts';
-import { and, count, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, isNull, isNotNull, sql } from 'drizzle-orm';
 import {
   aiSessions,
   auditEvents,
@@ -75,6 +75,119 @@ export class DashboardService {
           ),
         );
 
+      const directionTodayRows = await db
+        .select({ direction: calls.direction, total: count() })
+        .from(calls)
+        .where(and(eq(calls.tenantId, tenantId), gte(calls.startedAt, startOfDay)))
+        .groupBy(calls.direction);
+
+      const [missedTodayRow] = await db
+        .select({ total: count() })
+        .from(calls)
+        .where(
+          and(
+            eq(calls.tenantId, tenantId),
+            gte(calls.startedAt, startOfDay),
+            inArray(calls.status, ['failed', 'cancelled']),
+          ),
+        );
+
+      const liveDirectionRows = await db
+        .select({ direction: calls.direction, total: count() })
+        .from(calls)
+        .where(
+          and(
+            eq(calls.tenantId, tenantId),
+            inArray(calls.status, [...ACTIVE_CALL_STATUSES]),
+            isNull(calls.endedAt),
+          ),
+        )
+        .groupBy(calls.direction);
+
+      const [onHoldRow] = await db
+        .select({ total: count() })
+        .from(calls)
+        .where(
+          and(
+            eq(calls.tenantId, tenantId),
+            eq(calls.status, 'held'),
+            isNull(calls.endedAt),
+          ),
+        );
+
+      const [talkTimeRow] = await db
+        .select({
+          total: sql<string>`coalesce(sum(${calls.durationSeconds}), 0)`,
+        })
+        .from(calls)
+        .where(
+          and(
+            eq(calls.tenantId, tenantId),
+            eq(calls.status, 'completed'),
+            gte(calls.startedAt, startOfDay),
+          ),
+        );
+
+      const [avgInboundAnswerRow] = await db
+        .select({
+          avg: sql<string>`coalesce(avg(extract(epoch from (${calls.answeredAt} - ${calls.startedAt}))), 0)`,
+        })
+        .from(calls)
+        .where(
+          and(
+            eq(calls.tenantId, tenantId),
+            eq(calls.direction, 'inbound'),
+            gte(calls.startedAt, startOfDay),
+            isNotNull(calls.answeredAt),
+          ),
+        );
+
+      const [avgOutboundAnswerRow] = await db
+        .select({
+          avg: sql<string>`coalesce(avg(extract(epoch from (${calls.answeredAt} - ${calls.startedAt}))), 0)`,
+        })
+        .from(calls)
+        .where(
+          and(
+            eq(calls.tenantId, tenantId),
+            eq(calls.direction, 'outbound'),
+            gte(calls.startedAt, startOfDay),
+            isNotNull(calls.answeredAt),
+          ),
+        );
+
+      const hourlyRows = await db
+        .select({
+          hour: sql<number>`floor(extract(hour from ${calls.startedAt}))::int`,
+          direction: calls.direction,
+          total: count(),
+        })
+        .from(calls)
+        .where(and(eq(calls.tenantId, tenantId), gte(calls.startedAt, startOfDay)))
+        .groupBy(sql`floor(extract(hour from ${calls.startedAt}))`, calls.direction);
+
+      const directionToday = Object.fromEntries(
+        directionTodayRows.map((r) => [r.direction, Number(r.total)]),
+      ) as Record<string, number>;
+      const liveDirection = Object.fromEntries(
+        liveDirectionRows.map((r) => [r.direction, Number(r.total)]),
+      ) as Record<string, number>;
+
+      const hourlyChart = Array.from({ length: 24 }, (_, hour) => {
+        const inbound =
+          hourlyRows.find((r) => r.hour === hour && r.direction === 'inbound')?.total ?? 0;
+        const outbound =
+          hourlyRows.find((r) => r.hour === hour && r.direction === 'outbound')?.total ?? 0;
+        const internal =
+          hourlyRows.find((r) => r.hour === hour && r.direction === 'internal')?.total ?? 0;
+        return {
+          hour,
+          inbound: Number(inbound),
+          outbound: Number(outbound),
+          internal: Number(internal),
+        };
+      });
+
       const extRows = await db
         .select({ id: extensions.id })
         .from(extensions)
@@ -138,6 +251,18 @@ export class DashboardService {
           todayTotal: Number(todayCallsRow?.total ?? 0),
           todayCompleted: Number(completedTodayRow?.total ?? 0),
           todayFailed: Number(failedTodayRow?.total ?? 0),
+          todayInbound: directionToday.inbound ?? 0,
+          todayOutbound: directionToday.outbound ?? 0,
+          todayInternal: directionToday.internal ?? 0,
+          todayMissed: Number(missedTodayRow?.total ?? 0),
+          liveInbound: liveDirection.inbound ?? 0,
+          liveOutbound: liveDirection.outbound ?? 0,
+          liveInternal: liveDirection.internal ?? 0,
+          liveOnHold: Number(onHoldRow?.total ?? 0),
+          totalTalkSecondsToday: Number(talkTimeRow?.total ?? 0),
+          avgInboundAnswerSeconds: Number(avgInboundAnswerRow?.avg ?? 0),
+          avgOutboundAnswerSeconds: Number(avgOutboundAnswerRow?.avg ?? 0),
+          hourlyChart,
           recent: recentCalls.map((c) => ({
             id: c.id,
             direction: c.direction,

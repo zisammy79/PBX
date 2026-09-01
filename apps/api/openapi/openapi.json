@@ -532,6 +532,20 @@
         ]
       }
     },
+    "/api/v1/calls/operator": {
+      "get": {
+        "operationId": "CallsController_operator",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Calls"
+        ]
+      }
+    },
     "/api/v1/calls/active": {
       "get": {
         "operationId": "CallsController_listActive",

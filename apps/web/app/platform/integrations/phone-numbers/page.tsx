@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AssignableDestination } from '@pbx/contracts';
 import { api } from '@/lib/api-client';
@@ -262,12 +261,9 @@ export default function PlatformPhoneNumbersPage() {
 
   return (
     <>
-      <p className="muted" style={{ marginBottom: '0.75rem' }}>
-        <Link href="/platform/integrations">← Integrations</Link>
-      </p>
       <PageHeader
-        title="Phone Numbers"
-        description="Search Twilio inventory, purchase with explicit confirmation, attach to the production SIP trunk, and assign inbound routing."
+        title="Phone numbers"
+        description="Search inventory, purchase, attach to the SIP trunk, and assign routing."
       />
       {error ? <ErrorAlert message={error} /> : null}
       {message ? <div className="alert alert-success">{message}</div> : null}

@@ -87,6 +87,7 @@ export class TenantsController {
   @Get(':tenantId/phone-numbers')
   @UseGuards(TenantGuard)
   @RequireAnyPermission(
+    Permission.TENANT_CALL_READ,
     Permission.TENANT_NUMBER_MANAGE,
     Permission.PLATFORM_INTEGRATIONS_READ,
     Permission.PLATFORM_INTEGRATIONS_MANAGE,
@@ -100,6 +101,7 @@ export class TenantsController {
   @Get(':tenantId/assignable-destinations')
   @UseGuards(TenantGuard)
   @RequireAnyPermission(
+    Permission.TENANT_CALL_READ,
     Permission.TENANT_NUMBER_MANAGE,
     Permission.PLATFORM_INTEGRATIONS_READ,
     Permission.PLATFORM_INTEGRATIONS_MANAGE,

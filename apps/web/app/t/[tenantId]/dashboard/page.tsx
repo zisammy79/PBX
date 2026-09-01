@@ -4,13 +4,16 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api-client';
-import { formatCurrency, formatDate } from '@/lib/format';
+import { formatCurrency, formatDate, formatDuration } from '@/lib/format';
 import {
   ErrorAlert,
   LoadingBlock,
   PageHeader,
   StatusBanner,
 } from '@/components/app-shell';
+import { Breadcrumbs } from '@/components/telephony/breadcrumbs';
+import { CallsHourlyChart } from '@/components/telephony/calls-chart';
+import { KpiCard, KpiGrid } from '@/components/telephony/kpi-card';
 
 type DashboardSummary = {
   calls: {
@@ -18,7 +21,27 @@ type DashboardSummary = {
     todayTotal: number;
     todayCompleted: number;
     todayFailed: number;
-    recent: Array<{ id: string; status: string; callerNumber: string | null; calleeNumber: string | null; startedAt: string }>;
+    todayInbound: number;
+    todayOutbound: number;
+    todayInternal: number;
+    todayMissed: number;
+    liveInbound: number;
+    liveOutbound: number;
+    liveInternal: number;
+    liveOnHold: number;
+    totalTalkSecondsToday: number;
+    avgInboundAnswerSeconds: number;
+    avgOutboundAnswerSeconds: number;
+    hourlyChart: Array<{ hour: number; inbound: number; outbound: number; internal: number }>;
+    recent: Array<{
+      id: string;
+      direction: string;
+      status: string;
+      callerNumber: string | null;
+      calleeNumber: string | null;
+      startedAt: string;
+      durationSeconds: number | null;
+    }>;
   };
   extensions: { total: number; registered: number; unregistered: number };
   aiSessions: { active: number };
@@ -42,46 +65,90 @@ export default function TenantDashboardPage() {
   if (error) return <ErrorAlert message={error} />;
   if (!data) return <LoadingBlock />;
 
+  const calls = data.calls;
+
   return (
     <>
-      <PageHeader title="Dashboard" description="Operational overview for your tenant." />
+      <Breadcrumbs
+        items={[
+          { label: 'Dashboard', href: `/t/${tenantId}/dashboard` },
+          { label: 'Overview' },
+        ]}
+      />
+      <PageHeader
+        title="Dashboard"
+        description="Today's call activity, live queue, and quick links."
+        actions={
+          <Link href={`/t/${tenantId}/statistics`} className="btn btn-secondary">
+            Statistics hub
+          </Link>
+        }
+      />
       <StatusBanner demoAi externalAi stripe providerCost pstn />
-      <div className="grid-stats" style={{ marginBottom: '1rem' }}>
-        <div className="card">
-          <div className="muted">Active calls</div>
-          <div className="stat-value">{data.calls.active}</div>
-        </div>
-        <div className="card">
-          <div className="muted">Calls today</div>
-          <div className="stat-value">{data.calls.todayTotal}</div>
-        </div>
-        <div className="card">
-          <div className="muted">Completed today</div>
-          <div className="stat-value">{data.calls.todayCompleted}</div>
-        </div>
-        <div className="card">
-          <div className="muted">Failed today</div>
-          <div className="stat-value">{data.calls.todayFailed}</div>
-        </div>
-        <div className="card">
-          <div className="muted">Registered extensions</div>
-          <div className="stat-value">{data.extensions.registered}</div>
-          <div className="muted">{data.extensions.unregistered} unregistered</div>
-        </div>
-        <div className="card">
-          <div className="muted">Active AI sessions</div>
-          <div className="stat-value">{data.aiSessions.active}</div>
-        </div>
-      </div>
+
+      <KpiGrid>
+        <KpiCard
+          label="Inbound today"
+          value={calls.todayInbound}
+          tone="inbound"
+          href={`/t/${tenantId}/calls?direction=inbound`}
+        />
+        <KpiCard
+          label="Outbound today"
+          value={calls.todayOutbound}
+          tone="outbound"
+          href={`/t/${tenantId}/calls?direction=outbound`}
+        />
+        <KpiCard
+          label="Local today"
+          value={calls.todayInternal}
+          tone="local"
+          href={`/t/${tenantId}/calls?direction=internal`}
+        />
+        <KpiCard
+          label="Missed today"
+          value={calls.todayMissed}
+          tone="missed"
+          href={`/t/${tenantId}/calls?status=failed`}
+        />
+        <KpiCard
+          label="Live calls"
+          value={calls.active}
+          hint={`${calls.liveOnHold} on hold`}
+          tone="live"
+          href={`/t/${tenantId}/operator`}
+        />
+        <KpiCard
+          label="Extensions online"
+          value={data.extensions.registered}
+          hint={`${data.extensions.unregistered} offline`}
+          href={`/t/${tenantId}/status`}
+        />
+      </KpiGrid>
+
       <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
-        <section className="card" aria-labelledby="usage-heading">
-          <h2 id="usage-heading">Usage summary</h2>
+        <section className="card">
+          <h2>Live breakdown</h2>
+          <p>Inbound: {calls.liveInbound}</p>
+          <p>Outbound: {calls.liveOutbound}</p>
+          <p>Local: {calls.liveInternal}</p>
+          <p>On hold: {calls.liveOnHold}</p>
+          <Link href={`/t/${tenantId}/operator`}>Open operator panel →</Link>
+        </section>
+        <section className="card">
+          <h2>Talk time today</h2>
+          <p>Total: {formatDuration(calls.totalTalkSecondsToday)}</p>
+          <p>Avg inbound answer: {formatDuration(Math.round(calls.avgInboundAnswerSeconds))}</p>
+          <p>Avg outbound answer: {formatDuration(Math.round(calls.avgOutboundAnswerSeconds))}</p>
+        </section>
+        <section className="card">
+          <h2>Usage summary</h2>
           <p>Normalized events: {data.usage.normalizedEventCount}</p>
           <p>Unrated events: {data.usage.unratedCount}</p>
           <p className="muted">Provider cost — Unavailable</p>
         </section>
-        <section className="card" aria-labelledby="billing-heading">
-          <h2 id="billing-heading">Billing preview</h2>
+        <section className="card">
+          <h2>Billing preview</h2>
           {data.billing ? (
             <>
               <p>
@@ -103,9 +170,15 @@ export default function TenantDashboardPage() {
           )}
         </section>
       </div>
+
+      <section className="card" style={{ marginTop: '1rem' }}>
+        <h2>Hourly volume (today)</h2>
+        <CallsHourlyChart data={calls.hourlyChart} />
+      </section>
+
       <section className="card" style={{ marginTop: '1rem' }} aria-labelledby="recent-calls-heading">
         <h2 id="recent-calls-heading">Recent calls</h2>
-        {data.calls.recent.length === 0 ? (
+        {calls.recent.length === 0 ? (
           <p className="muted">No calls yet.</p>
         ) : (
           <div className="table-wrap">
@@ -113,20 +186,24 @@ export default function TenantDashboardPage() {
               <thead>
                 <tr>
                   <th>When</th>
+                  <th>Direction</th>
                   <th>From</th>
                   <th>To</th>
                   <th>Status</th>
+                  <th>Duration</th>
                 </tr>
               </thead>
               <tbody>
-                {data.calls.recent.map((call) => (
+                {calls.recent.map((call) => (
                   <tr key={call.id}>
                     <td>{formatDate(call.startedAt)}</td>
+                    <td>{call.direction}</td>
                     <td>{call.callerNumber ?? '—'}</td>
                     <td>{call.calleeNumber ?? '—'}</td>
                     <td>
                       <Link href={`/t/${tenantId}/calls/${call.id}`}>{call.status}</Link>
                     </td>
+                    <td>{formatDuration(call.durationSeconds)}</td>
                   </tr>
                 ))}
               </tbody>
