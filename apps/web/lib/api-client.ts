@@ -1,4 +1,5 @@
 import { fetchRecordingBlobUrl } from '@/lib/recording-playback';
+import { apiErrorMessage } from '@/lib/api-errors';
 
 export class ApiError extends Error {
   constructor(
@@ -82,7 +83,7 @@ export async function apiFetch<T>(path: string, options: ApiRequestOptions = {})
     };
     throw new ApiError(
       err.code ?? 'REQUEST_FAILED',
-      err.message ?? `Request failed (${res.status})`,
+      apiErrorMessage(err.message ?? `Request failed (${res.status})`, err.details),
       res.status,
       err.correlationId,
       err.details,

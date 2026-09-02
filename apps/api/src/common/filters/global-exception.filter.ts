@@ -9,6 +9,7 @@ import { AppError } from '@pbx/contracts';
 import { createCorrelationId } from '@pbx/shared';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
+import { formatZodIssues } from '@pbx/contracts';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -45,7 +46,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (exception instanceof ZodError) {
       return response.status(HttpStatus.BAD_REQUEST).send({
         code: 'VALIDATION_ERROR',
-        message: 'Invalid request parameters',
+        message: formatZodIssues(exception.issues),
         correlationId,
         details: { issues: exception.issues },
       });

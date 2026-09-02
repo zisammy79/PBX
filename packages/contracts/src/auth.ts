@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normalizeTenantSlug } from './validation.js';
 
 export const PlatformRoleSchema = z.enum([
   'platform_super_admin',
@@ -64,14 +65,20 @@ export type TokenResponse = z.infer<typeof TokenResponseSchema>;
 export type JwtClaims = z.infer<typeof JwtClaimsSchema>;
 
 export const CreateTenantRequestSchema = z.object({
-  name: z.string().min(2).max(255),
-  slug: z
-    .string()
-    .min(2)
-    .max(63)
-    .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/),
-  ownerEmail: z.string().email(),
-  ownerDisplayName: z.string().min(1).max(255),
+  name: z.string().trim().min(2).max(255),
+  slug: z.preprocess(
+    (value) => (typeof value === 'string' ? normalizeTenantSlug(value) : value),
+    z
+      .string()
+      .min(2, 'Use at least 2 characters (letters and numbers, hyphens allowed)')
+      .max(63)
+      .regex(
+        /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/,
+        'Use lowercase letters, numbers, and hyphens only (e.g. wedo-solutions)',
+      ),
+  ),
+  ownerEmail: z.string().trim().email(),
+  ownerDisplayName: z.string().trim().min(1).max(255),
   planId: z.string().uuid().optional(),
 });
 
