@@ -53,6 +53,56 @@ func (r *Repository) GetExtensionRecordingPolicy(ctx context.Context, extensionI
 	return recording.PolicyMode(mode), nil
 }
 
+func (r *Repository) HasTenantDriveRecordingExport(ctx context.Context, tenantID uuid.UUID) (bool, error) {
+	var enabled bool
+	err := r.withBypass(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			WITH export_cfg AS (
+				SELECT
+					COALESCE((value->>'enabled')::boolean, false) AS enabled,
+					NULLIF(value->>'provider', '') AS provider,
+					CASE
+						WHEN value ? 'connectionId'
+							AND (value->>'connectionId') ~* '^[0-9a-f-]{36}$'
+						THEN (value->>'connectionId')::uuid
+						ELSE NULL
+					END AS connection_id
+				FROM tenant_settings
+				WHERE tenant_id = $1 AND key = 'recordings.cloudExport'
+				LIMIT 1
+			)
+			SELECT EXISTS (
+				SELECT 1
+				FROM export_cfg cfg
+				INNER JOIN integration_connections conn ON conn.id = cfg.connection_id
+				WHERE cfg.enabled = true
+				  AND cfg.provider = 'google_drive'
+				  AND conn.integration_type = 'cloud_storage'
+				  AND conn.provider = cfg.provider
+				  AND conn.enabled = true
+				  AND conn.encrypted_payload IS NOT NULL
+				  AND (
+					(conn.scope_type = 'tenant' AND conn.scope_id = $1)
+					OR (
+						conn.scope_type = 'platform'
+						AND EXISTS (
+							SELECT 1
+							FROM integration_assignments ia
+							WHERE ia.connection_id = conn.id
+							  AND ia.tenant_id = $1
+							  AND ia.enabled = true
+						)
+					)
+				  )
+			)
+		`, tenantID).Scan(&enabled)
+	})
+	if err != nil {
+		return false, err
+	}
+	return enabled, nil
+}
+
 type CallRecordingRow struct {
 	ID         uuid.UUID
 	TenantID   uuid.UUID

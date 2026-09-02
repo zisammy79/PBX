@@ -35,6 +35,23 @@ func (c *Controller) maybeStartRecording(ctx context.Context, active *calls.Acti
 		slog.Warn("recording.policy_resolved", "event", "recording.policy_lookup_failed", "callId", active.CallID, "error", err)
 		orgDefault = false
 	}
+	hasDriveExport, driveErr := c.repo.HasTenantDriveRecordingExport(ctx, active.TenantID)
+	if driveErr != nil {
+		slog.Warn("recording.policy_resolved", "event", "recording.cloud_export_lookup_failed", "callId", active.CallID, "error", driveErr)
+		hasDriveExport = false
+	}
+	if !hasDriveExport {
+		slog.Info("recording.skipped",
+			"event", "recording.skipped",
+			"callId", active.CallID,
+			"reason", "google_drive_not_connected",
+		)
+		_ = c.repo.InsertCallEvent(ctx, active.TenantID, active.CallID, "RECORDING_SKIPPED", map[string]any{
+			"reason":  "google_drive_not_connected",
+			"message": "Connect Google Drive to enable call recording for this tenant.",
+		})
+		return
+	}
 
 	participants := make([]recording.Participant, 0, 2)
 	if active.FromExtensionID != uuid.Nil {

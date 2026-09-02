@@ -1,4 +1,5 @@
 import { decryptSecret, encryptSecret } from '@pbx/shared';
+import { unlink } from 'node:fs/promises';
 import {
   RecordingCloudExportSettingsSchema,
   type RecordingCloudExportSettings,
@@ -23,6 +24,8 @@ import {
 } from './cloud-upload.js';
 
 const CLOUD_EXPORT_SETTINGS_KEY = 'recordings.cloudExport';
+const NO_DRIVE_CODE = 'drive_not_connected';
+const NO_DRIVE_MESSAGE = 'connect_drive_to_enable_recording';
 
 type WorkerConfig = {
   encryptionMasterKey: string;
@@ -41,6 +44,10 @@ type CallEventPayload = {
   payload: Record<string, unknown>;
 };
 
+export function shouldExportToGoogleDrive(settings: RecordingCloudExportSettings): boolean {
+  return Boolean(settings.enabled && settings.provider === 'google_drive' && settings.connectionId);
+}
+
 export async function handleRecordingReady(
   event: CallEventPayload,
   db: ReturnType<typeof createDatabase>['db'],
@@ -51,24 +58,38 @@ export async function handleRecordingReady(
   const recordingId = String(event.payload.recordingId ?? '');
   if (!recordingId) return;
 
-  const settings = await readCloudExportSettings(db, event.tenantId);
-  if (!settings.enabled || !settings.provider || !settings.connectionId) return;
-
-  const connection = await resolveCloudConnection(db, event.tenantId, settings.connectionId, settings.provider);
-  if (!connection) return;
-
-  const [recording] = await withBypassRls(db, async (tx) => {
-    return tx
-      .select({
-        recording: callRecordings,
-        call: calls,
-      })
-      .from(callRecordings)
-      .innerJoin(calls, eq(calls.id, callRecordings.callId))
-      .where(and(eq(callRecordings.id, recordingId), eq(callRecordings.tenantId, event.tenantId)))
-      .limit(1);
-  });
+  const recording = await loadRecordingForTenant(db, event.tenantId, recordingId);
   if (!recording || recording.recording.status !== 'available' || !recording.recording.storageKey) return;
+
+  const settings = await readCloudExportSettings(db, event.tenantId);
+  if (!shouldExportToGoogleDrive(settings)) {
+    await purgeLocalCopyAndFinalize(
+      db,
+      config.callRecordingLocalRoot,
+      recording,
+      'failed',
+      NO_DRIVE_CODE,
+      NO_DRIVE_MESSAGE,
+    );
+    return;
+  }
+
+  const connectionId = settings.connectionId;
+  const provider = settings.provider;
+  if (provider !== 'google_drive') return;
+  if (!connectionId) return;
+  const connection = await resolveCloudConnection(db, event.tenantId, connectionId, provider);
+  if (!connection) {
+    await purgeLocalCopyAndFinalize(
+      db,
+      config.callRecordingLocalRoot,
+      recording,
+      'failed',
+      NO_DRIVE_CODE,
+      NO_DRIVE_MESSAGE,
+    );
+    return;
+  }
 
   const existing = await withBypassRls(db, async (tx) => {
     const [row] = await tx
@@ -94,7 +115,7 @@ export async function handleRecordingReady(
           tenantId: event.tenantId,
           recordingId,
           connectionId: connection.id,
-          provider: settings.provider!,
+          provider,
           status: 'pending',
         })
         .onConflictDoNothing()
@@ -165,7 +186,7 @@ export async function handleRecordingReady(
     const filePath = resolveLocalRecordingPath(config.callRecordingLocalRoot, recording.recording.storageKey);
 
     const uploadInput: import('./cloud-upload.js').CloudUploadInput = {
-      provider: settings.provider as 'google_drive' | 'microsoft_onedrive',
+      provider,
       tokens,
       clientId: clientCreds.clientId,
       clientSecret: clientCreds.clientSecret,
@@ -198,8 +219,17 @@ export async function handleRecordingReady(
         })
         .where(eq(recordingCloudExports.id, exportId));
     });
+    await purgeLocalCopyAndFinalize(db, config.callRecordingLocalRoot, recording, 'available');
   } catch (err) {
     const message = err instanceof Error ? err.message : 'export_failed';
+    await purgeLocalCopyAndFinalize(
+      db,
+      config.callRecordingLocalRoot,
+      recording,
+      'failed',
+      message.split(':')[0] ?? 'export_failed',
+      message.slice(0, 500),
+    );
     await withBypassRls(db, async (tx) => {
       await tx
         .update(recordingCloudExports)
@@ -250,6 +280,61 @@ export async function retryFailedCloudExports(
     }
   }
   return processed;
+}
+
+async function loadRecordingForTenant(
+  db: ReturnType<typeof createDatabase>['db'],
+  tenantId: string,
+  recordingId: string,
+) {
+  const [recording] = await withBypassRls(db, async (tx) => {
+    return tx
+      .select({
+        recording: callRecordings,
+        call: calls,
+      })
+      .from(callRecordings)
+      .innerJoin(calls, eq(calls.id, callRecordings.callId))
+      .where(and(eq(callRecordings.id, recordingId), eq(callRecordings.tenantId, tenantId)))
+      .limit(1);
+  });
+  return recording;
+}
+
+export async function purgeLocalCopyAndFinalize(
+  db: ReturnType<typeof createDatabase>['db'],
+  localRoot: string,
+  recording: {
+    recording: typeof callRecordings.$inferSelect;
+  },
+  status: 'available' | 'failed',
+  failureCode?: string,
+  failureMessage?: string,
+) {
+  if (!recording.recording.storageKey) return;
+  const filePath = resolveLocalRecordingPath(localRoot, recording.recording.storageKey);
+  try {
+    await unlink(filePath);
+  } catch (err) {
+    if (!(err instanceof Error) || !('code' in err) || (err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw err;
+    }
+  }
+  await withBypassRls(db, async (tx) => {
+    await tx
+      .update(callRecordings)
+      .set({
+        status,
+        storageBackend: 'tenant_cloud',
+        storageKey: null,
+        completedAt: recording.recording.completedAt ?? new Date(),
+        availableAt: status === 'available' ? recording.recording.availableAt ?? new Date() : recording.recording.availableAt,
+        failureCode: status === 'failed' ? (failureCode ?? 'recording_unavailable') : null,
+        failureMessage: status === 'failed' ? (failureMessage ?? 'recording_unavailable') : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(callRecordings.id, recording.recording.id));
+  });
 }
 
 async function readCloudExportSettings(
