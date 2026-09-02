@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   CloudStorageProviderSchema,
   notFound,
@@ -48,10 +48,24 @@ type OAuthTokensResponse = {
 
 @Injectable()
 export class CloudStorageService {
+  private readonly logger = new Logger(CloudStorageService.name);
+
   constructor(
     @Inject(CONFIG) private readonly config: AppConfig,
     @Inject(DATABASE) private readonly database: ReturnType<typeof import('@pbx/database').createDatabase>,
   ) {}
+
+  /**
+   * OAuth client IDs are public (never secret). Expose a diagnostic fragment —
+   * the project number plus a short tail — so a misconfigured/mismatched client
+   * (the cause of `redirect_uri_mismatch`) is visible from the status route and
+   * logs without ever reading `/opt/pbx/.env` on the host.
+   */
+  private clientIdFingerprint(clientId?: string): string | null {
+    if (!clientId) return null;
+    const projectNumber = clientId.split('-')[0] ?? '';
+    return `${projectNumber}…${clientId.slice(-10)}`;
+  }
 
   async listPlatformConnections(actor: AuthenticatedUser): Promise<CloudStorageConnectionSummary[]> {
     this.assertPlatformManage(actor);
@@ -72,15 +86,19 @@ export class CloudStorageService {
 
   getOAuthStatus(): {
     googleDrive: boolean;
+    googleDriveClientId: string | null;
     microsoftOneDrive: boolean;
+    microsoftOneDriveClientId: string | null;
     redirectUriGoogle: string;
     redirectUriMicrosoft: string;
   } {
     return {
       googleDrive: Boolean(this.config.googleDriveClientId && this.config.googleDriveClientSecret),
+      googleDriveClientId: this.clientIdFingerprint(this.config.googleDriveClientId),
       microsoftOneDrive: Boolean(
         this.config.microsoftOneDriveClientId && this.config.microsoftOneDriveClientSecret,
       ),
+      microsoftOneDriveClientId: this.clientIdFingerprint(this.config.microsoftOneDriveClientId),
       redirectUriGoogle: this.oauthCallbackUrl('google_drive'),
       redirectUriMicrosoft: this.oauthCallbackUrl('microsoft_onedrive'),
     };
@@ -195,6 +213,9 @@ export class CloudStorageService {
     });
 
     const redirectUri = this.oauthCallbackUrl(provider);
+    this.logger.log(
+      `OAuth authorize ${provider}: client=${this.clientIdFingerprint(oauthConfig.clientId)} redirect_uri=${redirectUri} — this exact redirect_uri must be registered on that client`,
+    );
     const params = new URLSearchParams({
       client_id: oauthConfig.clientId,
       redirect_uri: redirectUri,

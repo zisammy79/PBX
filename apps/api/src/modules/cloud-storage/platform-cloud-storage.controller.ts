@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { CloudStorageProviderSchema } from '@pbx/contracts';
 import type { RequestWithUser } from '../../common/guards/auth.guard.js';
-import { RequirePermissions } from '../../common/guards/auth.guard.js';
+import { Public, RequirePermissions } from '../../common/guards/auth.guard.js';
 import { Permission } from '@pbx/contracts';
 import type { FastifyReply } from 'fastify';
 import { CloudStorageService } from './cloud-storage.service.js';
@@ -53,6 +53,7 @@ export class PlatformCloudStorageController {
   }
 
   @Get('oauth/:provider/callback')
+  @Public()
   async oauthCallback(
     @Param('provider') provider: string,
     @Query('code') code?: string,
