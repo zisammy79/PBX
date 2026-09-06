@@ -127,7 +127,11 @@ export function generateTelephonyConfig(
       `auth=${auth}`,
       `aors=${aor}`,
       `callerid=${ext.displayName} <${ext.extensionNumber}>`,
-      `from_user=${ext.sipUsername}`,
+      // Do not set from_user on extension endpoints: Asterisk would force that
+      // username into the From header on INVITEs *to* the phone and hide the
+      // real PSTN CallerID. Outbound From for the phone is set by the device.
+      'send_pai=yes',
+      'trust_id_outbound=yes',
       'disallow=all',
       `allow=${SAFE_CODECS.join(',')}`,
       'direct_media=no',

@@ -14,6 +14,15 @@ func TestFormatSipCallerID(t *testing.T) {
 func TestFormatSipCallerIDExternal(t *testing.T) {
 	t.Parallel()
 	got := formatSipCallerID("+972584848480", "+972584848480")
+	want := "\"+972584848480\" <+972584848480>"
+	if got != want {
+		t.Fatalf("formatSipCallerID() = %q, want %q", got, want)
+	}
+}
+
+func TestFormatSipCallerIDNumberOnly(t *testing.T) {
+	t.Parallel()
+	got := formatSipCallerID("", "+972584848480")
 	want := "<+972584848480>"
 	if got != want {
 		t.Fatalf("formatSipCallerID() = %q, want %q", got, want)

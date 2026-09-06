@@ -12,9 +12,12 @@ func formatSipCallerID(displayName, number string) string {
 	if num == "" {
 		return name
 	}
-	if name == "" || name == num {
+	if name == "" {
+		// Number-only form; many softphones still render this.
 		return fmt.Sprintf("<%s>", num)
 	}
+	// Always include a quoted display name. When name==num we used to emit
+	// only "<+E164>", which several SIP clients show as blank/Unknown.
 	return fmt.Sprintf("\"%s\" <%s>", name, num)
 }
 

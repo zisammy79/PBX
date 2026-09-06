@@ -94,6 +94,13 @@ function inboundDidPatterns(didPattern: string): string[] {
   return patterns;
 }
 
+function appendTwilioInboundTrust(endpointLines: string[]): void {
+  // Asterisk defaults trust_id_inbound=no, which ignores From/PAI and uses
+  // endpoint callerid (often empty or the DID). Always trust carrier identity
+  // on Twilio trunks so the remote party reaches dialplan/Stasis.
+  endpointLines.push('trust_id_inbound=yes');
+}
+
 function appendTwilioTerminationEndpointOptions(
   endpointTail: string[],
   trunk: TelephonyTrunkRecord,
@@ -101,19 +108,20 @@ function appendTwilioTerminationEndpointOptions(
   if (trunk.providerAdapter !== 'twilio' || !trunk.registrar) {
     return;
   }
+  // Never set endpoint callerid= on a shared inbound/outbound trunk: it becomes
+  // the default channel CallerID and can overwrite the remote party on inbound.
+  // Outbound presentation uses ARI Originate CallerID + from_user/send_pai.
+  appendTwilioInboundTrust(endpointTail);
   const callerId = trunk.allowedCallerId ?? trunk.assignedDid;
   if (!callerId) {
     return;
   }
   assertE164(callerId);
-  const callerLabel = trunk.name.trim() || trunk.tenantSlug;
   endpointTail.push(
     `from_domain=${trunk.registrar}`,
     `from_user=${callerId}`,
     'send_pai=yes',
     'trust_id_outbound=yes',
-    'trust_id_inbound=yes',
-    `callerid="${callerLabel}" <${callerId}>`,
   );
 }
 
@@ -218,6 +226,9 @@ export function generateTrunkConfig(
       const inboundCidrs = resolveInboundIdentifyCidrs(trunk);
       if (inboundCidrs.length > 0) {
         pjsipLines.push('identify_by=ip');
+      }
+      if (trunk.providerAdapter === 'twilio') {
+        appendTwilioInboundTrust(pjsipLines);
       }
       appendInboundIdentify(pjsipLines, ep, inboundCidrs);
     }
