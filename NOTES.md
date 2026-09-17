@@ -11,7 +11,8 @@
   https://github.com/zisammy79/PBX/compare/main...feature/pbx-1com-feature-import
 - Runtime slice (2026-09-17): media upload/content (`CALLFLOW_MEDIA_LOCAL_ROOT`), VM playback, voice campaign dialer tick stub, dashboard KPI i18n
 - Runtime slice (2026-09-17 pm): CDR advanced filters (API + calls UI i18n), campaign number import API/UI, MoH mediaFileIds PATCH + musiconhold-tenants.conf generation
-- Remaining runtime gaps: PSTN campaign originate + worker cron, MoH media sync into Asterisk MoH directories, BLF device push, T.38 fax transport, SMS provider send
+- Runtime slice (2026-09-17 pm2): MoH media sync on telephony activate; worker campaign dialer cron + originate defer stub; BLF provisioning file download; five-tenant callflow isolation spec
+- Remaining runtime gaps: live PSTN campaign ARI originate, BLF device push, T.38 fax transport, SMS provider send
 
 **Reconciled:** 2026-06-11
 
