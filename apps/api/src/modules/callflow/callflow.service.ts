@@ -4,51 +4,65 @@ import {
   notFound,
   tenantAccessDenied,
   validationError,
+  Permission,
+  hasPermission,
+  resolveEffectivePermissions,
   type AddDncListNumber,
   type CreateBlacklistEntry,
   type CreateBusinessSchedule,
+  type CreateCampaign,
   type CreateConference,
   type CreateCustomDestination,
   type CreateDncList,
   type CreateFeatureCode,
   type CreateIvr,
   type CreateMediaFile,
+  type CreateMohClass,
   type CreatePagingGroup,
   type CreatePhonebookEntry,
   type CreatePlatformHolidayTemplate,
   type CreateQueue,
   type CreateRingGroup,
   type CreateShortNumber,
+  type CreateTelephonyCronJob,
+  type ListVoicemailsQuery,
+  type MarkVoicemailRead,
   type PlatformLocalePack,
   type UpdateBlacklistEntry,
   type UpdateBusinessSchedule,
+  type UpdateCampaign,
   type UpdateConference,
   type UpdateCustomDestination,
   type UpdateDncList,
   type UpdateFeatureCode,
   type UpdateIvr,
   type UpdateMediaFile,
+  type UpdateMohClass,
   type UpdatePagingGroup,
   type UpdatePhonebookEntry,
   type UpdateQueue,
   type UpdateRingGroup,
   type UpdateShortNumber,
+  type UpdateTelephonyCronJob,
   type UpdateTenantLocales,
 } from '@pbx/contracts';
 import { randomUUID } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import {
   blacklistEntries,
   businessSchedules,
+  campaigns,
   conferences,
   customDestinations,
   dncListNumbers,
   dncLists,
+  extensions,
   featureCodes,
   ivrOptions,
   ivrs,
   mediaFiles,
+  mohClasses,
   pagingGroups,
   phonebookEntries,
   platformHolidayTemplates,
@@ -58,7 +72,9 @@ import {
   ringGroupMembers,
   ringGroups,
   shortNumbers,
+  telephonyCronJobs,
   tenantSettings,
+  voicemails,
   withBypassRls,
   withTenantContext,
 } from '@pbx/database';
@@ -436,6 +452,185 @@ export class CallflowService {
 
   deleteMediaFile(actor: AuthenticatedUser, tenantId: string, id: string) {
     return this.tenantDelete(actor, tenantId, mediaFiles, id);
+  }
+
+  // --- MoH classes ---
+
+  listMohClasses(actor: AuthenticatedUser, tenantId: string) {
+    return this.tenantList(actor, tenantId, mohClasses);
+  }
+
+  createMohClass(actor: AuthenticatedUser, tenantId: string, input: CreateMohClass) {
+    return this.tenantCreate(actor, tenantId, mohClasses, { tenantId, ...input });
+  }
+
+  getMohClass(actor: AuthenticatedUser, tenantId: string, id: string) {
+    return this.tenantGet(actor, tenantId, mohClasses, id);
+  }
+
+  patchMohClass(actor: AuthenticatedUser, tenantId: string, id: string, input: UpdateMohClass) {
+    return this.tenantPatch(actor, tenantId, mohClasses, id, { ...input, updatedAt: new Date() });
+  }
+
+  deleteMohClass(actor: AuthenticatedUser, tenantId: string, id: string) {
+    return this.tenantDelete(actor, tenantId, mohClasses, id);
+  }
+
+  // --- Voicemail inbox ---
+
+  async listVoicemails(actor: AuthenticatedUser, tenantId: string, query: ListVoicemailsQuery) {
+    await this.assertTenantAccess(actor, tenantId);
+    const canManage = this.actorHasPermission(actor, tenantId, Permission.TENANT_VOICEMAIL_MANAGE);
+    const canReadOwn = this.actorHasPermission(actor, tenantId, Permission.AGENT_VOICEMAIL_READ);
+    if (!canManage && !canReadOwn) {
+      throw tenantAccessDenied();
+    }
+
+    return withTenantContext(this.database.db, tenantId, async (db) => {
+      const conditions = [eq(voicemails.tenantId, tenantId)];
+
+      if (!canManage) {
+        const owned = await db
+          .select({ id: extensions.id })
+          .from(extensions)
+          .where(and(eq(extensions.tenantId, tenantId), eq(extensions.userId, actor.id)));
+        const ownedIds = owned.map((row) => row.id);
+        if (ownedIds.length === 0) {
+          return [];
+        }
+        if (query.extensionId && !ownedIds.includes(query.extensionId)) {
+          throw tenantAccessDenied();
+        }
+        conditions.push(
+          inArray(voicemails.extensionId, query.extensionId ? [query.extensionId] : ownedIds),
+        );
+      } else if (query.extensionId) {
+        conditions.push(eq(voicemails.extensionId, query.extensionId));
+      }
+
+      const rows = await db
+        .select()
+        .from(voicemails)
+        .where(and(...conditions))
+        .orderBy(desc(voicemails.createdAt));
+      return rows.map((row) => serialize(row));
+    });
+  }
+
+  async markVoicemailRead(
+    actor: AuthenticatedUser,
+    tenantId: string,
+    id: string,
+    input: MarkVoicemailRead,
+  ) {
+    await this.assertVoicemailAccess(actor, tenantId, id);
+    return withTenantContext(this.database.db, tenantId, async (db) => {
+      const [row] = await db
+        .update(voicemails)
+        .set({ isRead: input.isRead })
+        .where(and(eq(voicemails.tenantId, tenantId), eq(voicemails.id, id)))
+        .returning();
+      if (!row) throw notFound('Voicemail');
+      return serialize(row);
+    });
+  }
+
+  async deleteVoicemail(actor: AuthenticatedUser, tenantId: string, id: string) {
+    await this.assertVoicemailAccess(actor, tenantId, id);
+    return withTenantContext(this.database.db, tenantId, async (db) => {
+      const [existing] = await db
+        .select()
+        .from(voicemails)
+        .where(and(eq(voicemails.tenantId, tenantId), eq(voicemails.id, id)))
+        .limit(1);
+      if (!existing) throw notFound('Voicemail');
+      await db.delete(voicemails).where(and(eq(voicemails.tenantId, tenantId), eq(voicemails.id, id)));
+      return { deleted: true, id };
+    });
+  }
+
+  // --- Campaigns ---
+
+  listCampaigns(actor: AuthenticatedUser, tenantId: string) {
+    return this.tenantList(actor, tenantId, campaigns);
+  }
+
+  async createCampaign(actor: AuthenticatedUser, tenantId: string, input: CreateCampaign) {
+    await this.assertTenantAccess(actor, tenantId);
+    await this.tenantLimitsService.assertCanCreateCampaign(tenantId);
+    return withTenantContext(this.database.db, tenantId, async (db) => {
+      const [row] = await db
+        .insert(campaigns)
+        .values({
+          tenantId,
+          name: input.name,
+          technology: input.technology,
+          maxConcurrent: input.maxConcurrent,
+          maxAttempts: input.maxAttempts,
+          startsAt: input.startsAt ? new Date(input.startsAt) : null,
+          endsAt: input.endsAt ? new Date(input.endsAt) : null,
+        })
+        .returning();
+      return serialize(row!);
+    });
+  }
+
+  getCampaign(actor: AuthenticatedUser, tenantId: string, id: string) {
+    return this.tenantGet(actor, tenantId, campaigns, id);
+  }
+
+  patchCampaign(actor: AuthenticatedUser, tenantId: string, id: string, input: UpdateCampaign) {
+    const patch: Record<string, unknown> = { ...input, updatedAt: new Date() };
+    if (input.startsAt !== undefined) {
+      patch.startsAt = input.startsAt ? new Date(input.startsAt) : null;
+    }
+    if (input.endsAt !== undefined) {
+      patch.endsAt = input.endsAt ? new Date(input.endsAt) : null;
+    }
+    return this.tenantPatch(actor, tenantId, campaigns, id, patch);
+  }
+
+  deleteCampaign(actor: AuthenticatedUser, tenantId: string, id: string) {
+    return this.tenantDelete(actor, tenantId, campaigns, id);
+  }
+
+  async startCampaign(actor: AuthenticatedUser, tenantId: string, id: string) {
+    return this.setCampaignStatus(actor, tenantId, id, 'running', ['draft', 'ready', 'paused']);
+  }
+
+  async pauseCampaign(actor: AuthenticatedUser, tenantId: string, id: string) {
+    return this.setCampaignStatus(actor, tenantId, id, 'paused', ['running']);
+  }
+
+  async stopCampaign(actor: AuthenticatedUser, tenantId: string, id: string) {
+    return this.setCampaignStatus(actor, tenantId, id, 'completed', ['running', 'paused', 'ready', 'draft']);
+  }
+
+  // --- Telephony cron jobs ---
+
+  listTelephonyCronJobs(actor: AuthenticatedUser, tenantId: string) {
+    return this.tenantList(actor, tenantId, telephonyCronJobs);
+  }
+
+  createTelephonyCronJob(actor: AuthenticatedUser, tenantId: string, input: CreateTelephonyCronJob) {
+    return this.tenantCreate(actor, tenantId, telephonyCronJobs, { tenantId, ...input });
+  }
+
+  getTelephonyCronJob(actor: AuthenticatedUser, tenantId: string, id: string) {
+    return this.tenantGet(actor, tenantId, telephonyCronJobs, id);
+  }
+
+  patchTelephonyCronJob(
+    actor: AuthenticatedUser,
+    tenantId: string,
+    id: string,
+    input: UpdateTelephonyCronJob,
+  ) {
+    return this.tenantPatch(actor, tenantId, telephonyCronJobs, id, { ...input, updatedAt: new Date() });
+  }
+
+  deleteTelephonyCronJob(actor: AuthenticatedUser, tenantId: string, id: string) {
+    return this.tenantDelete(actor, tenantId, telephonyCronJobs, id);
   }
 
   // --- Feature codes ---
@@ -934,5 +1129,83 @@ export class CallflowService {
     if (!isMember && !isPlatform && !isSupport) {
       throw tenantAccessDenied();
     }
+  }
+
+  private actorHasPermission(
+    actor: AuthenticatedUser,
+    tenantId: string,
+    permission: Permission,
+  ): boolean {
+    const tenantRoles =
+      actor.tenantMemberships.find((m) => m.tenantId === tenantId)?.roles ?? [];
+    const permissions = resolveEffectivePermissions(
+      actor.platformRoles,
+      tenantRoles,
+      tenantId,
+    );
+    return hasPermission(permissions, permission);
+  }
+
+  private async assertVoicemailAccess(actor: AuthenticatedUser, tenantId: string, id: string) {
+    await this.assertTenantAccess(actor, tenantId);
+    const canManage = this.actorHasPermission(actor, tenantId, Permission.TENANT_VOICEMAIL_MANAGE);
+    if (canManage) {
+      return;
+    }
+    if (!this.actorHasPermission(actor, tenantId, Permission.AGENT_VOICEMAIL_READ)) {
+      throw tenantAccessDenied();
+    }
+
+    await withTenantContext(this.database.db, tenantId, async (db) => {
+      const [message] = await db
+        .select()
+        .from(voicemails)
+        .where(and(eq(voicemails.tenantId, tenantId), eq(voicemails.id, id)))
+        .limit(1);
+      if (!message) {
+        throw notFound('Voicemail');
+      }
+      const [extension] = await db
+        .select()
+        .from(extensions)
+        .where(
+          and(
+            eq(extensions.tenantId, tenantId),
+            eq(extensions.id, message.extensionId),
+            eq(extensions.userId, actor.id),
+          ),
+        )
+        .limit(1);
+      if (!extension) {
+        throw tenantAccessDenied();
+      }
+    });
+  }
+
+  private async setCampaignStatus(
+    actor: AuthenticatedUser,
+    tenantId: string,
+    id: string,
+    status: string,
+    allowedFrom: string[],
+  ) {
+    await this.assertTenantAccess(actor, tenantId);
+    return withTenantContext(this.database.db, tenantId, async (db) => {
+      const [existing] = await db
+        .select()
+        .from(campaigns)
+        .where(and(eq(campaigns.tenantId, tenantId), eq(campaigns.id, id)))
+        .limit(1);
+      if (!existing) throw notFound('Campaign');
+      if (!allowedFrom.includes(existing.status)) {
+        throw validationError({ status: `Cannot transition from ${existing.status} to ${status}` });
+      }
+      const [row] = await db
+        .update(campaigns)
+        .set({ status, updatedAt: new Date() })
+        .where(and(eq(campaigns.tenantId, tenantId), eq(campaigns.id, id)))
+        .returning();
+      return serialize(row!);
+    });
   }
 }

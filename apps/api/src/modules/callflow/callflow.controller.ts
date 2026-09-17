@@ -8,14 +8,22 @@ import {
   CreateDncListSchema,
   CreateFeatureCodeSchema,
   CreateIvrSchema,
+  CreateCampaignSchema,
   CreateMediaFileSchema,
+  CreateMohClassSchema,
   CreatePagingGroupSchema,
   CreatePhonebookEntrySchema,
   CreateQueueSchema,
   CreateRingGroupSchema,
   CreateShortNumberSchema,
+  CreateTelephonyCronJobSchema,
   ListPhonebookEntriesQuerySchema,
+  ListVoicemailsQuerySchema,
+  MarkVoicemailReadSchema,
   Permission,
+  UpdateCampaignSchema,
+  UpdateMohClassSchema,
+  UpdateTelephonyCronJobSchema,
   UpdateBlacklistEntrySchema,
   UpdateBusinessScheduleSchema,
   UpdateConferenceSchema,
@@ -32,7 +40,7 @@ import {
   UpdateTenantLocalesSchema,
 } from '@pbx/contracts';
 import type { RequestWithUser } from '../../common/guards/auth.guard.js';
-import { RequirePermissions } from '../../common/guards/auth.guard.js';
+import { RequireAnyPermission, RequirePermissions } from '../../common/guards/auth.guard.js';
 import { TenantGuard } from '../../common/guards/tenant.guard.js';
 import { CallflowService } from './callflow.service.js';
 
@@ -214,6 +222,182 @@ export class CallflowController {
   @RequirePermissions(Permission.TENANT_MEDIA_MANAGE)
   deleteMediaFile(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
     return this.callflowService.deleteMediaFile(req.user!, tenantId, id);
+  }
+
+  @Get('moh-classes')
+  @RequirePermissions(Permission.TENANT_MEDIA_MANAGE)
+  listMohClasses(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string) {
+    return this.callflowService.listMohClasses(req.user!, tenantId);
+  }
+
+  @Post('moh-classes')
+  @RequirePermissions(Permission.TENANT_MEDIA_MANAGE)
+  createMohClass(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Body() body: unknown) {
+    return this.callflowService.createMohClass(req.user!, tenantId, CreateMohClassSchema.parse(body));
+  }
+
+  @Get('moh-classes/:id')
+  @RequirePermissions(Permission.TENANT_MEDIA_MANAGE)
+  getMohClass(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
+    return this.callflowService.getMohClass(req.user!, tenantId, id);
+  }
+
+  @Patch('moh-classes/:id')
+  @RequirePermissions(Permission.TENANT_MEDIA_MANAGE)
+  patchMohClass(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.callflowService.patchMohClass(req.user!, tenantId, id, UpdateMohClassSchema.parse(body));
+  }
+
+  @Delete('moh-classes/:id')
+  @RequirePermissions(Permission.TENANT_MEDIA_MANAGE)
+  deleteMohClass(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
+    return this.callflowService.deleteMohClass(req.user!, tenantId, id);
+  }
+
+  @Get('voicemails')
+  @RequireAnyPermission(Permission.TENANT_VOICEMAIL_MANAGE, Permission.AGENT_VOICEMAIL_READ)
+  listVoicemails(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Query() query: unknown,
+  ) {
+    return this.callflowService.listVoicemails(
+      req.user!,
+      tenantId,
+      ListVoicemailsQuerySchema.parse(query),
+    );
+  }
+
+  @Patch('voicemails/:id/read')
+  @RequireAnyPermission(Permission.TENANT_VOICEMAIL_MANAGE, Permission.AGENT_VOICEMAIL_READ)
+  markVoicemailRead(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.callflowService.markVoicemailRead(
+      req.user!,
+      tenantId,
+      id,
+      MarkVoicemailReadSchema.parse(body),
+    );
+  }
+
+  @Delete('voicemails/:id')
+  @RequireAnyPermission(Permission.TENANT_VOICEMAIL_MANAGE, Permission.AGENT_VOICEMAIL_READ)
+  deleteVoicemail(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
+    return this.callflowService.deleteVoicemail(req.user!, tenantId, id);
+  }
+
+  @Get('campaigns')
+  @RequirePermissions(Permission.TENANT_CAMPAIGN_MANAGE)
+  listCampaigns(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string) {
+    return this.callflowService.listCampaigns(req.user!, tenantId);
+  }
+
+  @Post('campaigns')
+  @RequirePermissions(Permission.TENANT_CAMPAIGN_MANAGE)
+  createCampaign(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Body() body: unknown) {
+    return this.callflowService.createCampaign(req.user!, tenantId, CreateCampaignSchema.parse(body));
+  }
+
+  @Get('campaigns/:id')
+  @RequirePermissions(Permission.TENANT_CAMPAIGN_MANAGE)
+  getCampaign(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
+    return this.callflowService.getCampaign(req.user!, tenantId, id);
+  }
+
+  @Patch('campaigns/:id')
+  @RequirePermissions(Permission.TENANT_CAMPAIGN_MANAGE)
+  patchCampaign(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.callflowService.patchCampaign(req.user!, tenantId, id, UpdateCampaignSchema.parse(body));
+  }
+
+  @Delete('campaigns/:id')
+  @RequirePermissions(Permission.TENANT_CAMPAIGN_MANAGE)
+  deleteCampaign(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
+    return this.callflowService.deleteCampaign(req.user!, tenantId, id);
+  }
+
+  @Post('campaigns/:id/start')
+  @RequirePermissions(Permission.TENANT_CAMPAIGN_MANAGE)
+  startCampaign(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
+    return this.callflowService.startCampaign(req.user!, tenantId, id);
+  }
+
+  @Post('campaigns/:id/pause')
+  @RequirePermissions(Permission.TENANT_CAMPAIGN_MANAGE)
+  pauseCampaign(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
+    return this.callflowService.pauseCampaign(req.user!, tenantId, id);
+  }
+
+  @Post('campaigns/:id/stop')
+  @RequirePermissions(Permission.TENANT_CAMPAIGN_MANAGE)
+  stopCampaign(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
+    return this.callflowService.stopCampaign(req.user!, tenantId, id);
+  }
+
+  @Get('telephony-cron-jobs')
+  @RequirePermissions(Permission.TENANT_CALLFLOW_MANAGE)
+  listTelephonyCronJobs(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string) {
+    return this.callflowService.listTelephonyCronJobs(req.user!, tenantId);
+  }
+
+  @Post('telephony-cron-jobs')
+  @RequirePermissions(Permission.TENANT_CALLFLOW_MANAGE)
+  createTelephonyCronJob(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Body() body: unknown,
+  ) {
+    return this.callflowService.createTelephonyCronJob(
+      req.user!,
+      tenantId,
+      CreateTelephonyCronJobSchema.parse(body),
+    );
+  }
+
+  @Get('telephony-cron-jobs/:id')
+  @RequirePermissions(Permission.TENANT_CALLFLOW_MANAGE)
+  getTelephonyCronJob(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
+    return this.callflowService.getTelephonyCronJob(req.user!, tenantId, id);
+  }
+
+  @Patch('telephony-cron-jobs/:id')
+  @RequirePermissions(Permission.TENANT_CALLFLOW_MANAGE)
+  patchTelephonyCronJob(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.callflowService.patchTelephonyCronJob(
+      req.user!,
+      tenantId,
+      id,
+      UpdateTelephonyCronJobSchema.parse(body),
+    );
+  }
+
+  @Delete('telephony-cron-jobs/:id')
+  @RequirePermissions(Permission.TENANT_CALLFLOW_MANAGE)
+  deleteTelephonyCronJob(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Param('id') id: string,
+  ) {
+    return this.callflowService.deleteTelephonyCronJob(req.user!, tenantId, id);
   }
 
   @Get('feature-codes')

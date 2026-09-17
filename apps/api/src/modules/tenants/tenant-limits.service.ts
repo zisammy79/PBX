@@ -11,6 +11,7 @@ import { and, count, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
   apiApplications,
   calls,
+  campaigns,
   extensions,
   ivrs,
   planEntitlements,
@@ -97,6 +98,16 @@ export class TenantLimitsService {
         .select({ total: count() })
         .from(ringGroups)
         .where(eq(ringGroups.tenantId, tenantId));
+      return Number(usage?.total ?? 0);
+    });
+  }
+
+  async assertCanCreateCampaign(tenantId: string): Promise<void> {
+    await this.assertWithinLimit(tenantId, 'max_campaigns', async (db) => {
+      const [usage] = await db
+        .select({ total: count() })
+        .from(campaigns)
+        .where(eq(campaigns.tenantId, tenantId));
       return Number(usage?.total ?? 0);
     });
   }
@@ -212,6 +223,7 @@ export class TenantLimitsService {
       max_ivrs: null,
       max_queues: null,
       max_ring_groups: null,
+      max_campaigns: null,
       max_api_applications: null,
       max_webhooks: null,
     };
@@ -333,6 +345,13 @@ export class TenantLimitsService {
           .select({ total: count() })
           .from(ringGroups)
           .where(eq(ringGroups.tenantId, tenantId));
+        return Number(row?.total ?? 0);
+      }
+      case 'max_campaigns': {
+        const [row] = await db
+          .select({ total: count() })
+          .from(campaigns)
+          .where(eq(campaigns.tenantId, tenantId));
         return Number(row?.total ?? 0);
       }
       default:
