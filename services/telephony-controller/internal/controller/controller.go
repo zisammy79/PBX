@@ -531,10 +531,9 @@ func (c *Controller) markAnsweredAndBridged(ctx context.Context, active *calls.A
 	}
 	if active.MarkEvent("persist:bridged") {
 		active.Transition(calls.StateBridged)
-		_ = c.repo.InsertCallEvent(ctx, active.TenantID, active.CallID, "BRIDGED", map[string]any{"bridgeId": active.BridgeID, "source": "platform"})
-		_ = c.bus.PublishCallEvent(ctx, active.TenantID, active.CallID, active.CorrelationID, "BRIDGED", map[string]any{
-			"bridgeId": active.BridgeID,
-		})
+		bridgePayload := callAnswerWebhookPayload(active, map[string]any{"bridgeId": active.BridgeID})
+		_ = c.repo.InsertCallEvent(ctx, active.TenantID, active.CallID, "BRIDGED", bridgePayload)
+		_ = c.bus.PublishCallEvent(ctx, active.TenantID, active.CallID, active.CorrelationID, "BRIDGED", bridgePayload)
 	}
 	c.registry.Put(active)
 	c.maybeStartRecording(ctx, active)
