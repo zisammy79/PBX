@@ -25,6 +25,7 @@ import { RecordingsModule } from './modules/recordings/recordings.module.js';
 import { TwilioModule } from './modules/twilio/twilio.module.js';
 import { CloudStorageModule } from './modules/cloud-storage/cloud-storage.module.js';
 import { PlatformApiTokensModule } from './modules/platform-api-tokens/platform-api-tokens.module.js';
+import { CallflowModule } from './modules/callflow/callflow.module.js';
 
 @Module({})
 export class AppModule {
@@ -57,6 +58,7 @@ export class AppModule {
         TwilioModule,
         CloudStorageModule,
         PlatformApiTokensModule,
+        CallflowModule,
       ],
     };
   }
