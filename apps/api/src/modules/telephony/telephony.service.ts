@@ -5,9 +5,18 @@ import { and, eq, inArray } from 'drizzle-orm';
 import {
   auditEvents,
   aiAgents,
+  blacklistEntries,
+  businessSchedules,
   extensions,
+  featureCodes,
   inboundRoutes,
+  ivrOptions,
+  ivrs,
   outboundRoutes,
+  queueMembers,
+  queues,
+  ringGroupMembers,
+  ringGroups,
   sipCredentials,
   sipDevices,
   sipTrunkEndpoints,
@@ -28,6 +37,7 @@ import {
   validateGeneratedConfig,
   writeStagingConfig,
   type GeneratedTelephonyConfig,
+  type TelephonyCallflowRecords,
   type TelephonyExtensionRecord,
   type TelephonyTenantRecord,
   type TelephonyAiAgentRecord,
@@ -52,6 +62,7 @@ export interface LoadTelephonyRecordsResult {
   tenants: TelephonyTenantRecord[];
   extensions: TelephonyExtensionRecord[];
   aiAgents: TelephonyAiAgentRecord[];
+  callflow: TelephonyCallflowRecords;
   skippedCredentialUsernames: string[];
 }
 
@@ -131,8 +142,10 @@ export class TelephonyService {
         loaded.aiAgents,
         `global-${Date.now()}`,
         outboundTenantSlugs,
+        loaded.callflow,
       ),
       generateTrunkConfig(trunkLoaded.trunks, trunkLoaded.inbound, trunkLoaded.outbound),
+      loaded.callflow.blacklist,
     );
     const validation = validateGeneratedConfig(generated, { requireExtensions: true });
     if (!validation.valid) {
@@ -284,6 +297,8 @@ export class TelephonyService {
       loaded.extensions,
       loaded.aiAgents,
       `tenant-${tenantId}-${Date.now()}`,
+      undefined,
+      loaded.callflow,
     );
   }
 
@@ -294,6 +309,8 @@ export class TelephonyService {
       loaded.extensions,
       loaded.aiAgents,
       `global-${Date.now()}`,
+      undefined,
+      loaded.callflow,
     );
   }
 
@@ -345,6 +362,7 @@ export class TelephonyService {
         for (const row of deviceRows) {
           try {
             extRecords.push({
+              extensionId: row.extension.id,
               tenantId: row.extension.tenantId,
               tenantSlug: row.tenant.slug,
               asteriskContext: row.tenant.asteriskContext,
@@ -377,6 +395,7 @@ export class TelephonyService {
         for (const row of extensionRows) {
           try {
             extRecords.push({
+              extensionId: row.extension.id,
               tenantId: row.extension.tenantId,
               tenantSlug: row.tenant.slug,
               asteriskContext: row.tenant.asteriskContext,
@@ -420,13 +439,195 @@ export class TelephonyService {
           status: r.agent.isActive ? 'active' : 'disabled',
         }));
 
+      const callflow = await this.loadCallflowRecords(
+        db,
+        tenantRows.map((t) => t.id),
+        extRecords,
+      );
+
       return {
         tenants: tenantRecords,
         extensions: extRecords,
         aiAgents: aiAgentRows,
+        callflow,
         skippedCredentialUsernames,
       };
     });
+  }
+
+  private async loadCallflowRecords(
+    db: Parameters<Parameters<typeof withBypassRls>[1]>[0],
+    tenantIds: string[],
+    extensions: TelephonyExtensionRecord[],
+  ): Promise<TelephonyCallflowRecords> {
+    if (tenantIds.length === 0) {
+      return {
+        ivrs: [],
+        schedules: [],
+        queues: [],
+        ringGroups: [],
+        featureCodes: [],
+        blacklist: [],
+      };
+    }
+
+    const extensionById = new Map(extensions.map((ext) => [ext.extensionId, ext]));
+
+    const ivrRows = await db.select().from(ivrs);
+    const ivrOptionRows = await db.select().from(ivrOptions);
+    const scheduleRows = await db.select().from(businessSchedules);
+    const queueRows = await db.select().from(queues);
+    const queueMemberRows = await db.select().from(queueMembers);
+    const ringGroupRows = await db.select().from(ringGroups);
+    const ringGroupMemberRows = await db.select().from(ringGroupMembers);
+    const featureCodeRows = await db.select().from(featureCodes);
+    const blacklistRows = await db.select().from(blacklistEntries);
+
+    const tenantSlugById = new Map<string, { slug: string; asteriskContext: string }>();
+    const tenantRows = await db.select().from(tenants);
+    for (const tenant of tenantRows) {
+      tenantSlugById.set(tenant.id, { slug: tenant.slug, asteriskContext: tenant.asteriskContext });
+    }
+
+    const scopedTenantIds = new Set(tenantIds);
+
+    return {
+      ivrs: ivrRows
+        .filter((row) => scopedTenantIds.has(row.tenantId))
+        .map((row) => {
+          const tenantMeta = tenantSlugById.get(row.tenantId);
+          if (!tenantMeta) return null;
+          return {
+            tenantId: row.tenantId,
+            tenantSlug: tenantMeta.slug,
+            asteriskContext: tenantMeta.asteriskContext,
+            ivrId: row.id,
+            name: row.name,
+            greetingAudioKey: row.greetingAudioKey,
+            timeoutSeconds: row.timeoutSeconds,
+            maxRetries: row.maxRetries,
+            language: row.language,
+            options: ivrOptionRows
+              .filter((option) => option.ivrId === row.id)
+              .map((option) => ({
+                digit: option.digit,
+                destinationType: option.destinationType,
+                destinationId: option.destinationId,
+              })),
+          };
+        })
+        .filter((row): row is NonNullable<typeof row> => row !== null),
+      schedules: scheduleRows
+        .filter((row) => scopedTenantIds.has(row.tenantId))
+        .map((row) => {
+          const tenantMeta = tenantSlugById.get(row.tenantId);
+          if (!tenantMeta) return null;
+          return {
+            tenantId: row.tenantId,
+            tenantSlug: tenantMeta.slug,
+            asteriskContext: tenantMeta.asteriskContext,
+            scheduleId: row.id,
+            name: row.name,
+            timezone: row.timezone,
+            scheduleType: row.scheduleType,
+            rules: (row.rules ?? []) as unknown[],
+            openDestinationType: row.openDestinationType,
+            openDestinationId: row.openDestinationId,
+            closedDestinationType: row.closedDestinationType,
+            closedDestinationId: row.closedDestinationId,
+          };
+        })
+        .filter((row): row is NonNullable<typeof row> => row !== null),
+      queues: queueRows
+        .filter((row) => scopedTenantIds.has(row.tenantId))
+        .map((row) => {
+          const tenantMeta = tenantSlugById.get(row.tenantId);
+          if (!tenantMeta) return null;
+          return {
+            tenantId: row.tenantId,
+            tenantSlug: tenantMeta.slug,
+            asteriskContext: tenantMeta.asteriskContext,
+            queueId: row.id,
+            name: row.name,
+            asteriskQueueName: row.asteriskQueueName,
+            strategy: row.strategy,
+            maxWaitSeconds: row.maxWaitSeconds,
+            number: row.number,
+            members: queueMemberRows
+              .filter((member) => member.queueId === row.id)
+              .map((member) => {
+                const ext = extensionById.get(member.extensionId);
+                return ext
+                  ? {
+                      extensionId: member.extensionId,
+                      extensionNumber: ext.extensionNumber,
+                      asteriskEndpointId: ext.asteriskEndpointId,
+                      penalty: member.penalty,
+                    }
+                  : null;
+              })
+              .filter((member): member is NonNullable<typeof member> => member !== null),
+          };
+        })
+        .filter((row): row is NonNullable<typeof row> => row !== null),
+      ringGroups: ringGroupRows
+        .filter((row) => scopedTenantIds.has(row.tenantId))
+        .map((row) => {
+          const tenantMeta = tenantSlugById.get(row.tenantId);
+          if (!tenantMeta) return null;
+          return {
+            tenantId: row.tenantId,
+            tenantSlug: tenantMeta.slug,
+            asteriskContext: tenantMeta.asteriskContext,
+            ringGroupId: row.id,
+            name: row.name,
+            strategy: row.strategy,
+            timeoutSeconds: row.timeoutSeconds,
+            members: ringGroupMemberRows
+              .filter((member) => member.ringGroupId === row.id)
+              .map((member) => {
+                const ext = extensionById.get(member.extensionId);
+                return ext
+                  ? {
+                      extensionId: member.extensionId,
+                      extensionNumber: ext.extensionNumber,
+                      asteriskEndpointId: ext.asteriskEndpointId,
+                      priority: member.priority,
+                    }
+                  : null;
+              })
+              .filter((member): member is NonNullable<typeof member> => member !== null),
+          };
+        })
+        .filter((row): row is NonNullable<typeof row> => row !== null),
+      featureCodes: featureCodeRows
+        .filter((row) => scopedTenantIds.has(row.tenantId))
+        .map((row) => {
+          const tenantMeta = tenantSlugById.get(row.tenantId);
+          if (!tenantMeta) return null;
+          return {
+            tenantId: row.tenantId,
+            tenantSlug: tenantMeta.slug,
+            asteriskContext: tenantMeta.asteriskContext,
+            code: row.code,
+            actionType: row.actionType,
+            enabled: row.enabled,
+          };
+        })
+        .filter((row): row is NonNullable<typeof row> => row !== null),
+      blacklist: blacklistRows
+        .filter((row) => scopedTenantIds.has(row.tenantId))
+        .map((row) => {
+          const tenantMeta = tenantSlugById.get(row.tenantId);
+          if (!tenantMeta) return null;
+          return {
+            tenantId: row.tenantId,
+            tenantSlug: tenantMeta.slug,
+            numberPattern: row.numberPattern,
+          };
+        })
+        .filter((row): row is NonNullable<typeof row> => row !== null),
+    };
   }
 
   private async loadGlobalTrunkRecords(): Promise<{
