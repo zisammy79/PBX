@@ -7,6 +7,7 @@ export type ExtensionRegistrationStatus = z.infer<typeof ExtensionRegistrationSt
 export const ExtensionRegistrationRuntimeSchema = z.object({
   extensionId: z.string().uuid(),
   extensionNumber: z.string(),
+  asteriskEndpointId: z.string(),
   registrationStatus: ExtensionRegistrationStatusSchema,
   endpointState: z.string().nullable(),
   contactCount: z.number().int().nonnegative(),

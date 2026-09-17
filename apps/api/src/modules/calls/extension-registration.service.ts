@@ -42,6 +42,7 @@ export class ExtensionRegistrationService {
         return {
           extensionId: row.id,
           extensionNumber: row.extensionNumber,
+          asteriskEndpointId: row.asteriskEndpointId,
           registrationStatus: mapAriEndpointToRegistrationStatus(snapshot, reachable),
           endpointState: snapshot?.state ?? null,
           contactCount: countEndpointContacts(snapshot),
@@ -84,6 +85,7 @@ export class ExtensionRegistrationService {
       return {
         extensionId: ext.id,
         extensionNumber: ext.extensionNumber,
+        asteriskEndpointId: ext.asteriskEndpointId,
         registrationStatus: mapAriEndpointToRegistrationStatus(snapshot, reachable),
         endpointState: snapshot?.state ?? null,
         contactCount: countEndpointContacts(snapshot),

@@ -12,6 +12,7 @@ import { downloadCsv } from '@/lib/csv-export';
 type RegistrationItem = {
   extensionId: string;
   extensionNumber: string;
+  asteriskEndpointId: string;
   registrationStatus: 'online' | 'offline' | 'unknown';
   endpointState: string | null;
   contactCount: number;
@@ -59,6 +60,8 @@ export default function StatusPage() {
   const [batch, setBatch] = useState<RegistrationBatch | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [unregisteringEndpointId, setUnregisteringEndpointId] = useState<string | null>(null);
 
   const loadRegistration = useCallback(async () => {
     const reg = await api.get<RegistrationBatch>('extensions/registration-status', tenantId);
@@ -77,6 +80,19 @@ export default function StatusPage() {
     const timer = window.setInterval(() => void loadRegistration(), 12000);
     return () => window.clearInterval(timer);
   }, [tenantId, loadRegistration]);
+
+  async function unregisterPeer(endpointId: string) {
+    setActionError(null);
+    setUnregisteringEndpointId(endpointId);
+    try {
+      await api.post(`tenants/${tenantId}/peers/${encodeURIComponent(endpointId)}/unregister`, tenantId);
+      await loadRegistration();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Unregister failed');
+    } finally {
+      setUnregisteringEndpointId(null);
+    }
+  }
 
   function exportCsv() {
     if (!batch) return;
@@ -125,6 +141,8 @@ export default function StatusPage() {
         {formatDate(batch.observedAt)}
       </div>
 
+      {actionError ? <div className="alert alert-error">{actionError}</div> : null}
+
       <div className="table-wrap card">
         <table>
           <thead>
@@ -135,11 +153,14 @@ export default function StatusPage() {
               <th>Registration</th>
               <th>Endpoint</th>
               <th>Contacts</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {extensions.map((ext) => {
               const reg = regById.get(ext.id);
+              const endpointId = reg?.asteriskEndpointId;
+              const canUnregister = reg?.registrationStatus === 'online' && endpointId;
               return (
                 <tr key={ext.id}>
                   <td>
@@ -156,6 +177,20 @@ export default function StatusPage() {
                   </td>
                   <td>{reg?.endpointState ?? '—'}</td>
                   <td>{reg?.contactCount ?? 0}</td>
+                  <td>
+                    {canUnregister ? (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        disabled={unregisteringEndpointId === endpointId}
+                        onClick={() => void unregisterPeer(endpointId)}
+                      >
+                        {unregisteringEndpointId === endpointId ? 'Unregistering…' : 'Unregister'}
+                      </button>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                 </tr>
               );
             })}
