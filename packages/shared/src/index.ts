@@ -6,3 +6,4 @@ export * from './api-key.js';
 export * from './platform-api-token.js';
 export * from './webhook-signing.js';
 export * from './recording-policy.js';
+export * from './business-schedule.js';

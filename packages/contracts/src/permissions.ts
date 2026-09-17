@@ -14,6 +14,7 @@ export const Permission = {
   PLATFORM_INTEGRATIONS_VALIDATE: 'platform:integrations:validate',
   PLATFORM_INTEGRATIONS_ASSIGN: 'platform:integrations:assign',
   PLATFORM_INTEGRATIONS_AUDIT: 'platform:integrations:audit',
+  PLATFORM_CATALOG_MANAGE: 'platform:catalog:manage',
 
   // Tenant administration
   TENANT_READ: 'tenant:read',
@@ -23,6 +24,12 @@ export const Permission = {
   TENANT_TRUNK_MANAGE: 'tenant:trunk:manage',
   TENANT_NUMBER_MANAGE: 'tenant:number:manage',
   TENANT_CALLFLOW_MANAGE: 'tenant:callflow:manage',
+  TENANT_MEDIA_MANAGE: 'tenant:media:manage',
+  TENANT_VOICEMAIL_MANAGE: 'tenant:voicemail:manage',
+  TENANT_CAMPAIGN_MANAGE: 'tenant:campaign:manage',
+  TENANT_PHONEBOOK_MANAGE: 'tenant:phonebook:manage',
+  TENANT_PROVISIONING_MANAGE: 'tenant:provisioning:manage',
+  TENANT_PEER_OPERATE: 'tenant:peer:operate',
   TENANT_AI_MANAGE: 'tenant:ai:manage',
   AI_PROVIDER_CONNECTIONS_READ: 'ai:provider_connections:read',
   AI_PROVIDER_CONNECTIONS_MANAGE: 'ai:provider_connections:manage',

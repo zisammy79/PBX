@@ -23,6 +23,7 @@ export const users = pgTable(
     totpEnabled: boolean('totp_enabled').notNull().default(false),
     platformRoles: text('platform_roles').array().notNull().default([]),
     passwordMustChange: boolean('password_must_change').notNull().default(false),
+    preferredLocale: varchar('preferred_locale', { length: 8 }).notNull().default('en'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
