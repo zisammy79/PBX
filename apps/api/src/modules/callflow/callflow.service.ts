@@ -64,6 +64,7 @@ import {
 } from '@pbx/database';
 import { DATABASE } from '../../common/tokens.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
+import { TenantLimitsService } from '../tenants/tenant-limits.service.js';
 
 const LOCALES_SETTINGS_KEY = 'locales';
 
@@ -86,6 +87,7 @@ function buildQueueAsteriskName(tenantId: string, name: string): string {
 export class CallflowService {
   constructor(
     @Inject(DATABASE) private readonly database: ReturnType<typeof import('@pbx/database').createDatabase>,
+    @Inject(TenantLimitsService) private readonly tenantLimitsService: TenantLimitsService,
   ) {}
 
   // --- Schedules ---
@@ -135,6 +137,7 @@ export class CallflowService {
 
   async createIvr(actor: AuthenticatedUser, tenantId: string, input: CreateIvr) {
     await this.assertTenantAccess(actor, tenantId);
+    await this.tenantLimitsService.assertCanCreateIvr(tenantId);
     return withTenantContext(this.database.db, tenantId, async (db) => {
       const [ivr] = await db
         .insert(ivrs)
@@ -233,6 +236,7 @@ export class CallflowService {
 
   async createQueue(actor: AuthenticatedUser, tenantId: string, input: CreateQueue) {
     await this.assertTenantAccess(actor, tenantId);
+    await this.tenantLimitsService.assertCanCreateQueue(tenantId);
     return withTenantContext(this.database.db, tenantId, async (db) => {
       const [queue] = await db
         .insert(queues)
@@ -329,6 +333,7 @@ export class CallflowService {
 
   async createRingGroup(actor: AuthenticatedUser, tenantId: string, input: CreateRingGroup) {
     await this.assertTenantAccess(actor, tenantId);
+    await this.tenantLimitsService.assertCanCreateRingGroup(tenantId);
     return withTenantContext(this.database.db, tenantId, async (db) => {
       const [group] = await db
         .insert(ringGroups)

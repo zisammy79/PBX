@@ -12,7 +12,10 @@ import {
   apiApplications,
   calls,
   extensions,
+  ivrs,
   planEntitlements,
+  queues,
+  ringGroups,
   sipDevices,
   tenantLimitOverrides,
   tenantMemberships,
@@ -64,6 +67,36 @@ export class TenantLimitsService {
             eq(users.status, 'active'),
           ),
         );
+      return Number(usage?.total ?? 0);
+    });
+  }
+
+  async assertCanCreateIvr(tenantId: string): Promise<void> {
+    await this.assertWithinLimit(tenantId, 'max_ivrs', async (db) => {
+      const [usage] = await db
+        .select({ total: count() })
+        .from(ivrs)
+        .where(eq(ivrs.tenantId, tenantId));
+      return Number(usage?.total ?? 0);
+    });
+  }
+
+  async assertCanCreateQueue(tenantId: string): Promise<void> {
+    await this.assertWithinLimit(tenantId, 'max_queues', async (db) => {
+      const [usage] = await db
+        .select({ total: count() })
+        .from(queues)
+        .where(eq(queues.tenantId, tenantId));
+      return Number(usage?.total ?? 0);
+    });
+  }
+
+  async assertCanCreateRingGroup(tenantId: string): Promise<void> {
+    await this.assertWithinLimit(tenantId, 'max_ring_groups', async (db) => {
+      const [usage] = await db
+        .select({ total: count() })
+        .from(ringGroups)
+        .where(eq(ringGroups.tenantId, tenantId));
       return Number(usage?.total ?? 0);
     });
   }
@@ -176,6 +209,9 @@ export class TenantLimitsService {
       max_sip_devices: null,
       max_devices_per_extension: null,
       max_concurrent_calls: null,
+      max_ivrs: null,
+      max_queues: null,
+      max_ring_groups: null,
       max_api_applications: null,
       max_webhooks: null,
     };
@@ -276,6 +312,27 @@ export class TenantLimitsService {
           .select({ total: count() })
           .from(webhookEndpoints)
           .where(eq(webhookEndpoints.tenantId, tenantId));
+        return Number(row?.total ?? 0);
+      }
+      case 'max_ivrs': {
+        const [row] = await db
+          .select({ total: count() })
+          .from(ivrs)
+          .where(eq(ivrs.tenantId, tenantId));
+        return Number(row?.total ?? 0);
+      }
+      case 'max_queues': {
+        const [row] = await db
+          .select({ total: count() })
+          .from(queues)
+          .where(eq(queues.tenantId, tenantId));
+        return Number(row?.total ?? 0);
+      }
+      case 'max_ring_groups': {
+        const [row] = await db
+          .select({ total: count() })
+          .from(ringGroups)
+          .where(eq(ringGroups.tenantId, tenantId));
         return Number(row?.total ?? 0);
       }
       default:
