@@ -12,6 +12,7 @@ describe('telephony config generator', () => {
 
   const extensions = [
     {
+      extensionId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
       tenantId: tenant.tenantId,
       tenantSlug: 'acme',
       asteriskContext: 't_acme',
@@ -23,6 +24,7 @@ describe('telephony config generator', () => {
       status: 'active' as const,
     },
     {
+      extensionId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
       tenantId: tenant.tenantId,
       tenantSlug: 'acme',
       asteriskContext: 't_acme',

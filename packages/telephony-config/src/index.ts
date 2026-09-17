@@ -1,4 +1,6 @@
 export * from './types.js';
+export * from './callflow.types.js';
+export * from './callflow-dialplan.js';
 export * from './generator.js';
 export * from './trunk.types.js';
 export * from './trunk-generator.js';

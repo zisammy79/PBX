@@ -37,6 +37,7 @@ export async function writeStagingConfig(
   await mkdir(paths.staging, { recursive: true, mode: DIR_MODE });
   await writeSecretFile(paths.stagingPjsip, config.pjsipTenants);
   await writeSecretFile(paths.stagingExtensions, config.extensionsTenants);
+  await writeSecretFile(paths.stagingQueues, config.queuesTenants || '; no tenant queues\n');
   await writeFile(paths.stagingManifest, JSON.stringify(config.manifest, null, 2), {
     mode: SECRET_MODE,
   });
@@ -49,7 +50,7 @@ export async function activateStagingConfig(repoRoot: string): Promise<Activatio
   }
 
   const paths = generatedPaths(repoRoot);
-  const files = ['pjsip-tenants.conf', 'extensions-tenants.conf', 'manifest.json'];
+  const files = ['pjsip-tenants.conf', 'extensions-tenants.conf', 'queues-tenants.conf', 'manifest.json'];
 
   let previousVersion: string | undefined;
   try {
@@ -89,7 +90,7 @@ export async function activateStagingConfig(repoRoot: string): Promise<Activatio
 
 export async function rollbackToLastKnownGood(repoRoot: string): Promise<ActivationResult> {
   const paths = generatedPaths(repoRoot);
-  const files = ['pjsip-tenants.conf', 'extensions-tenants.conf', 'manifest.json'];
+  const files = ['pjsip-tenants.conf', 'extensions-tenants.conf', 'queues-tenants.conf', 'manifest.json'];
   try {
     await copyDirFiles(paths.lastKnownGood, paths.active, files);
     const manifest = JSON.parse(await readFile(paths.activeManifest, 'utf8'));
@@ -108,12 +109,20 @@ async function readStagingAsConfig(repoRoot: string): Promise<GeneratedTelephony
   const pjsipTenants = await readFile(paths.stagingPjsip, 'utf8');
   const extensionsTenants = await readFile(paths.stagingExtensions, 'utf8');
   const manifest = JSON.parse(await readFile(paths.stagingManifest, 'utf8'));
+  let queuesTenants = '; no tenant queues\n';
+  try {
+    queuesTenants = await readFile(paths.stagingQueues, 'utf8');
+  } catch {
+    // older staging bundles may omit queues
+  }
+
   return {
     version: manifest.version,
     generatedAt: manifest.generatedAt,
     tenantIds: manifest.tenantIds,
     pjsipTenants,
     extensionsTenants,
+    queuesTenants,
     manifest,
   };
 }
@@ -142,6 +151,7 @@ export async function reloadAsterisk(options: {
     { path: '/asterisk/modules/res_pjsip.so', method: 'PUT', okStatuses: [204, 409] },
     { path: '/asterisk/modules/res_pjsip', method: 'PUT', okStatuses: [204, 409] },
     { path: '/asterisk/modules/pbx_config.so', method: 'PUT', okStatuses: [204, 409] },
+    { path: '/asterisk/modules/app_queue.so', method: 'PUT', okStatuses: [204, 409] },
   ];
 
   const errors: string[] = [];

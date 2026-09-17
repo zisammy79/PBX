@@ -48,7 +48,7 @@ render_template() {
 
 # Install PBX-managed configs into /etc/asterisk without replacing the full base tree
 if [ -d "${PBX_OVERLAY}" ]; then
-  for f in pjsip.conf extensions.conf ari.conf http.conf modules.conf rtp.conf asterisk.conf logger.conf pjsip_wizard.conf; do
+  for f in pjsip.conf extensions.conf queues.conf ari.conf http.conf modules.conf rtp.conf asterisk.conf logger.conf pjsip_wizard.conf; do
     if [ -f "${PBX_OVERLAY}/${f}" ]; then
       if [ "$f" = "pjsip.conf" ]; then
         render_template "${PBX_OVERLAY}/${f}" "/etc/asterisk/${f}"

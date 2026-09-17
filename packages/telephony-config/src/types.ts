@@ -1,4 +1,5 @@
 export interface TelephonyExtensionRecord {
+  extensionId: string;
   tenantId: string;
   tenantSlug: string;
   asteriskContext: string;
@@ -33,6 +34,7 @@ export interface GeneratedTelephonyConfig {
   tenantIds: string[];
   pjsipTenants: string;
   extensionsTenants: string;
+  queuesTenants: string;
   manifest: ConfigManifest;
 }
 

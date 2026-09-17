@@ -15,6 +15,7 @@ describe('telephony runtime helpers', () => {
       ],
       [
         {
+          extensionId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
           tenantId: '11111111-1111-1111-1111-111111111111',
           tenantSlug: 'demo-company',
           asteriskContext: 't_demo_company',

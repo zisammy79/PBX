@@ -79,6 +79,7 @@ async function main() {
     for (const extRow of extensionRows) {
       try {
         extRecords.push({
+          extensionId: extRow.extension.id,
           tenantId: extRow.extension.tenantId,
           tenantSlug: extRow.tenant.slug,
           asteriskContext: extRow.tenant.asteriskContext,

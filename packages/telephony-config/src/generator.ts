@@ -1,5 +1,11 @@
 import { createHash } from 'node:crypto';
 import { redactObject } from '@pbx/shared';
+import {
+  appendTenantCallflowDialplan,
+  buildCallflowDestinationMaps,
+  emitQueuesConf,
+} from './callflow-dialplan.js';
+import type { TelephonyCallflowRecords } from './callflow.types.js';
 import { appendIsraeliOutboundDialplan } from './israel-dialplan.js';
 import type {
   ConfigManifest,
@@ -30,6 +36,14 @@ export function generateTelephonyConfig(
   aiAgents: TelephonyAiAgentRecord[] = [],
   version?: string,
   outboundTenantSlugs?: Iterable<string>,
+  callflow: TelephonyCallflowRecords = {
+    ivrs: [],
+    schedules: [],
+    queues: [],
+    ringGroups: [],
+    featureCodes: [],
+    blacklist: [],
+  },
 ): GeneratedTelephonyConfig {
   const outboundSlugs = new Set(outboundTenantSlugs ?? []);
   const activeTenants = tenants.filter((t) => t.status === 'active');
@@ -104,6 +118,13 @@ export function generateTelephonyConfig(
       appendIsraeliOutboundDialplan(dialplanLines, tenant.slug);
     }
 
+    const extensionNumbers = new Map<string, string>();
+    for (const ext of activeExtensions.filter((e) => e.tenantSlug === tenant.slug)) {
+      extensionNumbers.set(ext.extensionId, ext.extensionNumber);
+    }
+    const destinationMaps = buildCallflowDestinationMaps(callflow, extensionNumbers);
+    appendTenantCallflowDialplan(dialplanLines, tenant, callflow, destinationMaps);
+
     dialplanLines.push(
       'exten => _XXXX,1,NoOp(PBX internal ${CALLERID(num)} -> ${EXTEN} tenant ' +
         tenant.slug +
@@ -165,9 +186,11 @@ export function generateTelephonyConfig(
   const configVersion = version ?? generatedAt;
   const pjsipTenants = `${pjsipLines.join('\n')}\n`;
   const extensionsTenants = `${dialplanLines.join('\n')}\n`;
+  const queuesTenants = emitQueuesConf(callflow.queues);
   const checksum = createHash('sha256')
     .update(pjsipTenants)
     .update(extensionsTenants)
+    .update(queuesTenants)
     .digest('hex');
 
   const manifest: ConfigManifest = {
@@ -184,6 +207,7 @@ export function generateTelephonyConfig(
     tenantIds: manifest.tenantIds,
     pjsipTenants,
     extensionsTenants,
+    queuesTenants,
     manifest,
   };
 }
