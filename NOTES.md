@@ -122,3 +122,7 @@ Branch `feature/pbx-multitenant-closeout`, commit `28b2443` pushed to `origin`. 
 ## Deferred
 
 DigitalOcean deployment, HA, compliance — unchanged per [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md).
+
+## Isolation evidence (2026-09-17)
+- `RUN_INTEGRATION_TESTS=true vitest run src/integration/phase7-isolation.integration.spec.ts src/integration/five-tenant-callflow.isolation.integration.spec.ts` → **PASS** (8 tests)
+- Fixed `@fastify/multipart` pin to `^8.3.1` for Fastify 4
