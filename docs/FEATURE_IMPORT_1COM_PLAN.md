@@ -11,12 +11,12 @@
 | 1 schedules/IVR/DID/media | **PARTIAL** | CRUD API + tenant UI; telephony-config emits IVR/schedule dialplan stubs; DID inbound UI still uses existing numbers page |
 | 2 queues/hunts/codes/blacklist | **PARTIAL** | CRUD API + UI; generator emits Queue()/ring-group/feature-code/blacklist dialplan + queues.conf |
 | 3 peer ops / CDR / KPIs | **PARTIAL** | `POST tenants/:tenantId/peers/:endpointId/unregister` (TENANT_PEER_OPERATE) + status page action; CDR/KPIs pending |
-| 4 VM / MoH / conf / phonebooks | **PARTIAL** | Conferences/paging/phonebooks CRUD+UI; MoH schema; VM inbox pending |
+| 4 VM / MoH / conf / phonebooks | **PARTIAL** | Conferences/paging/phonebooks CRUD+UI; MoH CRUD+UI; voicemail inbox API+UI (list/mark read/delete); playback runtime pending |
 | 5 custom dest / webhooks / paging | **PARTIAL** | Safe custom destinations CRUD; answer webhook runtime pending |
-| 6 campaigns / DNC / cron | **PARTIAL** | DNC lists API; campaigns UI placeholder |
+| 6 campaigns / DNC / cron | **PARTIAL** | DNC lists API; campaigns schema+CRUD+UI (start/pause/stop stub); telephony cron jobs CRUD+UI; dialer runtime pending |
 | 7 BLF / fax / SMS | PENDING | Provisioning UI placeholder |
 | 8 docs / QA / isolation | PENDING | |
-| Entitlements (IVR/queue/hunt) | **IN** | `TenantLimitsService` asserts `max_ivrs`, `max_queues`, `max_ring_groups` on create |  
+| Entitlements (IVR/queue/hunt/campaign) | **IN** | `TenantLimitsService` asserts `max_ivrs`, `max_queues`, `max_ring_groups`, `max_campaigns` on create |  
 **Source system:** `https://pbx6webserver.1com.co.il` (1com management UI / PBXM-class)  
 **Target:** canonical repo multi-tenant PBX (API + web + telephony-controller + Asterisk)  
 **Decision date:** 2026-09-17  
