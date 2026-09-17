@@ -26,7 +26,10 @@ import {
   CreateDncListSchema,
   CreateFeatureCodeSchema,
   CreateIvrSchema,
+  CampaignNumberImportQuerySchema,
   CreateCampaignSchema,
+  ImportCampaignNumbersSchema,
+  ListCampaignNumbersQuerySchema,
   CreateMediaFileSchema,
   validationError,
   CreateMohClassSchema,
@@ -414,6 +417,40 @@ export class CallflowController {
   @RequirePermissions(Permission.TENANT_CAMPAIGN_MANAGE)
   stopCampaign(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
     return this.callflowService.stopCampaign(req.user!, tenantId, id);
+  }
+
+  @Get('campaigns/:id/numbers')
+  @RequirePermissions(Permission.TENANT_CAMPAIGN_MANAGE)
+  listCampaignNumbers(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Param('id') id: string,
+    @Query() query: unknown,
+  ) {
+    return this.callflowService.listCampaignNumbers(
+      req.user!,
+      tenantId,
+      id,
+      ListCampaignNumbersQuerySchema.parse(query),
+    );
+  }
+
+  @Post('campaigns/:id/numbers')
+  @RequirePermissions(Permission.TENANT_CAMPAIGN_MANAGE)
+  importCampaignNumbers(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Param('id') id: string,
+    @Query() query: unknown,
+    @Body() body: unknown,
+  ) {
+    return this.callflowService.importCampaignNumbers(
+      req.user!,
+      tenantId,
+      id,
+      ImportCampaignNumbersSchema.parse(body),
+      CampaignNumberImportQuerySchema.parse(query),
+    );
   }
 
   @Post('campaigns/:id/tick')

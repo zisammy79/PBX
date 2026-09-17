@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PaginationQuerySchema } from './pagination.js';
 
 export const ListVoicemailsQuerySchema = z.object({
   extensionId: z.string().uuid().optional(),
@@ -38,6 +39,19 @@ export const UpdateCampaignSchema = CreateCampaignSchema.partial().extend({
 
 export const ListCampaignsQuerySchema = z.object({});
 
+export const ImportCampaignNumbersSchema = z.object({
+  numbers: z.array(z.string().min(1).max(64)).min(1).max(10_000),
+});
+
+export const ListCampaignNumbersQuerySchema = PaginationQuerySchema;
+
+export const CampaignNumberImportQuerySchema = z.object({
+  skipDnc: z
+    .union([z.literal('true'), z.literal('false'), z.boolean()])
+    .optional()
+    .transform((value) => value === true || value === 'true'),
+});
+
 export const CreateTelephonyCronJobSchema = z.object({
   name: z.string().min(1).max(255),
   jobType: z.string().min(1).max(64),
@@ -56,5 +70,8 @@ export type CreateMohClass = z.infer<typeof CreateMohClassSchema>;
 export type UpdateMohClass = z.infer<typeof UpdateMohClassSchema>;
 export type CreateCampaign = z.infer<typeof CreateCampaignSchema>;
 export type UpdateCampaign = z.infer<typeof UpdateCampaignSchema>;
+export type ImportCampaignNumbers = z.infer<typeof ImportCampaignNumbersSchema>;
+export type ListCampaignNumbersQuery = z.infer<typeof ListCampaignNumbersQuerySchema>;
+export type CampaignNumberImportQuery = z.infer<typeof CampaignNumberImportQuerySchema>;
 export type CreateTelephonyCronJob = z.infer<typeof CreateTelephonyCronJobSchema>;
 export type UpdateTelephonyCronJob = z.infer<typeof UpdateTelephonyCronJobSchema>;

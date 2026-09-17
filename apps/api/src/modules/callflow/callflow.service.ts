@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   DEFAULT_TENANT_LOCALES,
   notFound,
+  paginate,
   tenantAccessDenied,
   validationError,
   Permission,
@@ -12,7 +13,10 @@ import {
   type CreateBlacklistEntry,
   type CreateBusinessSchedule,
   type CreateButtonLayout,
+  type CampaignNumberImportQuery,
   type CreateCampaign,
+  type ImportCampaignNumbers,
+  type ListCampaignNumbersQuery,
   type CreateOutboundFax,
   type CreateConference,
   type CreateCustomDestination,
@@ -56,13 +60,14 @@ import {
 import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { FastifyReply } from 'fastify';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import {
   blacklistEntries,
   businessSchedules,
   buttonLayoutAssignments,
   buttonLayouts,
+  campaignNumbers,
   campaigns,
   conferences,
   customDestinations,
@@ -99,7 +104,8 @@ import { LocalMediaStorageService } from '../../common/local-media-storage.servi
 import { LocalRecordingStorageService } from '../../common/local-recording-storage.service.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
 import { TenantLimitsService } from '../tenants/tenant-limits.service.js';
-import { CampaignDialerService } from './campaign-dialer.service.js';
+import { CampaignDialerService, normalizeCampaignNumber } from './campaign-dialer.service.js';
+import { parseCampaignNumberInput } from './campaign-numbers.js';
 
 const LOCALES_SETTINGS_KEY = 'locales';
 
@@ -558,7 +564,10 @@ export class CallflowService {
     return this.tenantList(actor, tenantId, mohClasses);
   }
 
-  createMohClass(actor: AuthenticatedUser, tenantId: string, input: CreateMohClass) {
+  async createMohClass(actor: AuthenticatedUser, tenantId: string, input: CreateMohClass) {
+    if (input.mediaFileIds?.length) {
+      await this.assertMohMediaFileIds(actor, tenantId, input.mediaFileIds);
+    }
     return this.tenantCreate(actor, tenantId, mohClasses, { tenantId, ...input });
   }
 
@@ -566,8 +575,25 @@ export class CallflowService {
     return this.tenantGet(actor, tenantId, mohClasses, id);
   }
 
-  patchMohClass(actor: AuthenticatedUser, tenantId: string, id: string, input: UpdateMohClass) {
+  async patchMohClass(actor: AuthenticatedUser, tenantId: string, id: string, input: UpdateMohClass) {
+    await this.assertTenantAccess(actor, tenantId);
+    if (input.mediaFileIds) {
+      await this.assertMohMediaFileIds(actor, tenantId, input.mediaFileIds);
+    }
     return this.tenantPatch(actor, tenantId, mohClasses, id, { ...input, updatedAt: new Date() });
+  }
+
+  private async assertMohMediaFileIds(_actor: AuthenticatedUser, tenantId: string, mediaFileIds: string[]) {
+    if (mediaFileIds.length === 0) return;
+    await withTenantContext(this.database.db, tenantId, async (db) => {
+      const rows = await db
+        .select({ id: mediaFiles.id })
+        .from(mediaFiles)
+        .where(and(eq(mediaFiles.tenantId, tenantId), inArray(mediaFiles.id, mediaFileIds)));
+      if (rows.length !== mediaFileIds.length) {
+        throw validationError({ mediaFileIds: 'One or more media files were not found for this tenant' });
+      }
+    });
   }
 
   deleteMohClass(actor: AuthenticatedUser, tenantId: string, id: string) {
@@ -744,6 +770,119 @@ export class CallflowService {
 
   tickCampaign(actor: AuthenticatedUser, tenantId: string, id: string) {
     return this.campaignDialer.tick(actor, tenantId, id);
+  }
+
+  async importCampaignNumbers(
+    actor: AuthenticatedUser,
+    tenantId: string,
+    campaignId: string,
+    input: ImportCampaignNumbers,
+    options: CampaignNumberImportQuery,
+  ) {
+    await this.assertTenantAccess(actor, tenantId);
+    const skipDnc = options.skipDnc ?? false;
+
+    return withTenantContext(this.database.db, tenantId, async (db) => {
+      const [campaign] = await db
+        .select({ id: campaigns.id })
+        .from(campaigns)
+        .where(and(eq(campaigns.tenantId, tenantId), eq(campaigns.id, campaignId)))
+        .limit(1);
+      if (!campaign) throw notFound('Campaign');
+
+      const dncNumbers = skipDnc ? new Set<string>() : await this.loadDncNumberSet(db, tenantId);
+      const existingRows = await db
+        .select({ number: campaignNumbers.number })
+        .from(campaignNumbers)
+        .where(and(eq(campaignNumbers.tenantId, tenantId), eq(campaignNumbers.campaignId, campaignId)));
+      const existing = new Set(existingRows.map((row) => normalizeCampaignNumber(row.number)));
+
+      let imported = 0;
+      let skippedInvalid = 0;
+      let skippedDnc = 0;
+      let skippedDuplicate = 0;
+
+      for (const raw of input.numbers) {
+        const parsed = parseCampaignNumberInput(raw);
+        if (!parsed) {
+          skippedInvalid += 1;
+          continue;
+        }
+        const key = normalizeCampaignNumber(parsed);
+        if (existing.has(key)) {
+          skippedDuplicate += 1;
+          continue;
+        }
+        if (dncNumbers.has(key)) {
+          skippedDnc += 1;
+          continue;
+        }
+        await db.insert(campaignNumbers).values({
+          tenantId,
+          campaignId,
+          number: parsed,
+        });
+        existing.add(key);
+        imported += 1;
+      }
+
+      return {
+        campaignId,
+        imported,
+        skipped: {
+          invalid: skippedInvalid,
+          dnc: skippedDnc,
+          duplicate: skippedDuplicate,
+        },
+        totalSubmitted: input.numbers.length,
+      };
+    });
+  }
+
+  async listCampaignNumbers(
+    actor: AuthenticatedUser,
+    tenantId: string,
+    campaignId: string,
+    query: ListCampaignNumbersQuery,
+  ) {
+    await this.assertTenantAccess(actor, tenantId);
+    const offset = (query.page - 1) * query.pageSize;
+
+    return withTenantContext(this.database.db, tenantId, async (db) => {
+      const [campaign] = await db
+        .select({ id: campaigns.id })
+        .from(campaigns)
+        .where(and(eq(campaigns.tenantId, tenantId), eq(campaigns.id, campaignId)))
+        .limit(1);
+      if (!campaign) throw notFound('Campaign');
+
+      const filters = and(
+        eq(campaignNumbers.tenantId, tenantId),
+        eq(campaignNumbers.campaignId, campaignId),
+      );
+
+      const countRow = await db.select({ total: count() }).from(campaignNumbers).where(filters);
+      const total = Number(countRow[0]?.total ?? 0);
+
+      const rows = await db
+        .select()
+        .from(campaignNumbers)
+        .where(filters)
+        .orderBy(asc(campaignNumbers.createdAt))
+        .limit(query.pageSize)
+        .offset(offset);
+
+      return paginate(rows.map((row) => serialize(row)), query.page, query.pageSize, total);
+    });
+  }
+
+  private async loadDncNumberSet(db: DbTx, tenantId: string): Promise<Set<string>> {
+    const rows = await db
+      .select({ number: dncListNumbers.number })
+      .from(dncListNumbers)
+      .innerJoin(dncLists, eq(dncListNumbers.listId, dncLists.id))
+      .where(and(eq(dncListNumbers.tenantId, tenantId), eq(dncLists.listType, 'dnc')));
+    return new Set(rows.map((row) => normalizeCampaignNumber(row.number)));
   }
 
   // --- Telephony cron jobs ---

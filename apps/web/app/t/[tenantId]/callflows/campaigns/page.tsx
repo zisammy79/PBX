@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, Fragment, useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api-client';
 import { useI18n } from '@/lib/i18n';
@@ -15,6 +15,23 @@ type CampaignRow = {
   maxAttempts: number;
 };
 
+type CampaignNumberRow = {
+  id: string;
+  number: string;
+  attempts: number;
+  lastStatus: string | null;
+};
+
+type PaginatedNumbers = {
+  data: CampaignNumberRow[];
+  pagination: { page: number; pageSize: number; totalItems: number; totalPages: number };
+};
+
+type ImportResult = {
+  imported: number;
+  skipped: { invalid: number; dnc: number; duplicate: number };
+};
+
 export default function CampaignsPage() {
   const { tenantId } = useParams<{ tenantId: string }>();
   const { t } = useI18n();
@@ -24,6 +41,11 @@ export default function CampaignsPage() {
   const [name, setName] = useState('');
   const [technology, setTechnology] = useState('voice');
   const [busy, setBusy] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [numbersText, setNumbersText] = useState('');
+  const [skipDnc, setSkipDnc] = useState(false);
+  const [numbersPage, setNumbersPage] = useState<PaginatedNumbers | null>(null);
+  const [importSummary, setImportSummary] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -38,9 +60,33 @@ export default function CampaignsPage() {
     }
   }, [tenantId]);
 
+  const loadNumbers = useCallback(
+    async (campaignId: string) => {
+      try {
+        const data = await api.get<PaginatedNumbers>(
+          `tenants/${tenantId}/campaigns/${campaignId}/numbers?page=1&pageSize=50`,
+          tenantId,
+        );
+        setNumbersPage(data);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load numbers');
+      }
+    },
+    [tenantId],
+  );
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (expandedId) {
+      void loadNumbers(expandedId);
+    } else {
+      setNumbersPage(null);
+      setImportSummary(null);
+    }
+  }, [expandedId, loadNumbers]);
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -93,9 +139,39 @@ export default function CampaignsPage() {
     setError(null);
     try {
       await api.delete(`tenants/${tenantId}/campaigns/${id}`, tenantId);
+      if (expandedId === id) setExpandedId(null);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importNumbers(campaignId: string) {
+    const numbers = numbersText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (numbers.length === 0) return;
+
+    setBusy(true);
+    setError(null);
+    setImportSummary(null);
+    try {
+      const query = skipDnc ? '?skipDnc=true' : '';
+      const result = await api.post<ImportResult>(
+        `tenants/${tenantId}/campaigns/${campaignId}/numbers${query}`,
+        { numbers },
+        tenantId,
+      );
+      setNumbersText('');
+      setImportSummary(
+        `${t('callflow.campaignNumbersImported')}: ${result.imported}; ${t('callflow.campaignNumbersSkipped')}: invalid ${result.skipped.invalid}, DNC ${result.skipped.dnc}, duplicate ${result.skipped.duplicate}`,
+      );
+      await loadNumbers(campaignId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Import failed');
     } finally {
       setBusy(false);
     }
@@ -138,40 +214,103 @@ export default function CampaignsPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.name}</td>
-                  <td>{row.technology}</td>
-                  <td>{row.status}</td>
-                  <td style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {row.status !== 'running' && row.status !== 'completed' ? (
-                      <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void runAction(row.id, 'start')}>
-                        {t('callflow.campaignStart')}
-                      </button>
-                    ) : null}
-                    {row.status === 'running' ? (
-                      <>
-                        <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void runAction(row.id, 'pause')}>
-                          {t('callflow.campaignPause')}
+              {rows.map((row) => {
+                const expanded = expandedId === row.id;
+                return (
+                  <Fragment key={row.id}>
+                    <tr>
+                      <td>{row.name}</td>
+                      <td>{row.technology}</td>
+                      <td>{row.status}</td>
+                      <td style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          disabled={busy}
+                          onClick={() => setExpandedId(expanded ? null : row.id)}
+                        >
+                          {t('callflow.campaignNumbersExpand')}
                         </button>
-                        {row.technology === 'voice' ? (
-                          <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void tickCampaign(row.id)}>
-                            {t('callflow.campaignTick')}
+                        {row.status !== 'running' && row.status !== 'completed' ? (
+                          <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void runAction(row.id, 'start')}>
+                            {t('callflow.campaignStart')}
                           </button>
                         ) : null}
-                      </>
+                        {row.status === 'running' ? (
+                          <>
+                            <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void runAction(row.id, 'pause')}>
+                              {t('callflow.campaignPause')}
+                            </button>
+                            {row.technology === 'voice' ? (
+                              <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void tickCampaign(row.id)}>
+                                {t('callflow.campaignTick')}
+                              </button>
+                            ) : null}
+                          </>
+                        ) : null}
+                        {row.status !== 'completed' ? (
+                          <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void runAction(row.id, 'stop')}>
+                            {t('callflow.campaignStop')}
+                          </button>
+                        ) : null}
+                        <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void onDelete(row.id)}>
+                          {t('callflow.delete')}
+                        </button>
+                      </td>
+                    </tr>
+                    {expanded ? (
+                      <tr>
+                        <td colSpan={4}>
+                          <h3>{t('callflow.campaignNumbersTitle')}</h3>
+                          <p className="muted">{t('callflow.campaignNumbersHint')}</p>
+                          <textarea
+                            className="input"
+                            rows={5}
+                            value={numbersText}
+                            onChange={(e) => setNumbersText(e.target.value)}
+                            placeholder="+972501234567"
+                            style={{ width: '100%', marginBottom: '0.5rem' }}
+                          />
+                          <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem' }}>
+                            <input
+                              type="checkbox"
+                              checked={skipDnc}
+                              onChange={(e) => setSkipDnc(e.target.checked)}
+                            />
+                            <span>{t('callflow.campaignNumbersSkipDnc')}</span>
+                          </label>
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            disabled={busy}
+                            onClick={() => void importNumbers(row.id)}
+                          >
+                            {t('callflow.campaignNumbersImport')}
+                          </button>
+                          {importSummary ? <p className="muted" style={{ marginTop: '0.75rem' }}>{importSummary}</p> : null}
+                          {numbersPage ? (
+                            <div style={{ marginTop: '1rem' }}>
+                              <p className="muted">
+                                {t('callflow.campaignNumbersCount')}: {numbersPage.pagination.totalItems}
+                              </p>
+                              {numbersPage.data.length > 0 ? (
+                                <ul>
+                                  {numbersPage.data.map((num) => (
+                                    <li key={num.id}>
+                                      {num.number}
+                                      {num.lastStatus ? ` (${num.lastStatus})` : ''}
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </td>
+                      </tr>
                     ) : null}
-                    {row.status !== 'completed' ? (
-                      <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void runAction(row.id, 'stop')}>
-                        {t('callflow.campaignStop')}
-                      </button>
-                    ) : null}
-                    <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void onDelete(row.id)}>
-                      {t('callflow.delete')}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
