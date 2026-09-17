@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { NavLink } from '@/lib/nav-config';
+import type { SubNavItem } from '@/lib/nav-config';
 
-export function SubNav({ items, ariaLabel }: { items: NavLink[]; ariaLabel: string }) {
+export function SubNav({ items, ariaLabel }: { items: SubNavItem[]; ariaLabel: string }) {
   const pathname = usePathname();
 
   return (

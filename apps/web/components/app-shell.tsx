@@ -8,8 +8,10 @@ import { isPlatformAdmin } from '@/lib/permissions';
 import { platformNavGroups, tenantNavGroups, type NavGroup } from '@/lib/nav-config';
 import { api } from '@/lib/api-client';
 import { TelephonyTopBar } from '@/components/telephony/top-bar';
+import { LOCALE_OPTIONS, useI18n } from '@/lib/i18n';
 
 function NavSections({ groups, pathname }: { groups: NavGroup[]; pathname: string }) {
+  const { t } = useI18n();
   return (
     <>
       {groups.map((group) => {
@@ -17,7 +19,7 @@ function NavSections({ groups, pathname }: { groups: NavGroup[]; pathname: strin
         if (items.length === 0) return null;
         return (
           <div key={group.id} className="nav-group">
-            <div className="nav-group-label">{group.label}</div>
+            <div className="nav-group-label">{t(group.labelKey)}</div>
             <ul className="nav-list">
               {items.map((item) => {
                 const active =
@@ -27,7 +29,7 @@ function NavSections({ groups, pathname }: { groups: NavGroup[]; pathname: strin
                 return (
                   <li key={item.href}>
                     <Link href={item.href} className={`nav-link${active ? ' nav-link-active' : ''}`}>
-                      {item.label}
+                      {t(item.labelKey)}
                     </Link>
                   </li>
                 );
@@ -51,6 +53,7 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const { user, logout, activeTenantId, setActiveTenantId } = useAuth();
+  const { t, locale, setLocale } = useI18n();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const tid = tenantId ?? activeTenantId ?? undefined;
   const [tenantLabel, setTenantLabel] = useState<string | null>(null);
@@ -78,12 +81,12 @@ export function AppShell({
       >
         <div className="sidebar-brand">
           <span className="sidebar-brand-title">
-            {mode === 'tenant' ? tenantLabel ?? 'Your organization' : 'PBX Platform'}
+            {mode === 'tenant' ? tenantLabel ?? t('app.brandTenant') : t('app.brandPlatform')}
           </span>
           {mode === 'tenant' && tenantLabel ? (
-            <span className="sidebar-brand-sub">Tenant workspace</span>
+            <span className="sidebar-brand-sub">{t('app.tenantWorkspace')}</span>
           ) : mode === 'platform' ? (
-            <span className="sidebar-brand-sub">Platform administration</span>
+            <span className="sidebar-brand-sub">{t('app.platformAdmin')}</span>
           ) : null}
         </div>
 
@@ -94,7 +97,7 @@ export function AppShell({
           aria-controls="primary-nav"
           onClick={() => setSidebarOpen((open) => !open)}
         >
-          {sidebarOpen ? 'Hide menu' : 'Menu'}
+          {sidebarOpen ? t('app.hideMenu') : t('app.menu')}
         </button>
 
         {mode === 'tenant' && user && user.tenantMemberships.length > 1 && (
@@ -134,8 +137,24 @@ export function AppShell({
       <div className="app-main">
         <header className="app-header">
           <div className="app-header-user">{user?.email}</div>
+          <label className="label" htmlFor="ui-locale" style={{ margin: 0 }}>
+            {t('app.language')}
+          </label>
+          <select
+            id="ui-locale"
+            className="select"
+            value={locale}
+            onChange={(e) => setLocale(e.target.value as 'en' | 'he' | 'fr')}
+            aria-label={t('app.language')}
+          >
+            {LOCALE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => void logout()}>
-            Sign out
+            {t('app.logout')}
           </button>
         </header>
         <main className="app-content">

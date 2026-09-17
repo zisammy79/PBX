@@ -5,26 +5,26 @@ import { StatusBanner } from '@/components/app-shell';
 describe('StatusBanner', () => {
   it('shows demo AI deterministic mode', () => {
     render(<StatusBanner demoAi />);
-    expect(screen.getByText('Demo AI mode — deterministic local provider')).toBeInTheDocument();
+    expect(screen.getByText('Demo AI mode')).toBeInTheDocument();
   });
 
   it('shows external AI verification not tested', () => {
     render(<StatusBanner externalAi />);
-    expect(screen.getByText('External AI verification — Not tested')).toBeInTheDocument();
+    expect(screen.getByText('External AI not verified')).toBeInTheDocument();
   });
 
   it('shows stripe disabled', () => {
     render(<StatusBanner stripe />);
-    expect(screen.getByText('Payment integration — Disabled')).toBeInTheDocument();
+    expect(screen.getByText('Payments disabled')).toBeInTheDocument();
   });
 
   it('shows provider cost unavailable', () => {
     render(<StatusBanner providerCost />);
-    expect(screen.getByText(/Provider cost — Unavailable/i)).toBeInTheDocument();
+    expect(screen.getByText(/Provider cost unavailable/i)).toBeInTheDocument();
   });
 
   it('shows PSTN verification not performed', () => {
     render(<StatusBanner pstn />);
-    expect(screen.getByText('PSTN verification — Not performed')).toBeInTheDocument();
+    expect(screen.getByText('PSTN not verified')).toBeInTheDocument();
   });
 });
