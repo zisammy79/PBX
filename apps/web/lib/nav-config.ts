@@ -144,6 +144,11 @@ export function tenantNavGroups(tenantId: string | undefined, user: SessionUser 
           labelKey: 'nav.provisioning',
           show: !!tid && can(Permission.TENANT_PROVISIONING_MANAGE),
         },
+        {
+          href: `/t/${tid}/callflows/faxes`,
+          labelKey: 'nav.faxes',
+          show: !!tid && can(Permission.TENANT_CALLFLOW_MANAGE),
+        },
       ],
     },
     {
