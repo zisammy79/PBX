@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { CallListQuery, notFound, paginate, tenantAccessDenied } from '@pbx/contracts';
-import { and, count, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { buildCallListFilterClauses } from './call-list-filters.js';
 import {
   callRecordings,
   calls,
@@ -27,7 +28,7 @@ export class CallsService {
   async listCalls(actor: AuthenticatedUser, tenantId: string, query: CallListQuery) {
     await this.assertTenantAccess(actor, tenantId);
     const offset = (query.page - 1) * query.pageSize;
-    const filters = this.buildListFilters(tenantId, query);
+    const filters = buildCallListFilterClauses(tenantId, query);
 
     return withTenantContext(this.database.db, tenantId, async (db) => {
       const countRow = await db.select({ total: count() }).from(calls).where(filters);
@@ -184,33 +185,6 @@ export class CallsService {
         asteriskState: ariState ?? null,
       };
     });
-  }
-
-  private buildListFilters(tenantId: string, query: CallListQuery) {
-    const clauses = [eq(calls.tenantId, tenantId)];
-
-    if (query.direction) {
-      clauses.push(eq(calls.direction, query.direction));
-    }
-    if (query.status) {
-      clauses.push(eq(calls.status, query.status as typeof calls.$inferSelect.status));
-    }
-    if (query.from) {
-      clauses.push(gte(calls.startedAt, new Date(query.from)));
-    }
-    if (query.to) {
-      clauses.push(lte(calls.startedAt, new Date(query.to)));
-    }
-    if (query.callerNumber) {
-      const needle = `%${query.callerNumber}%`;
-      clauses.push(sql`${calls.callerNumber} ilike ${needle}`);
-    }
-    if (query.calleeNumber) {
-      const needle = `%${query.calleeNumber}%`;
-      clauses.push(sql`${calls.calleeNumber} ilike ${needle}`);
-    }
-
-    return and(...clauses);
   }
 
   private async loadRecordingIdsForCalls(
