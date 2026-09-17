@@ -245,19 +245,32 @@ export class DashboardService {
         invoicePreview = null;
       }
 
+      const connectedExtensions = extRows.filter((e) => registeredIds.has(e.id)).length;
+      const disconnectedExtensions = extRows.filter((e) => !registeredIds.has(e.id)).length;
+      const inboundToday = directionToday.inbound ?? 0;
+      const outboundToday = directionToday.outbound ?? 0;
+      const internalActive = liveDirection.internal ?? 0;
+
       return {
+        kpis: {
+          connectedExtensions,
+          disconnectedExtensions,
+          inboundToday,
+          outboundToday,
+          internalActive,
+        },
         calls: {
           active: Number(activeCallsRow?.total ?? 0),
           todayTotal: Number(todayCallsRow?.total ?? 0),
           todayCompleted: Number(completedTodayRow?.total ?? 0),
           todayFailed: Number(failedTodayRow?.total ?? 0),
-          todayInbound: directionToday.inbound ?? 0,
-          todayOutbound: directionToday.outbound ?? 0,
+          todayInbound: inboundToday,
+          todayOutbound: outboundToday,
           todayInternal: directionToday.internal ?? 0,
           todayMissed: Number(missedTodayRow?.total ?? 0),
           liveInbound: liveDirection.inbound ?? 0,
           liveOutbound: liveDirection.outbound ?? 0,
-          liveInternal: liveDirection.internal ?? 0,
+          liveInternal: internalActive,
           liveOnHold: Number(onHoldRow?.total ?? 0),
           totalTalkSecondsToday: Number(talkTimeRow?.total ?? 0),
           avgInboundAnswerSeconds: Number(avgInboundAnswerRow?.avg ?? 0),
@@ -275,8 +288,8 @@ export class DashboardService {
         },
         extensions: {
           total: extRows.length,
-          registered: extRows.filter((e) => registeredIds.has(e.id)).length,
-          unregistered: extRows.filter((e) => !registeredIds.has(e.id)).length,
+          registered: connectedExtensions,
+          unregistered: disconnectedExtensions,
         },
         aiSessions: {
           active: Number(activeSessionsRow?.total ?? 0),

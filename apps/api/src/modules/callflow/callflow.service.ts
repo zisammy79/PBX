@@ -53,7 +53,9 @@ import {
   type UpdateTelephonyCronJob,
   type UpdateTenantLocales,
 } from '@pbx/contracts';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import path from 'node:path';
+import type { FastifyReply } from 'fastify';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import {
@@ -93,8 +95,11 @@ import {
   withTenantContext,
 } from '@pbx/database';
 import { DATABASE } from '../../common/tokens.js';
+import { LocalMediaStorageService } from '../../common/local-media-storage.service.js';
+import { LocalRecordingStorageService } from '../../common/local-recording-storage.service.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
 import { TenantLimitsService } from '../tenants/tenant-limits.service.js';
+import { CampaignDialerService } from './campaign-dialer.service.js';
 
 const LOCALES_SETTINGS_KEY = 'locales';
 
@@ -118,6 +123,9 @@ export class CallflowService {
   constructor(
     @Inject(DATABASE) private readonly database: ReturnType<typeof import('@pbx/database').createDatabase>,
     @Inject(TenantLimitsService) private readonly tenantLimitsService: TenantLimitsService,
+    @Inject(LocalMediaStorageService) private readonly mediaStorage: LocalMediaStorageService,
+    @Inject(LocalRecordingStorageService) private readonly recordingStorage: LocalRecordingStorageService,
+    @Inject(CampaignDialerService) private readonly campaignDialer: CampaignDialerService,
   ) {}
 
   // --- Schedules ---
@@ -468,6 +476,82 @@ export class CallflowService {
     return this.tenantDelete(actor, tenantId, mediaFiles, id);
   }
 
+  async uploadMediaFile(
+    actor: AuthenticatedUser,
+    tenantId: string,
+    input: { buffer: Buffer; filename: string; displayName?: string },
+  ) {
+    await this.assertTenantAccess(actor, tenantId);
+    if (!this.mediaStorage.isActive()) {
+      throw validationError({ storage: 'Local media storage is not configured' });
+    }
+
+    let format: string;
+    try {
+      format = this.mediaStorage.normalizeFormat(path.extname(input.filename));
+    } catch {
+      throw validationError({ format: 'Unsupported media format. Allowed: wav, mp3, ulaw' });
+    }
+    const fileId = randomUUID();
+    const storageKey = this.mediaStorage.buildStorageKey(tenantId, fileId, format);
+    await this.mediaStorage.ensureRoot();
+    await this.mediaStorage.saveObject(storageKey, input.buffer);
+
+    const md5 = createHash('md5').update(input.buffer).digest('hex');
+    const name = (input.displayName?.trim() || path.basename(input.filename, path.extname(input.filename))).slice(
+      0,
+      255,
+    );
+
+    return withTenantContext(this.database.db, tenantId, async (db) => {
+      const [row] = await db
+        .insert(mediaFiles)
+        .values({
+          tenantId,
+          name,
+          format,
+          sizeBytes: input.buffer.length,
+          md5,
+          storageKey,
+        })
+        .returning();
+      return serialize(row!);
+    });
+  }
+
+  async streamMediaContent(
+    actor: AuthenticatedUser,
+    tenantId: string,
+    id: string,
+    rangeHeader: string | undefined,
+    res: FastifyReply,
+  ): Promise<void> {
+    await this.assertTenantAccess(actor, tenantId);
+    const row = await withTenantContext(this.database.db, tenantId, async (db) => {
+      const [hit] = await db
+        .select()
+        .from(mediaFiles)
+        .where(and(eq(mediaFiles.tenantId, tenantId), eq(mediaFiles.id, id)))
+        .limit(1);
+      return hit;
+    });
+    if (!row) {
+      await res.status(404).send({ message: 'Media file not found' });
+      return;
+    }
+
+    try {
+      const streamResult = await this.mediaStorage.openReadStream(row.storageKey, row.format, rangeHeader);
+      await this.sendBinaryStream(res, streamResult, `media-${id}.${row.format}`);
+    } catch (err) {
+      if (err instanceof RangeError) {
+        await res.status(416).send();
+        return;
+      }
+      await res.status(404).send({ message: 'Media file unavailable' });
+    }
+  }
+
   // --- MoH classes ---
 
   listMohClasses(actor: AuthenticatedUser, tenantId: string) {
@@ -563,6 +647,44 @@ export class CallflowService {
     });
   }
 
+  async streamVoicemailContent(
+    actor: AuthenticatedUser,
+    tenantId: string,
+    id: string,
+    rangeHeader: string | undefined,
+    res: FastifyReply,
+  ): Promise<void> {
+    await this.assertVoicemailAccess(actor, tenantId, id);
+    const row = await withTenantContext(this.database.db, tenantId, async (db) => {
+      const [hit] = await db
+        .select()
+        .from(voicemails)
+        .where(and(eq(voicemails.tenantId, tenantId), eq(voicemails.id, id)))
+        .limit(1);
+      return hit;
+    });
+    if (!row) {
+      await res.status(404).send({ message: 'Voicemail not found' });
+      return;
+    }
+
+    if (!this.recordingStorage.isActive()) {
+      await res.status(404).send({ message: 'Voicemail storage unavailable' });
+      return;
+    }
+
+    try {
+      const streamResult = await this.recordingStorage.openReadStream(row.storageKey, 'wav', rangeHeader);
+      await this.sendBinaryStream(res, streamResult, `voicemail-${id}.wav`);
+    } catch (err) {
+      if (err instanceof RangeError) {
+        await res.status(416).send();
+        return;
+      }
+      await res.status(404).send({ message: 'Voicemail unavailable' });
+    }
+  }
+
   // --- Campaigns ---
 
   listCampaigns(actor: AuthenticatedUser, tenantId: string) {
@@ -618,6 +740,10 @@ export class CallflowService {
 
   async stopCampaign(actor: AuthenticatedUser, tenantId: string, id: string) {
     return this.setCampaignStatus(actor, tenantId, id, 'completed', ['running', 'paused', 'ready', 'draft']);
+  }
+
+  tickCampaign(actor: AuthenticatedUser, tenantId: string, id: string) {
+    return this.campaignDialer.tick(actor, tenantId, id);
   }
 
   // --- Telephony cron jobs ---
@@ -1300,6 +1426,32 @@ export class CallflowService {
       ...serialize(list),
       numbers: numbers.map((row) => serialize(row)),
     };
+  }
+
+  private async sendBinaryStream(
+    res: FastifyReply,
+    streamResult: {
+      stream: NodeJS.ReadableStream;
+      contentType: string;
+      contentLength: number;
+      contentRange?: { start: number; end: number; total: number };
+    },
+    filename: string,
+  ): Promise<void> {
+    void res.header('Accept-Ranges', 'bytes');
+    void res.header('Content-Type', streamResult.contentType);
+    void res.header('Content-Disposition', `inline; filename="${filename}"`);
+    if (streamResult.contentRange) {
+      void res.status(206);
+      void res.header(
+        'Content-Range',
+        `bytes ${streamResult.contentRange.start}-${streamResult.contentRange.end}/${streamResult.contentRange.total}`,
+      );
+    } else {
+      void res.status(200);
+    }
+    void res.header('Content-Length', String(streamResult.contentLength));
+    await res.send(streamResult.stream);
   }
 
   private async assertTenantAccess(actor: AuthenticatedUser, tenantId: string) {

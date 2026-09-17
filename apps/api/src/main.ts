@@ -4,6 +4,7 @@ import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify
 import fastifyCookie from '@fastify/cookie';
 import fastifyCors from '@fastify/cors';
 import fastifyHelmet from '@fastify/helmet';
+import fastifyMultipart from '@fastify/multipart';
 import { AppModule } from './app.module.js';
 import { loadConfig } from './config.js';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter.js';
@@ -26,6 +27,9 @@ async function bootstrap() {
     credentials: true,
   });
   await app.register(fastifyCookie as never);
+  await app.register(fastifyMultipart as never, {
+    limits: { fileSize: 50 * 1024 * 1024, files: 1 },
+  });
 
   app.setGlobalPrefix('api/v1');
   app.useGlobalFilters(new GlobalExceptionFilter());

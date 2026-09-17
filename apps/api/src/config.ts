@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { z } from 'zod';
 import { assertProductionSeedConfigSafe } from '@pbx/database';
 
@@ -37,6 +38,7 @@ const ConfigSchema = z.object({
   recordingPlaybackTtlSeconds: z.coerce.number().int().min(60).max(3600).default(300),
   callRecordingStorageBackend: z.enum(['local', 's3']).default('local'),
   callRecordingLocalRoot: z.string().min(1).default('/var/lib/pbx/recordings'),
+  callflowMediaLocalRoot: z.string().min(1).optional(),
   twilioAccountSid: z.string().min(1).optional(),
   twilioApiKeySid: z.string().min(1).optional(),
   twilioApiKeySecret: z.string().min(1).optional(),
@@ -97,6 +99,7 @@ export function loadConfig(): AppConfig {
     recordingPlaybackTtlSeconds: process.env.RECORDING_PLAYBACK_TTL_SECONDS,
     callRecordingStorageBackend: process.env.CALL_RECORDING_STORAGE_BACKEND,
     callRecordingLocalRoot: process.env.CALL_RECORDING_LOCAL_ROOT,
+    callflowMediaLocalRoot: process.env.CALLFLOW_MEDIA_LOCAL_ROOT,
     twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
     twilioApiKeySid: process.env.TWILIO_API_KEY_SID,
     twilioApiKeySecret: process.env.TWILIO_API_KEY_SECRET,
@@ -132,7 +135,12 @@ export function loadConfig(): AppConfig {
     }
   }
 
-  return result.data;
+  const config = result.data;
+  if (!config.callflowMediaLocalRoot) {
+    const recordingRoot = path.resolve(config.callRecordingLocalRoot);
+    config.callflowMediaLocalRoot = path.join(path.dirname(recordingRoot), 'media');
+  }
+  return config;
 }
 
 export function resolveDatabaseUrl(config: AppConfig): string {

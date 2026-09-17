@@ -7,40 +7,12 @@
         "parameters": [],
         "responses": {
           "201": {
-            "description": "Authentication successful",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Invalid credentials",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": [
           "Auth"
-        ],
-        "summary": "Authenticate user",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LoginRequest"
-              }
-            }
-          }
-        }
+        ]
       }
     },
     "/api/v1/auth/change-password": {
@@ -54,12 +26,6 @@
         },
         "tags": [
           "Auth"
-        ],
-        "summary": "Change authenticated user password",
-        "security": [
-          {
-            "bearer": []
-          }
         ]
       }
     },
@@ -69,27 +35,11 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Current user profile"
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": [
           "Auth"
-        ],
-        "summary": "Get current authenticated user and tenant memberships",
-        "security": [
-          {
-            "bearer": []
-          }
         ]
       }
     },
@@ -113,25 +63,12 @@
         "parameters": [],
         "responses": {
           "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "example": "healthy"
-                    }
-                  }
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": [
           "Health"
-        ],
-        "summary": "Liveness probe — process alive"
+        ]
       }
     },
     "/api/v1/health/ready": {
@@ -140,29 +77,12 @@
         "parameters": [],
         "responses": {
           "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReadinessResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Required dependency unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReadinessResponse"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": [
           "Health"
-        ],
-        "summary": "Readiness probe — fails when required dependencies are unavailable"
+        ]
       }
     },
     "/api/v1/tenants": {
@@ -176,23 +96,7 @@
         },
         "tags": [
           "Tenants"
-        ],
-        "summary": "Create tenant and owner membership",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateTenantRequest"
-              }
-            }
-          }
-        }
+        ]
       },
       "get": {
         "operationId": "TenantsController_list",
@@ -204,12 +108,6 @@
         },
         "tags": [
           "Tenants"
-        ],
-        "summary": "List tenants (platform permission required)",
-        "security": [
-          {
-            "bearer": []
-          }
         ]
       }
     },
@@ -362,15 +260,6 @@
         },
         "tags": [
           "Tenants"
-        ],
-        "summary": "Get tenant by ID",
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "tenant": []
-          }
         ]
       }
     },
@@ -380,38 +269,12 @@
         "parameters": [],
         "responses": {
           "201": {
-            "description": "Extension created; SIP secret returned once",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExtensionCreateResponse"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": [
           "Extensions"
-        ],
-        "summary": "Create extension with one-time SIP credential secret",
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "tenant": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateExtensionRequest"
-              }
-            }
-          }
-        }
+        ]
       },
       "get": {
         "operationId": "ExtensionsController_list",
@@ -423,15 +286,6 @@
         },
         "tags": [
           "Extensions"
-        ],
-        "summary": "List extensions without SIP secrets",
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "tenant": []
-          }
         ]
       }
     },
@@ -441,26 +295,11 @@
         "parameters": [],
         "responses": {
           "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExtensionReadResponse"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": [
           "Extensions"
-        ],
-        "summary": "Get extension metadata without SIP secret",
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "tenant": []
-          }
         ]
       },
       "delete": {
@@ -993,15 +832,6 @@
         },
         "tags": [
           "Billing"
-        ],
-        "summary": "Current tenant subscription and plan entitlements",
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "tenant": []
-          }
         ]
       }
     },
@@ -1288,15 +1118,6 @@
         },
         "tags": [
           "Dashboard"
-        ],
-        "summary": "Tenant operational dashboard summary",
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "tenant": []
-          }
         ]
       }
     },
@@ -1311,12 +1132,6 @@
         },
         "tags": [
           "Dashboard"
-        ],
-        "summary": "Platform admin global dashboard summary",
-        "security": [
-          {
-            "bearer": []
-          }
         ]
       }
     },
@@ -3073,6 +2888,34 @@
         ]
       }
     },
+    "/api/v1/tenants/{tenantId}/media-files/upload": {
+      "post": {
+        "operationId": "CallflowController_uploadMediaFile",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Callflow"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/media-files/{id}/content": {
+      "get": {
+        "operationId": "CallflowController_streamMediaContent",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Callflow"
+        ]
+      }
+    },
     "/api/v1/tenants/{tenantId}/media-files/{id}": {
       "get": {
         "operationId": "CallflowController_getMediaFile",
@@ -3217,6 +3060,20 @@
         ]
       }
     },
+    "/api/v1/tenants/{tenantId}/voicemails/{id}/content": {
+      "get": {
+        "operationId": "CallflowController_streamVoicemailContent",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Callflow"
+        ]
+      }
+    },
     "/api/v1/tenants/{tenantId}/campaigns": {
       "get": {
         "operationId": "CallflowController_listCampaigns",
@@ -3312,6 +3169,20 @@
     "/api/v1/tenants/{tenantId}/campaigns/{id}/stop": {
       "post": {
         "operationId": "CallflowController_stopCampaign",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Callflow"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenantId}/campaigns/{id}/tick": {
+      "post": {
+        "operationId": "CallflowController_tickCampaign",
         "parameters": [],
         "responses": {
           "201": {

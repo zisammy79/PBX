@@ -1,4 +1,19 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import {
   AddDncListNumberSchema,
   AssignButtonLayoutSchema,
@@ -13,6 +28,7 @@ import {
   CreateIvrSchema,
   CreateCampaignSchema,
   CreateMediaFileSchema,
+  validationError,
   CreateMohClassSchema,
   CreatePagingGroupSchema,
   CreatePhonebookEntrySchema,
@@ -208,6 +224,40 @@ export class CallflowController {
     return this.callflowService.createMediaFile(req.user!, tenantId, CreateMediaFileSchema.parse(body));
   }
 
+  @Post('media-files/upload')
+  @RequirePermissions(Permission.TENANT_MEDIA_MANAGE)
+  async uploadMediaFile(@Req() req: RequestWithUser & FastifyRequest, @Param('tenantId') tenantId: string) {
+    const file = await req.file();
+    if (!file) {
+      throw validationError({ file: 'Multipart file field is required' });
+    }
+    const chunks: Buffer[] = [];
+    for await (const chunk of file.file) {
+      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    }
+    const buffer = Buffer.concat(chunks);
+    let displayName: string | undefined;
+    if (file.fields.name && 'value' in file.fields.name) {
+      displayName = String(file.fields.name.value);
+    }
+    return this.callflowService.uploadMediaFile(req.user!, tenantId, {
+      buffer,
+      filename: file.filename,
+      ...(displayName ? { displayName } : {}),
+    });
+  }
+
+  @Get('media-files/:id/content')
+  @RequirePermissions(Permission.TENANT_MEDIA_MANAGE)
+  async streamMediaContent(
+    @Req() req: RequestWithUser & { headers: { range?: string } },
+    @Res() res: FastifyReply,
+    @Param('tenantId') tenantId: string,
+    @Param('id') id: string,
+  ) {
+    await this.callflowService.streamMediaContent(req.user!, tenantId, id, req.headers.range, res);
+  }
+
   @Get('media-files/:id')
   @RequirePermissions(Permission.TENANT_MEDIA_MANAGE)
   getMediaFile(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
@@ -302,6 +352,17 @@ export class CallflowController {
     return this.callflowService.deleteVoicemail(req.user!, tenantId, id);
   }
 
+  @Get('voicemails/:id/content')
+  @RequireAnyPermission(Permission.TENANT_VOICEMAIL_MANAGE, Permission.AGENT_VOICEMAIL_READ)
+  async streamVoicemailContent(
+    @Req() req: RequestWithUser & { headers: { range?: string } },
+    @Res() res: FastifyReply,
+    @Param('tenantId') tenantId: string,
+    @Param('id') id: string,
+  ) {
+    await this.callflowService.streamVoicemailContent(req.user!, tenantId, id, req.headers.range, res);
+  }
+
   @Get('campaigns')
   @RequirePermissions(Permission.TENANT_CAMPAIGN_MANAGE)
   listCampaigns(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string) {
@@ -353,6 +414,12 @@ export class CallflowController {
   @RequirePermissions(Permission.TENANT_CAMPAIGN_MANAGE)
   stopCampaign(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
     return this.callflowService.stopCampaign(req.user!, tenantId, id);
+  }
+
+  @Post('campaigns/:id/tick')
+  @RequirePermissions(Permission.TENANT_CAMPAIGN_MANAGE)
+  tickCampaign(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
+    return this.callflowService.tickCampaign(req.user!, tenantId, id);
   }
 
   @Get('telephony-cron-jobs')
