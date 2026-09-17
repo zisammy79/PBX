@@ -4,11 +4,12 @@
 
 - Branch: `feature/pbx-1com-feature-import` (synced with origin)
 - Plan: `docs/FEATURE_IMPORT_1COM_PLAN.md` (approved; e2e ownership in progress)
-- Migrations applied locally: `0016_callflow_feature_import`, `0017_campaigns_cron_voicemail_rls`
+- Migrations applied locally: `0016_callflow_feature_import`, `0017_campaigns_cron_voicemail_rls`, `0018_blf_fax_phase7`
 - Locale packs seeded: `he` (rtl), `en`, `fr`
+- Phase 7 isolation: `RUN_INTEGRATION_TESTS=true vitest run src/integration/phase7-isolation.integration.spec.ts` → **PASS** (2 tests)
 - Open PR via GitHub UI (gh CLI unavailable here):
   https://github.com/zisammy79/PBX/compare/main...feature/pbx-1com-feature-import
-- Remaining runtime gaps: campaign dialer, answer webhook screen-pop, BLF/fax/SMS, media binary upload, fuller CDR/KPI, isolation tests for new objects.
+- Remaining runtime gaps: campaign dialer, BLF device push, T.38 fax transport, SMS provider send, media binary upload, VM audio playback, fuller CDR/KPI
 
 **Reconciled:** 2026-06-11
 

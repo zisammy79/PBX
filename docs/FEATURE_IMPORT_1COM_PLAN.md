@@ -15,7 +15,7 @@
 | 5 custom dest / webhooks / paging | **PARTIAL** | Safe custom destinations CRUD; `call.answered` webhook via BRIDGED NATS with caller/callee payload |
 | 6 campaigns / DNC / cron | **PARTIAL** | DNC lists API; campaigns schema+CRUD+UI (start/pause/stop stub); telephony cron jobs CRUD+UI; dialer runtime pending |
 | 7 BLF / fax / SMS | **PARTIAL** | Button layouts CRUD+assign+UI; fax CRUD+UI; SMS messages stub; SMS campaign start warns when no provider |
-| 8 docs / QA / isolation | **PARTIAL** | Phase 7 isolation integration test (button layout + schedule cross-tenant) |
+| 8 docs / QA / isolation | **PARTIAL** | Phase 7 isolation integration test **PASS** live (button layout + schedule cross-tenant); broader five-tenant matrix still open |
 | Entitlements (IVR/queue/hunt/campaign) | **IN** | `TenantLimitsService` asserts `max_ivrs`, `max_queues`, `max_ring_groups`, `max_campaigns`, `max_button_layouts` / `hardware_provisioning_enabled` on layout create |  
 **Source system:** `https://pbx6webserver.1com.co.il` (1com management UI / PBXM-class)  
 **Target:** canonical repo multi-tenant PBX (API + web + telephony-controller + Asterisk)  
