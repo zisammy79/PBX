@@ -3180,6 +3180,32 @@
         ]
       }
     },
+    "/api/v1/tenants/{tenantId}/campaigns/{id}/numbers": {
+      "get": {
+        "operationId": "CallflowController_listCampaignNumbers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Callflow"
+        ]
+      },
+      "post": {
+        "operationId": "CallflowController_importCampaignNumbers",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Callflow"
+        ]
+      }
+    },
     "/api/v1/tenants/{tenantId}/campaigns/{id}/tick": {
       "post": {
         "operationId": "CallflowController_tickCampaign",

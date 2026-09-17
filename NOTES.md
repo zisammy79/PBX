@@ -10,7 +10,8 @@
 - Open PR via GitHub UI (gh CLI unavailable here):
   https://github.com/zisammy79/PBX/compare/main...feature/pbx-1com-feature-import
 - Runtime slice (2026-09-17): media upload/content (`CALLFLOW_MEDIA_LOCAL_ROOT`), VM playback, voice campaign dialer tick stub, dashboard KPI i18n
-- Remaining runtime gaps: PSTN campaign originate + worker cron, campaign number import UI, BLF device push, T.38 fax transport, SMS provider send, MoH binary runtime, CDR advanced filters
+- Runtime slice (2026-09-17 pm): CDR advanced filters (API + calls UI i18n), campaign number import API/UI, MoH mediaFileIds PATCH + musiconhold-tenants.conf generation
+- Remaining runtime gaps: PSTN campaign originate + worker cron, MoH media sync into Asterisk MoH directories, BLF device push, T.38 fax transport, SMS provider send
 
 **Reconciled:** 2026-06-11
 
