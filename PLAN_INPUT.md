@@ -28,3 +28,7 @@
 ## Definition of Done status
 
 **Overall:** `PASS_WITH_LIMITATIONS` — stage7 live SIP regression PASS; lifecycle suspend/reactivate PASS; invitation API and entitlement race PASS; multi-device live and browser wizard proofs remain open.
+
+## Next proposed program (awaiting approval)
+
+Full 1com feature import + multi-lang: [docs/FEATURE_IMPORT_1COM_PLAN.md](docs/FEATURE_IMPORT_1COM_PLAN.md).
