@@ -30,3 +30,4 @@ export * from './tenant-settings.js';
 export * from './platform-api-tokens.js';
 export * from './callflow.js';
 export * from './voicemail-campaigns.js';
+export * from './phase7.js';
