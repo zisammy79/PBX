@@ -48,7 +48,7 @@ render_template() {
 
 # Install PBX-managed configs into /etc/asterisk without replacing the full base tree
 if [ -d "${PBX_OVERLAY}" ]; then
-  for f in pjsip.conf extensions.conf queues.conf ari.conf http.conf modules.conf rtp.conf asterisk.conf logger.conf pjsip_wizard.conf; do
+  for f in pjsip.conf extensions.conf queues.conf musiconhold.conf ari.conf http.conf modules.conf rtp.conf asterisk.conf logger.conf pjsip_wizard.conf; do
     if [ -f "${PBX_OVERLAY}/${f}" ]; then
       if [ "$f" = "pjsip.conf" ]; then
         render_template "${PBX_OVERLAY}/${f}" "/etc/asterisk/${f}"
@@ -71,7 +71,7 @@ if [ "${PBX_ENV:-}" = "production" ] && [ -d "${PBX_PRODUCTION}" ]; then
   done
 fi
 
-mkdir -p "${PBX_GEN}/active" "${PBX_GEN}/staging" "${PBX_GEN}/last-known-good" \
+mkdir -p "${PBX_GEN}/active" "${PBX_GEN}/staging" "${PBX_GEN}/last-known-good" "${PBX_GEN}/moh" \
   /var/log/asterisk/cdr \
   /var/log/asterisk/cdr-csv \
   /var/spool/asterisk/recording
@@ -91,7 +91,7 @@ if [ -f /var/log/asterisk/messages ]; then
 fi
 
 # Ensure include placeholders exist before Asterisk starts
-for f in pjsip-tenants.conf extensions-tenants.conf asterisk-overrides.conf; do
+for f in pjsip-tenants.conf extensions-tenants.conf musiconhold-tenants.conf queues-tenants.conf asterisk-overrides.conf; do
   if [ ! -f "${PBX_GEN}/active/${f}" ]; then
     echo "; PBX generated — no tenant configuration activated yet" > "${PBX_GEN}/active/${f}"
     chmod 600 "${PBX_GEN}/active/${f}" || true

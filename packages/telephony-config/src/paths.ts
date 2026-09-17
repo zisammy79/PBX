@@ -21,5 +21,6 @@ export function generatedPaths(repoRoot: string) {
     stagingMusiconhold: join(root, 'staging', 'musiconhold-tenants.conf'),
     activeManifest: join(root, 'active', 'manifest.json'),
     stagingManifest: join(root, 'staging', 'manifest.json'),
+    mohHostRoot: join(root, 'moh'),
   };
 }

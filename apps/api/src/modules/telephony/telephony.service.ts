@@ -37,6 +37,8 @@ import {
   redactForAudit,
   redactGeneratedConfig,
   reloadAsterisk,
+  resolveMohSyncHostRoot,
+  syncMohMediaClasses,
   validateGeneratedConfig,
   writeStagingConfig,
   type GeneratedTelephonyConfig,
@@ -155,6 +157,12 @@ export class TelephonyService {
       throw validationError({ configuration: validation.errors.join('; ') });
     }
 
+    const mohSync = await syncMohMediaClasses({
+      mediaSourceRoot: this.config.callflowMediaLocalRoot!,
+      syncHostRoot: resolveMohSyncHostRoot(this.repoRoot, this.config.asteriskMohSyncRoot),
+      mohClasses: loaded.callflow.mohClasses,
+    });
+
     await writeStagingConfig(this.repoRoot, generated);
     const result = await activateStagingConfig(this.repoRoot);
     if (!result.activated) {
@@ -175,6 +183,8 @@ export class TelephonyService {
       tenantIds: generated.tenantIds,
       skippedCredentialCount: loaded.skippedCredentialUsernames.length,
       trunkCount: trunkLoaded.trunks.filter((t) => t.isActive).length,
+      mohSyncedClasses: mohSync.synced.length,
+      mohSkippedTracks: mohSync.skipped.length,
     });
 
     if (loaded.skippedCredentialUsernames.length > 0) {

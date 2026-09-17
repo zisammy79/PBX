@@ -175,6 +175,7 @@ export async function reloadAsterisk(options: {
     { path: '/asterisk/modules/res_pjsip', method: 'PUT', okStatuses: [204, 409] },
     { path: '/asterisk/modules/pbx_config.so', method: 'PUT', okStatuses: [204, 409] },
     { path: '/asterisk/modules/app_queue.so', method: 'PUT', okStatuses: [204, 409] },
+    { path: '/asterisk/modules/res_musiconhold.so', method: 'PUT', okStatuses: [204, 409] },
   ];
 
   const errors: string[] = [];

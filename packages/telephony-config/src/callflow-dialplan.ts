@@ -1,4 +1,5 @@
 import type { WeektimeRule } from '@pbx/shared';
+import { mohClassAsteriskDirectory } from './moh-sync.js';
 import type {
   DestinationResolution,
   TelephonyBlacklistRecord,
@@ -34,9 +35,7 @@ export function mohClassAsteriskName(tenantSlug: string, mohClassId: string): st
   return `pbx_${tenantSlug}_moh_${shortId(mohClassId)}`;
 }
 
-export function mohClassMediaDirectory(tenantSlug: string, mohClassId: string): string {
-  return `/var/lib/pbx/callflow-media/${tenantSlug}/moh/${shortId(mohClassId)}`;
-}
+export { mohClassAsteriskDirectory, mohClassMediaDirectory } from './moh-sync.js';
 
 function ivrContext(tenantSlug: string, ivrId: string): string {
   return `pbx_${tenantSlug}_ivr_${shortId(ivrId)}`;
@@ -427,7 +426,7 @@ export function emitMusiconholdConf(mohClasses: TelephonyMohClassRecord[]): stri
       lines.push(
         '; No media files linked — runtime stub only',
         'mode=files',
-        `directory=${mohClassMediaDirectory(mohClass.tenantSlug, mohClass.mohClassId)}`,
+        `directory=${mohClassAsteriskDirectory(mohClass.asteriskClassName)}`,
         'sort=alpha',
       );
       continue;
@@ -435,7 +434,7 @@ export function emitMusiconholdConf(mohClasses: TelephonyMohClassRecord[]): stri
 
     lines.push(
       'mode=files',
-      `directory=${mohClassMediaDirectory(mohClass.tenantSlug, mohClass.mohClassId)}`,
+      `directory=${mohClassAsteriskDirectory(mohClass.asteriskClassName)}`,
       mohClass.randomize ? 'sort=random' : 'sort=alpha',
     );
     for (const track of mohClass.tracks) {
