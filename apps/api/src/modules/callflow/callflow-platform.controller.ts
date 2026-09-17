@@ -39,4 +39,10 @@ export class CallflowPlatformController {
       CreatePlatformHolidayTemplateSchema.parse(body),
     );
   }
+
+  @Get('phone-vendor-templates')
+  @RequirePermissions(Permission.PLATFORM_CATALOG_MANAGE)
+  listPhoneVendorTemplates(@Req() req: RequestWithUser) {
+    return this.callflowService.listPhoneVendorTemplates(req.user!);
+  }
 }

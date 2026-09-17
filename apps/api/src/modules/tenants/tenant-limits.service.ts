@@ -10,6 +10,7 @@ import {
 import { and, count, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
   apiApplications,
+  buttonLayouts,
   calls,
   campaigns,
   extensions,
@@ -109,6 +110,29 @@ export class TenantLimitsService {
         .from(campaigns)
         .where(eq(campaigns.tenantId, tenantId));
       return Number(usage?.total ?? 0);
+    });
+  }
+
+  async assertCanCreateButtonLayout(tenantId: string): Promise<void> {
+    await withTenantContext(this.database.db, tenantId, async (db) => {
+      const limits = await this.resolveLimits(db, tenantId);
+      const hwEnabled = limits.hardware_provisioning_enabled ?? null;
+      if (hwEnabled !== null && hwEnabled <= 0) {
+        throw entitlementLimitReached('hardware_provisioning_enabled', 0, 0);
+      }
+      const layoutLimit = limits.max_button_layouts ?? null;
+      if (layoutLimit === 0) {
+        throw entitlementLimitReached('max_button_layouts', 0, 0);
+      }
+      if (layoutLimit !== null && layoutLimit > 0) {
+        await this.assertWithinLimitInTx(db, tenantId, 'max_button_layouts', async (innerDb) => {
+          const [usage] = await innerDb
+            .select({ total: count() })
+            .from(buttonLayouts)
+            .where(eq(buttonLayouts.tenantId, tenantId));
+          return Number(usage?.total ?? 0);
+        });
+      }
     });
   }
 
@@ -224,6 +248,8 @@ export class TenantLimitsService {
       max_queues: null,
       max_ring_groups: null,
       max_campaigns: null,
+      max_button_layouts: null,
+      hardware_provisioning_enabled: null,
       max_api_applications: null,
       max_webhooks: null,
     };
@@ -353,6 +379,18 @@ export class TenantLimitsService {
           .from(campaigns)
           .where(eq(campaigns.tenantId, tenantId));
         return Number(row?.total ?? 0);
+      }
+      case 'max_button_layouts': {
+        const [row] = await db
+          .select({ total: count() })
+          .from(buttonLayouts)
+          .where(eq(buttonLayouts.tenantId, tenantId));
+        return Number(row?.total ?? 0);
+      }
+      case 'hardware_provisioning_enabled': {
+        const limits = await this.resolveLimits(db, tenantId);
+        const hw = limits.hardware_provisioning_enabled ?? null;
+        return hw !== null && hw > 0 ? 1 : 0;
       }
       default:
         return 0;

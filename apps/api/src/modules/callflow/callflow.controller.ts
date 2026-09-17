@@ -1,7 +1,10 @@
 import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import {
   AddDncListNumberSchema,
+  AssignButtonLayoutSchema,
   CreateBlacklistEntrySchema,
+  CreateButtonLayoutSchema,
+  CreateOutboundFaxSchema,
   CreateBusinessScheduleSchema,
   CreateConferenceSchema,
   CreateCustomDestinationSchema,
@@ -17,8 +20,11 @@ import {
   CreateRingGroupSchema,
   CreateShortNumberSchema,
   CreateTelephonyCronJobSchema,
+  ListFaxesQuerySchema,
   ListPhonebookEntriesQuerySchema,
+  ListSmsMessagesQuerySchema,
   ListVoicemailsQuerySchema,
+  MarkFaxReadSchema,
   MarkVoicemailReadSchema,
   Permission,
   UpdateCampaignSchema,
@@ -26,6 +32,7 @@ import {
   UpdateTelephonyCronJobSchema,
   UpdateBlacklistEntrySchema,
   UpdateBusinessScheduleSchema,
+  UpdateButtonLayoutSchema,
   UpdateConferenceSchema,
   UpdateCustomDestinationSchema,
   UpdateDncListSchema,
@@ -722,5 +729,104 @@ export class CallflowController {
   @RequirePermissions(Permission.TENANT_UPDATE)
   patchLocales(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Body() body: unknown) {
     return this.callflowService.patchTenantLocales(req.user!, tenantId, UpdateTenantLocalesSchema.parse(body));
+  }
+
+  @Get('button-layouts')
+  @RequirePermissions(Permission.TENANT_PROVISIONING_MANAGE)
+  listButtonLayouts(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string) {
+    return this.callflowService.listButtonLayouts(req.user!, tenantId);
+  }
+
+  @Post('button-layouts')
+  @RequirePermissions(Permission.TENANT_PROVISIONING_MANAGE)
+  createButtonLayout(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Body() body: unknown,
+  ) {
+    return this.callflowService.createButtonLayout(req.user!, tenantId, CreateButtonLayoutSchema.parse(body));
+  }
+
+  @Get('button-layouts/:id')
+  @RequirePermissions(Permission.TENANT_PROVISIONING_MANAGE)
+  getButtonLayout(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
+    return this.callflowService.getButtonLayout(req.user!, tenantId, id);
+  }
+
+  @Patch('button-layouts/:id')
+  @RequirePermissions(Permission.TENANT_PROVISIONING_MANAGE)
+  patchButtonLayout(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.callflowService.patchButtonLayout(req.user!, tenantId, id, UpdateButtonLayoutSchema.parse(body));
+  }
+
+  @Delete('button-layouts/:id')
+  @RequirePermissions(Permission.TENANT_PROVISIONING_MANAGE)
+  deleteButtonLayout(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
+    return this.callflowService.deleteButtonLayout(req.user!, tenantId, id);
+  }
+
+  @Post('button-layouts/:id/assign')
+  @RequirePermissions(Permission.TENANT_PROVISIONING_MANAGE)
+  assignButtonLayout(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.callflowService.assignButtonLayout(req.user!, tenantId, id, AssignButtonLayoutSchema.parse(body));
+  }
+
+  @Get('faxes')
+  @RequirePermissions(Permission.TENANT_CALLFLOW_MANAGE)
+  listFaxes(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Query() query: unknown) {
+    return this.callflowService.listFaxes(req.user!, tenantId, ListFaxesQuerySchema.parse(query));
+  }
+
+  @Post('faxes')
+  @RequirePermissions(Permission.TENANT_CALLFLOW_MANAGE)
+  createOutboundFax(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Body() body: unknown,
+  ) {
+    return this.callflowService.createOutboundFax(req.user!, tenantId, CreateOutboundFaxSchema.parse(body));
+  }
+
+  @Get('faxes/:id')
+  @RequirePermissions(Permission.TENANT_CALLFLOW_MANAGE)
+  getFax(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
+    return this.callflowService.getFax(req.user!, tenantId, id);
+  }
+
+  @Patch('faxes/:id/read')
+  @RequirePermissions(Permission.TENANT_CALLFLOW_MANAGE)
+  markFaxRead(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.callflowService.markFaxRead(req.user!, tenantId, id, MarkFaxReadSchema.parse(body));
+  }
+
+  @Delete('faxes/:id')
+  @RequirePermissions(Permission.TENANT_CALLFLOW_MANAGE)
+  deleteFax(@Req() req: RequestWithUser, @Param('tenantId') tenantId: string, @Param('id') id: string) {
+    return this.callflowService.deleteFax(req.user!, tenantId, id);
+  }
+
+  @Get('sms-messages')
+  @RequirePermissions(Permission.TENANT_CAMPAIGN_MANAGE)
+  listSmsMessages(
+    @Req() req: RequestWithUser,
+    @Param('tenantId') tenantId: string,
+    @Query() query: unknown,
+  ) {
+    return this.callflowService.listSmsMessages(req.user!, tenantId, ListSmsMessagesQuerySchema.parse(query));
   }
 }

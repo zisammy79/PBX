@@ -8,9 +8,12 @@ import {
   hasPermission,
   resolveEffectivePermissions,
   type AddDncListNumber,
+  type AssignButtonLayout,
   type CreateBlacklistEntry,
   type CreateBusinessSchedule,
+  type CreateButtonLayout,
   type CreateCampaign,
+  type CreateOutboundFax,
   type CreateConference,
   type CreateCustomDestination,
   type CreateDncList,
@@ -25,11 +28,15 @@ import {
   type CreateRingGroup,
   type CreateShortNumber,
   type CreateTelephonyCronJob,
+  type ListFaxesQuery,
+  type ListSmsMessagesQuery,
   type ListVoicemailsQuery,
+  type MarkFaxRead,
   type MarkVoicemailRead,
   type PlatformLocalePack,
   type UpdateBlacklistEntry,
   type UpdateBusinessSchedule,
+  type UpdateButtonLayout,
   type UpdateCampaign,
   type UpdateConference,
   type UpdateCustomDestination,
@@ -52,13 +59,18 @@ import type { PgTable } from 'drizzle-orm/pg-core';
 import {
   blacklistEntries,
   businessSchedules,
+  buttonLayoutAssignments,
+  buttonLayouts,
   campaigns,
   conferences,
   customDestinations,
   dncListNumbers,
   dncLists,
   extensions,
+  faxes,
   featureCodes,
+  integrationAssignments,
+  integrationConnections,
   ivrOptions,
   ivrs,
   mediaFiles,
@@ -72,6 +84,8 @@ import {
   ringGroupMembers,
   ringGroups,
   shortNumbers,
+  sipDevices,
+  smsMessages,
   telephonyCronJobs,
   tenantSettings,
   voicemails,
@@ -631,6 +645,172 @@ export class CallflowService {
 
   deleteTelephonyCronJob(actor: AuthenticatedUser, tenantId: string, id: string) {
     return this.tenantDelete(actor, tenantId, telephonyCronJobs, id);
+  }
+
+  // --- Button layouts / BLF provisioning ---
+
+  listButtonLayouts(actor: AuthenticatedUser, tenantId: string) {
+    return this.tenantList(actor, tenantId, buttonLayouts);
+  }
+
+  async createButtonLayout(actor: AuthenticatedUser, tenantId: string, input: CreateButtonLayout) {
+    await this.assertTenantAccess(actor, tenantId);
+    await this.tenantLimitsService.assertCanCreateButtonLayout(tenantId);
+    if (input.lineEnd < input.lineStart) {
+      throw validationError({ lineEnd: 'lineEnd must be >= lineStart' });
+    }
+    return this.tenantCreate(actor, tenantId, buttonLayouts, {
+      tenantId,
+      name: input.name,
+      vendorTemplate: input.vendorTemplate,
+      code: input.code ?? null,
+      lineStart: input.lineStart,
+      lineEnd: input.lineEnd,
+      buttons: input.buttons,
+    });
+  }
+
+  getButtonLayout(actor: AuthenticatedUser, tenantId: string, id: string) {
+    return this.tenantGet(actor, tenantId, buttonLayouts, id);
+  }
+
+  patchButtonLayout(actor: AuthenticatedUser, tenantId: string, id: string, input: UpdateButtonLayout) {
+    if (input.lineStart !== undefined && input.lineEnd !== undefined && input.lineEnd < input.lineStart) {
+      throw validationError({ lineEnd: 'lineEnd must be >= lineStart' });
+    }
+    return this.tenantPatch(actor, tenantId, buttonLayouts, id, { ...input, updatedAt: new Date() });
+  }
+
+  deleteButtonLayout(actor: AuthenticatedUser, tenantId: string, id: string) {
+    return this.tenantDelete(actor, tenantId, buttonLayouts, id);
+  }
+
+  async assignButtonLayout(
+    actor: AuthenticatedUser,
+    tenantId: string,
+    layoutId: string,
+    input: AssignButtonLayout,
+  ) {
+    await this.assertTenantAccess(actor, tenantId);
+    return withTenantContext(this.database.db, tenantId, async (db) => {
+      const [layout] = await db
+        .select()
+        .from(buttonLayouts)
+        .where(and(eq(buttonLayouts.tenantId, tenantId), eq(buttonLayouts.id, layoutId)))
+        .limit(1);
+      if (!layout) throw notFound('Button layout');
+
+      if (input.deviceId) {
+        const [device] = await db
+          .select()
+          .from(sipDevices)
+          .where(and(eq(sipDevices.tenantId, tenantId), eq(sipDevices.id, input.deviceId)))
+          .limit(1);
+        if (!device) throw notFound('Device');
+      }
+      if (input.extensionId) {
+        const [extension] = await db
+          .select()
+          .from(extensions)
+          .where(and(eq(extensions.tenantId, tenantId), eq(extensions.id, input.extensionId)))
+          .limit(1);
+        if (!extension) throw notFound('Extension');
+      }
+
+      const [row] = await db
+        .insert(buttonLayoutAssignments)
+        .values({
+          tenantId,
+          layoutId,
+          deviceId: input.deviceId ?? null,
+          extensionId: input.extensionId ?? null,
+        })
+        .returning();
+      return serialize(row!);
+    });
+  }
+
+  // --- Faxes ---
+
+  async listFaxes(actor: AuthenticatedUser, tenantId: string, query: ListFaxesQuery) {
+    await this.assertTenantAccess(actor, tenantId);
+    return withTenantContext(this.database.db, tenantId, async (db) => {
+      const conditions = [eq(faxes.tenantId, tenantId)];
+      if (query.direction) conditions.push(eq(faxes.direction, query.direction));
+      if (query.status) conditions.push(eq(faxes.status, query.status));
+      const rows = await db
+        .select()
+        .from(faxes)
+        .where(and(...conditions))
+        .orderBy(desc(faxes.createdAt));
+      return rows.map((row) => serialize(row));
+    });
+  }
+
+  getFax(actor: AuthenticatedUser, tenantId: string, id: string) {
+    return this.tenantGet(actor, tenantId, faxes, id);
+  }
+
+  async createOutboundFax(actor: AuthenticatedUser, tenantId: string, input: CreateOutboundFax) {
+    await this.assertTenantAccess(actor, tenantId);
+    return withTenantContext(this.database.db, tenantId, async (db) => {
+      const [row] = await db
+        .insert(faxes)
+        .values({
+          tenantId,
+          direction: 'outbound',
+          remoteNumber: input.remoteNumber,
+          localNumber: input.localNumber,
+          status: 'queued',
+          pages: input.pages,
+        })
+        .returning();
+      return serialize(row!);
+    });
+  }
+
+  async markFaxRead(actor: AuthenticatedUser, tenantId: string, id: string, input: MarkFaxRead) {
+    await this.assertTenantAccess(actor, tenantId);
+    return withTenantContext(this.database.db, tenantId, async (db) => {
+      const [row] = await db
+        .update(faxes)
+        .set({
+          status: input.isRead ? 'read' : 'received',
+          updatedAt: new Date(),
+        })
+        .where(and(eq(faxes.tenantId, tenantId), eq(faxes.id, id)))
+        .returning();
+      if (!row) throw notFound('Fax');
+      return serialize(row);
+    });
+  }
+
+  deleteFax(actor: AuthenticatedUser, tenantId: string, id: string) {
+    return this.tenantDelete(actor, tenantId, faxes, id);
+  }
+
+  // --- SMS messages (stub) ---
+
+  async listSmsMessages(actor: AuthenticatedUser, tenantId: string, query: ListSmsMessagesQuery) {
+    await this.assertTenantAccess(actor, tenantId);
+    return withTenantContext(this.database.db, tenantId, async (db) => {
+      const conditions = [eq(smsMessages.tenantId, tenantId)];
+      if (query.campaignId) conditions.push(eq(smsMessages.campaignId, query.campaignId));
+      const rows = await db
+        .select()
+        .from(smsMessages)
+        .where(and(...conditions))
+        .orderBy(desc(smsMessages.createdAt));
+      return rows.map((row) => serialize(row));
+    });
+  }
+
+  listPhoneVendorTemplates(_actor: AuthenticatedUser) {
+    return [
+      { id: 'generic', label: 'Generic' },
+      { id: 'yealink', label: 'Yealink' },
+      { id: 'fanvil', label: 'Fanvil' },
+    ];
   }
 
   // --- Feature codes ---
@@ -1200,6 +1380,24 @@ export class CallflowService {
       if (!allowedFrom.includes(existing.status)) {
         throw validationError({ status: `Cannot transition from ${existing.status} to ${status}` });
       }
+
+      if (status === 'running' && existing.technology === 'sms') {
+        const hasSmsProvider = await this.tenantHasSmsProvider(db, tenantId);
+        if (!hasSmsProvider) {
+          const [row] = await db
+            .update(campaigns)
+            .set({ status: 'ready', updatedAt: new Date() })
+            .where(and(eq(campaigns.tenantId, tenantId), eq(campaigns.id, id)))
+            .returning();
+          return {
+            ...serialize(row!),
+            providerRequired: true,
+            warning:
+              'No SMS provider is configured for this tenant. Campaign remains in ready state until an SMS integration is assigned.',
+          };
+        }
+      }
+
       const [row] = await db
         .update(campaigns)
         .set({ status, updatedAt: new Date() })
@@ -1207,5 +1405,43 @@ export class CallflowService {
         .returning();
       return serialize(row!);
     });
+  }
+
+  private async tenantHasSmsProvider(
+    db: DbTx,
+    tenantId: string,
+  ): Promise<boolean> {
+    const [assigned] = await db
+      .select({ id: integrationConnections.id })
+      .from(integrationAssignments)
+      .innerJoin(integrationConnections, eq(integrationAssignments.connectionId, integrationConnections.id))
+      .where(
+        and(
+          eq(integrationAssignments.tenantId, tenantId),
+          eq(integrationAssignments.enabled, true),
+          eq(integrationConnections.integrationType, 'sms'),
+          eq(integrationConnections.enabled, true),
+          inArray(integrationConnections.validationStatus, ['VALID', 'CONFIGURED_NOT_TESTED']),
+        ),
+      )
+      .limit(1);
+
+    if (assigned) return true;
+
+    const [owned] = await db
+      .select({ id: integrationConnections.id })
+      .from(integrationConnections)
+      .where(
+        and(
+          eq(integrationConnections.scopeType, 'tenant'),
+          eq(integrationConnections.scopeId, tenantId),
+          eq(integrationConnections.integrationType, 'sms'),
+          eq(integrationConnections.enabled, true),
+          inArray(integrationConnections.validationStatus, ['VALID', 'CONFIGURED_NOT_TESTED']),
+        ),
+      )
+      .limit(1);
+
+    return Boolean(owned);
   }
 }
