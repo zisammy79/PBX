@@ -29,3 +29,5 @@ export function createDatabase(config: DatabaseConfig) {
 export * from './tenant-context.js';
 export * from './seed-guards.js';
 export * from './schema/index.js';
+export * from './campaign-dialer.js';
+export * from './campaign-originate.js';

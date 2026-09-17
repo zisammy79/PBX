@@ -7,3 +7,4 @@ export * from './platform-api-token.js';
 export * from './webhook-signing.js';
 export * from './recording-policy.js';
 export * from './business-schedule.js';
+export * from './campaign-dialer.js';

@@ -12,6 +12,7 @@ import {
 import { eq } from 'drizzle-orm';
 import { processPendingDeliveries } from './webhook-deliverer.js';
 import { handleRecordingReady, retryFailedCloudExports } from './recording-cloud-export.js';
+import { runCampaignDialerCron } from './campaign-dialer-cron.js';
 
 const sc = StringCodec();
 
@@ -32,6 +33,7 @@ function loadConfig() {
     googleDriveClientSecret: process.env.GOOGLE_DRIVE_CLIENT_SECRET,
     microsoftOneDriveClientId: process.env.MICROSOFT_ONEDRIVE_CLIENT_ID,
     microsoftOneDriveClientSecret: process.env.MICROSOFT_ONEDRIVE_CLIENT_SECRET,
+    campaignOriginateEnabled: process.env.CAMPAIGN_ORIGINATE_ENABLED === 'true',
   };
 }
 
@@ -148,6 +150,14 @@ async function main() {
       const retryCount = await retryFailedCloudExports(db, config, 5);
       if (retryCount > 0) {
         console.log(`Retried recording cloud exports (${retryCount})`);
+      }
+      const campaignResult = await runCampaignDialerCron(db, {
+        originateEnabled: config.campaignOriginateEnabled,
+      });
+      if (campaignResult.ticks > 0) {
+        console.log(
+          `Campaign dialer cron: campaigns=${campaignResult.campaigns} ticks=${campaignResult.ticks} queued=${campaignResult.queued} deferred=${campaignResult.deferred}`,
+        );
       }
     } catch (err) {
       console.error('Worker tick failed:', err);

@@ -6,6 +6,7 @@ import { CallflowController } from './callflow.controller.js';
 import { CallflowPlatformController } from './callflow-platform.controller.js';
 import { CallflowService } from './callflow.service.js';
 import { CampaignDialerService } from './campaign-dialer.service.js';
+import { CampaignOriginateService } from './campaign-originate.service.js';
 
 @Module({
   imports: [TenantsModule],
@@ -13,6 +14,7 @@ import { CampaignDialerService } from './campaign-dialer.service.js';
   providers: [
     CallflowService,
     CampaignDialerService,
+    CampaignOriginateService,
     LocalMediaStorageService,
     LocalRecordingStorageService,
   ],

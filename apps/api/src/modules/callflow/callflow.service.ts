@@ -104,7 +104,9 @@ import { LocalMediaStorageService } from '../../common/local-media-storage.servi
 import { LocalRecordingStorageService } from '../../common/local-recording-storage.service.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
 import { TenantLimitsService } from '../tenants/tenant-limits.service.js';
+import { renderButtonLayoutProvision } from '@pbx/telephony-config';
 import { CampaignDialerService, normalizeCampaignNumber } from './campaign-dialer.service.js';
+import { CampaignOriginateService } from './campaign-originate.service.js';
 import { parseCampaignNumberInput } from './campaign-numbers.js';
 
 const LOCALES_SETTINGS_KEY = 'locales';
@@ -132,6 +134,7 @@ export class CallflowService {
     @Inject(LocalMediaStorageService) private readonly mediaStorage: LocalMediaStorageService,
     @Inject(LocalRecordingStorageService) private readonly recordingStorage: LocalRecordingStorageService,
     @Inject(CampaignDialerService) private readonly campaignDialer: CampaignDialerService,
+    @Inject(CampaignOriginateService) private readonly campaignOriginate: CampaignOriginateService,
   ) {}
 
   // --- Schedules ---
@@ -768,8 +771,15 @@ export class CallflowService {
     return this.setCampaignStatus(actor, tenantId, id, 'completed', ['running', 'paused', 'ready', 'draft']);
   }
 
-  tickCampaign(actor: AuthenticatedUser, tenantId: string, id: string) {
-    return this.campaignDialer.tick(actor, tenantId, id);
+  async tickCampaign(actor: AuthenticatedUser, tenantId: string, id: string) {
+    const result = await this.campaignDialer.tick(actor, tenantId, id);
+    const queuedNumbers = result.results
+      .filter((row: (typeof result.results)[number]) => row.outcome === 'queued')
+      .map((row: (typeof result.results)[number]) => ({ id: row.id, number: row.number }));
+    if (queuedNumbers.length > 0) {
+      await this.campaignOriginate.originateQueuedNumbers(actor, tenantId, id, queuedNumbers);
+    }
+    return result;
   }
 
   async importCampaignNumbers(
@@ -937,6 +947,44 @@ export class CallflowService {
 
   getButtonLayout(actor: AuthenticatedUser, tenantId: string, id: string) {
     return this.tenantGet(actor, tenantId, buttonLayouts, id);
+  }
+
+  async getButtonLayoutProvisioningFile(
+    actor: AuthenticatedUser,
+    tenantId: string,
+    id: string,
+    vendor: string,
+    res: FastifyReply,
+  ) {
+    await this.assertTenantAccess(actor, tenantId);
+    const row = await withTenantContext(this.database.db, tenantId, async (db) => {
+      const [layout] = await db
+        .select()
+        .from(buttonLayouts)
+        .where(and(eq(buttonLayouts.tenantId, tenantId), eq(buttonLayouts.id, id)))
+        .limit(1);
+      return layout;
+    });
+    if (!row) throw notFound('Button layout');
+
+    const buttons = Array.isArray(row.buttons)
+      ? (row.buttons as Array<{ type: string; label: string; value: string; extensionId?: string }>)
+      : [];
+    const file = renderButtonLayoutProvision(
+      {
+        name: row.name,
+        vendorTemplate: row.vendorTemplate,
+        lineStart: row.lineStart,
+        lineEnd: row.lineEnd,
+        buttons,
+      },
+      vendor || row.vendorTemplate || 'generic',
+    );
+
+    return res
+      .header('Content-Type', file.contentType)
+      .header('Content-Disposition', `attachment; filename="${file.filename}"`)
+      .send(file.body);
   }
 
   patchButtonLayout(actor: AuthenticatedUser, tenantId: string, id: string, input: UpdateButtonLayout) {
