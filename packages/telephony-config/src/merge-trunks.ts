@@ -30,6 +30,7 @@ export function mergeTelephonyWithTrunks(
     .update(pjsipTenants)
     .update(extensionsTenants)
     .update(base.queuesTenants)
+    .update(base.musiconholdTenants)
     .digest('hex');
 
   return {

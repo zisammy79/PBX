@@ -14,9 +14,11 @@ export function generatedPaths(repoRoot: string) {
     activePjsip: join(root, 'active', 'pjsip-tenants.conf'),
     activeExtensions: join(root, 'active', 'extensions-tenants.conf'),
     activeQueues: join(root, 'active', 'queues-tenants.conf'),
+    activeMusiconhold: join(root, 'active', 'musiconhold-tenants.conf'),
     stagingPjsip: join(root, 'staging', 'pjsip-tenants.conf'),
     stagingExtensions: join(root, 'staging', 'extensions-tenants.conf'),
     stagingQueues: join(root, 'staging', 'queues-tenants.conf'),
+    stagingMusiconhold: join(root, 'staging', 'musiconhold-tenants.conf'),
     activeManifest: join(root, 'active', 'manifest.json'),
     stagingManifest: join(root, 'staging', 'manifest.json'),
   };

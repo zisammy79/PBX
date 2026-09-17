@@ -3,6 +3,7 @@ import {
   appendInboundBlacklistChecks,
   appendTenantCallflowDialplan,
   buildCallflowDestinationMaps,
+  emitMusiconholdConf,
   emitQueuesConf,
   resolveCallflowDestination,
   weektimeRulesToGotoIfTime,
@@ -24,6 +25,7 @@ const emptyCallflow = (): TelephonyCallflowRecords => ({
   ringGroups: [],
   featureCodes: [],
   blacklist: [],
+  mohClasses: [],
 });
 
 describe('callflow dialplan emitters', () => {
@@ -115,6 +117,7 @@ describe('callflow dialplan emitters', () => {
           strategy: 'rrmemory',
           maxWaitSeconds: 120,
           number: '8000',
+          mohClassName: null,
           members: [
             {
               extensionId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
@@ -135,6 +138,48 @@ describe('callflow dialplan emitters', () => {
     expect(queuesConf).toContain('[q_acme_support]');
     expect(queuesConf).toContain('strategy=rrmemory');
     expect(queuesConf).toContain('member=PJSIP/acme_ext_1001,0');
+  });
+
+  it('emits musiconhold classes and queue musiconhold binding', () => {
+    const mohClassId = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+    const mohClassName = 'pbx_acme_moh_ffffffff';
+    const callflow: TelephonyCallflowRecords = {
+      ...emptyCallflow(),
+      mohClasses: [
+        {
+          tenantId: tenant.tenantId,
+          tenantSlug: tenant.slug,
+          mohClassId,
+          name: 'Default hold',
+          asteriskClassName: mohClassName,
+          randomize: true,
+          tracks: [{ fileName: 'hold.wav', storageKey: `${tenant.tenantId}/file.wav` }],
+        },
+      ],
+      queues: [
+        {
+          tenantId: tenant.tenantId,
+          tenantSlug: tenant.slug,
+          asteriskContext: tenant.asteriskContext,
+          queueId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+          name: 'Support',
+          asteriskQueueName: 'q_acme_support',
+          strategy: 'ringall',
+          maxWaitSeconds: 60,
+          number: '8000',
+          mohClassName,
+          members: [],
+        },
+      ],
+    };
+
+    const mohConf = emitMusiconholdConf(callflow.mohClasses);
+    expect(mohConf).toContain(`[${mohClassName}]`);
+    expect(mohConf).toContain('sort=random');
+    expect(mohConf).toContain('hold.wav');
+
+    const queuesConf = emitQueuesConf(callflow.queues);
+    expect(queuesConf).toContain(`musiconhold=${mohClassName}`);
   });
 
   it('emits simultaneous and sequential ring groups', () => {
@@ -245,6 +290,7 @@ describe('callflow dialplan emitters', () => {
           strategy: 'ringall',
           maxWaitSeconds: 60,
           number: '8000',
+          mohClassName: null,
           members: [],
         },
       ],

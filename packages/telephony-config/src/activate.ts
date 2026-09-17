@@ -38,6 +38,10 @@ export async function writeStagingConfig(
   await writeSecretFile(paths.stagingPjsip, config.pjsipTenants);
   await writeSecretFile(paths.stagingExtensions, config.extensionsTenants);
   await writeSecretFile(paths.stagingQueues, config.queuesTenants || '; no tenant queues\n');
+  await writeSecretFile(
+    paths.stagingMusiconhold,
+    config.musiconholdTenants || '; no tenant musiconhold classes\n',
+  );
   await writeFile(paths.stagingManifest, JSON.stringify(config.manifest, null, 2), {
     mode: SECRET_MODE,
   });
@@ -50,7 +54,13 @@ export async function activateStagingConfig(repoRoot: string): Promise<Activatio
   }
 
   const paths = generatedPaths(repoRoot);
-  const files = ['pjsip-tenants.conf', 'extensions-tenants.conf', 'queues-tenants.conf', 'manifest.json'];
+  const files = [
+    'pjsip-tenants.conf',
+    'extensions-tenants.conf',
+    'queues-tenants.conf',
+    'musiconhold-tenants.conf',
+    'manifest.json',
+  ];
 
   let previousVersion: string | undefined;
   try {
@@ -90,7 +100,13 @@ export async function activateStagingConfig(repoRoot: string): Promise<Activatio
 
 export async function rollbackToLastKnownGood(repoRoot: string): Promise<ActivationResult> {
   const paths = generatedPaths(repoRoot);
-  const files = ['pjsip-tenants.conf', 'extensions-tenants.conf', 'queues-tenants.conf', 'manifest.json'];
+  const files = [
+    'pjsip-tenants.conf',
+    'extensions-tenants.conf',
+    'queues-tenants.conf',
+    'musiconhold-tenants.conf',
+    'manifest.json',
+  ];
   try {
     await copyDirFiles(paths.lastKnownGood, paths.active, files);
     const manifest = JSON.parse(await readFile(paths.activeManifest, 'utf8'));
@@ -115,6 +131,12 @@ async function readStagingAsConfig(repoRoot: string): Promise<GeneratedTelephony
   } catch {
     // older staging bundles may omit queues
   }
+  let musiconholdTenants = '; no tenant musiconhold classes\n';
+  try {
+    musiconholdTenants = await readFile(paths.stagingMusiconhold, 'utf8');
+  } catch {
+    // older staging bundles may omit musiconhold
+  }
 
   return {
     version: manifest.version,
@@ -123,6 +145,7 @@ async function readStagingAsConfig(repoRoot: string): Promise<GeneratedTelephony
     pjsipTenants,
     extensionsTenants,
     queuesTenants,
+    musiconholdTenants,
     manifest,
   };
 }

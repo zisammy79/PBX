@@ -3,6 +3,7 @@ import { redactObject } from '@pbx/shared';
 import {
   appendTenantCallflowDialplan,
   buildCallflowDestinationMaps,
+  emitMusiconholdConf,
   emitQueuesConf,
 } from './callflow-dialplan.js';
 import type { TelephonyCallflowRecords } from './callflow.types.js';
@@ -43,6 +44,7 @@ export function generateTelephonyConfig(
     ringGroups: [],
     featureCodes: [],
     blacklist: [],
+    mohClasses: [],
   },
 ): GeneratedTelephonyConfig {
   const outboundSlugs = new Set(outboundTenantSlugs ?? []);
@@ -187,10 +189,12 @@ export function generateTelephonyConfig(
   const pjsipTenants = `${pjsipLines.join('\n')}\n`;
   const extensionsTenants = `${dialplanLines.join('\n')}\n`;
   const queuesTenants = emitQueuesConf(callflow.queues);
+  const musiconholdTenants = emitMusiconholdConf(callflow.mohClasses);
   const checksum = createHash('sha256')
     .update(pjsipTenants)
     .update(extensionsTenants)
     .update(queuesTenants)
+    .update(musiconholdTenants)
     .digest('hex');
 
   const manifest: ConfigManifest = {
@@ -208,6 +212,7 @@ export function generateTelephonyConfig(
     pjsipTenants,
     extensionsTenants,
     queuesTenants,
+    musiconholdTenants,
     manifest,
   };
 }

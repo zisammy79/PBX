@@ -12,6 +12,8 @@ import {
   inboundRoutes,
   ivrOptions,
   ivrs,
+  mediaFiles,
+  mohClasses,
   outboundRoutes,
   queueMembers,
   queues,
@@ -31,6 +33,7 @@ import {
   generateTrunkConfig,
   isSipUsernameInActiveConfig,
   mergeTelephonyWithTrunks,
+  mohClassAsteriskName,
   redactForAudit,
   redactGeneratedConfig,
   reloadAsterisk,
@@ -468,6 +471,7 @@ export class TelephonyService {
         ringGroups: [],
         featureCodes: [],
         blacklist: [],
+        mohClasses: [],
       };
     }
 
@@ -482,6 +486,8 @@ export class TelephonyService {
     const ringGroupMemberRows = await db.select().from(ringGroupMembers);
     const featureCodeRows = await db.select().from(featureCodes);
     const blacklistRows = await db.select().from(blacklistEntries);
+    const mohClassRows = await db.select().from(mohClasses);
+    const mediaFileRows = await db.select().from(mediaFiles);
 
     const tenantSlugById = new Map<string, { slug: string; asteriskContext: string }>();
     const tenantRows = await db.select().from(tenants);
@@ -490,6 +496,14 @@ export class TelephonyService {
     }
 
     const scopedTenantIds = new Set(tenantIds);
+    const mediaById = new Map(mediaFileRows.map((row) => [row.id, row]));
+    const mohClassNameById = new Map<string, string>();
+
+    for (const row of mohClassRows.filter((item) => scopedTenantIds.has(item.tenantId))) {
+      const tenantMeta = tenantSlugById.get(row.tenantId);
+      if (!tenantMeta) continue;
+      mohClassNameById.set(row.id, mohClassAsteriskName(tenantMeta.slug, row.id));
+    }
 
     return {
       ivrs: ivrRows
@@ -553,6 +567,7 @@ export class TelephonyService {
             strategy: row.strategy,
             maxWaitSeconds: row.maxWaitSeconds,
             number: row.number,
+            mohClassName: row.mohClassId ? (mohClassNameById.get(row.mohClassId) ?? null) : null,
             members: queueMemberRows
               .filter((member) => member.queueId === row.id)
               .map((member) => {
@@ -624,6 +639,35 @@ export class TelephonyService {
             tenantId: row.tenantId,
             tenantSlug: tenantMeta.slug,
             numberPattern: row.numberPattern,
+          };
+        })
+        .filter((row): row is NonNullable<typeof row> => row !== null),
+      mohClasses: mohClassRows
+        .filter((row) => scopedTenantIds.has(row.tenantId))
+        .map((row) => {
+          const tenantMeta = tenantSlugById.get(row.tenantId);
+          if (!tenantMeta) return null;
+          const mediaIds = Array.isArray(row.mediaFileIds)
+            ? (row.mediaFileIds as string[])
+            : [];
+          const tracks = mediaIds
+            .map((mediaId) => {
+              const media = mediaById.get(mediaId);
+              if (!media) return null;
+              return {
+                fileName: `${media.name}.${media.format}`,
+                storageKey: media.storageKey,
+              };
+            })
+            .filter((track): track is NonNullable<typeof track> => track !== null);
+          return {
+            tenantId: row.tenantId,
+            tenantSlug: tenantMeta.slug,
+            mohClassId: row.id,
+            name: row.name,
+            asteriskClassName: mohClassAsteriskName(tenantMeta.slug, row.id),
+            randomize: row.randomize,
+            tracks,
           };
         })
         .filter((row): row is NonNullable<typeof row> => row !== null),

@@ -6,6 +6,7 @@ import type {
   TelephonyCallflowRecords,
   TelephonyFeatureCodeRecord,
   TelephonyIvrRecord,
+  TelephonyMohClassRecord,
   TelephonyQueueRecord,
   TelephonyRingGroupRecord,
 } from './callflow.types.js';
@@ -27,6 +28,14 @@ function assertDialplanPattern(value: string, label: string): void {
 
 function shortId(uuid: string): string {
   return uuid.replace(/-/g, '').slice(0, 8);
+}
+
+export function mohClassAsteriskName(tenantSlug: string, mohClassId: string): string {
+  return `pbx_${tenantSlug}_moh_${shortId(mohClassId)}`;
+}
+
+export function mohClassMediaDirectory(tenantSlug: string, mohClassId: string): string {
+  return `/var/lib/pbx/callflow-media/${tenantSlug}/moh/${shortId(mohClassId)}`;
 }
 
 function ivrContext(tenantSlug: string, ivrId: string): string {
@@ -390,12 +399,50 @@ export function emitQueuesConf(queues: TelephonyQueueRecord[]): string {
       'wrapuptime=0',
       'maxlen=0',
     );
+    if (queue.mohClassName) {
+      assertSafeIdentifier(queue.mohClassName, 'moh class name');
+      lines.push(`musiconhold=${queue.mohClassName}`);
+    }
     for (const member of queue.members) {
       lines.push(
         `member=PJSIP/${member.asteriskEndpointId},${member.penalty}`,
       );
     }
   }
+  return `${lines.join('\n')}\n`;
+}
+
+export function emitMusiconholdConf(mohClasses: TelephonyMohClassRecord[]): string {
+  if (mohClasses.length === 0) return '';
+  const lines = [
+    '; PBX generated tenant MusicOnHold classes — do not edit manually',
+    '; Sync media files from API storage into each directory before reload.',
+  ];
+
+  for (const mohClass of mohClasses) {
+    assertSafeIdentifier(mohClass.asteriskClassName, 'moh class name');
+    lines.push('', `[${mohClass.asteriskClassName}]`, `; ${mohClass.name}`);
+
+    if (mohClass.tracks.length === 0) {
+      lines.push(
+        '; No media files linked — runtime stub only',
+        'mode=files',
+        `directory=${mohClassMediaDirectory(mohClass.tenantSlug, mohClass.mohClassId)}`,
+        'sort=alpha',
+      );
+      continue;
+    }
+
+    lines.push(
+      'mode=files',
+      `directory=${mohClassMediaDirectory(mohClass.tenantSlug, mohClass.mohClassId)}`,
+      mohClass.randomize ? 'sort=random' : 'sort=alpha',
+    );
+    for (const track of mohClass.tracks) {
+      lines.push(`; file: ${track.fileName} (${track.storageKey})`);
+    }
+  }
+
   return `${lines.join('\n')}\n`;
 }
 

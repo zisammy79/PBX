@@ -58,7 +58,23 @@ export interface TelephonyQueueRecord {
   strategy: string;
   maxWaitSeconds: number;
   number: string | null;
+  mohClassName: string | null;
   members: TelephonyQueueMemberRecord[];
+}
+
+export interface TelephonyMohTrackRecord {
+  fileName: string;
+  storageKey: string;
+}
+
+export interface TelephonyMohClassRecord {
+  tenantId: string;
+  tenantSlug: string;
+  mohClassId: string;
+  name: string;
+  asteriskClassName: string;
+  randomize: boolean;
+  tracks: TelephonyMohTrackRecord[];
 }
 
 export interface TelephonyRingGroupMemberRecord {
@@ -101,6 +117,7 @@ export interface TelephonyCallflowRecords {
   ringGroups: TelephonyRingGroupRecord[];
   featureCodes: TelephonyFeatureCodeRecord[];
   blacklist: TelephonyBlacklistRecord[];
+  mohClasses: TelephonyMohClassRecord[];
 }
 
 export interface DestinationResolution {

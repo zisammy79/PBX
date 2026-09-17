@@ -35,6 +35,7 @@ export interface GeneratedTelephonyConfig {
   pjsipTenants: string;
   extensionsTenants: string;
   queuesTenants: string;
+  musiconholdTenants: string;
   manifest: ConfigManifest;
 }
 
