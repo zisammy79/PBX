@@ -19,6 +19,7 @@ export const EntitlementDimensionSchema = z.enum([
   'pstn_minutes',
   'max_api_applications',
   'max_webhooks',
+  'max_campaigns',
 ]);
 
 export type EntitlementDimension = z.infer<typeof EntitlementDimensionSchema>;
@@ -58,4 +59,5 @@ export const METER_TO_DIMENSION: Record<string, EntitlementDimension> = {
   max_ivrs: 'max_ivrs',
   max_api_applications: 'max_api_applications',
   max_webhooks: 'max_webhooks',
+  max_campaigns: 'max_campaigns',
 };

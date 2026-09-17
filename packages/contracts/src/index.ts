@@ -29,3 +29,4 @@ export * from './twilio.js';
 export * from './tenant-settings.js';
 export * from './platform-api-tokens.js';
 export * from './callflow.js';
+export * from './voicemail-campaigns.js';
