@@ -9,7 +9,8 @@
 - Phase 7 isolation: `RUN_INTEGRATION_TESTS=true vitest run src/integration/phase7-isolation.integration.spec.ts` → **PASS** (2 tests)
 - Open PR via GitHub UI (gh CLI unavailable here):
   https://github.com/zisammy79/PBX/compare/main...feature/pbx-1com-feature-import
-- Remaining runtime gaps: campaign dialer, BLF device push, T.38 fax transport, SMS provider send, media binary upload, VM audio playback, fuller CDR/KPI
+- Runtime slice (2026-09-17): media upload/content (`CALLFLOW_MEDIA_LOCAL_ROOT`), VM playback, voice campaign dialer tick stub, dashboard KPI i18n
+- Remaining runtime gaps: PSTN campaign originate + worker cron, campaign number import UI, BLF device push, T.38 fax transport, SMS provider send, MoH binary runtime, CDR advanced filters
 
 **Reconciled:** 2026-06-11
 

@@ -8,12 +8,12 @@
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 0 i18n HE/EN/FR + RTL | **IN** | Message catalogs, locale switcher, tenant locale settings, platform locale packs |
-| 1 schedules/IVR/DID/media | **PARTIAL** | CRUD API + tenant UI; telephony-config emits IVR/schedule dialplan stubs; DID inbound UI still uses existing numbers page |
+| 1 schedules/IVR/DID/media | **PARTIAL** | CRUD API + tenant UI; media binary upload (`POST .../media-files/upload`) + content stream; telephony-config emits IVR/schedule dialplan stubs; DID inbound UI still uses existing numbers page |
 | 2 queues/hunts/codes/blacklist | **PARTIAL** | CRUD API + UI; generator emits Queue()/ring-group/feature-code/blacklist dialplan + queues.conf |
-| 3 peer ops / CDR / KPIs | **PARTIAL** | `POST tenants/:tenantId/peers/:endpointId/unregister` (TENANT_PEER_OPERATE) + status page action; CDR/KPIs pending |
-| 4 VM / MoH / conf / phonebooks | **PARTIAL** | Conferences/paging/phonebooks CRUD+UI; MoH CRUD+UI; voicemail inbox API+UI (list/mark read/delete); playback runtime pending |
+| 3 peer ops / CDR / KPIs | **PARTIAL** | Peer unregister + status action; tenant dashboard KPI block (`connectedExtensions`, `inboundToday`, etc.) wired with i18n; CDR advanced filters still open |
+| 4 VM / MoH / conf / phonebooks | **PARTIAL** | Conferences/paging/phonebooks CRUD+UI; MoH CRUD+UI; voicemail inbox + `GET .../content` playback UI; MoH binary runtime pending |
 | 5 custom dest / webhooks / paging | **PARTIAL** | Safe custom destinations CRUD; `call.answered` webhook via BRIDGED NATS with caller/callee payload |
-| 6 campaigns / DNC / cron | **PARTIAL** | DNC lists API; campaigns schema+CRUD+UI (start/pause/stop stub); telephony cron jobs CRUD+UI; dialer runtime pending |
+| 6 campaigns / DNC / cron | **PARTIAL** | DNC lists API; campaigns CRUD+UI; voice dialer **stub** via `POST .../campaigns/:id/tick` (DNC skip, trunk check, audit/platform `campaign.dial.attempt`); PSTN originate + worker cron pending |
 | 7 BLF / fax / SMS | **PARTIAL** | Button layouts CRUD+assign+UI; fax CRUD+UI; SMS messages stub; SMS campaign start warns when no provider |
 | 8 docs / QA / isolation | **PARTIAL** | Phase 7 isolation integration test **PASS** live (button layout + schedule cross-tenant); broader five-tenant matrix still open |
 | Entitlements (IVR/queue/hunt/campaign) | **IN** | `TenantLimitsService` asserts `max_ivrs`, `max_queues`, `max_ring_groups`, `max_campaigns`, `max_button_layouts` / `hardware_provisioning_enabled` on layout create |  
