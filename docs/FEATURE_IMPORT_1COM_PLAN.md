@@ -12,11 +12,11 @@
 | 2 queues/hunts/codes/blacklist | **PARTIAL** | CRUD API + UI; generator emits Queue()/ring-group/feature-code/blacklist dialplan + queues.conf |
 | 3 peer ops / CDR / KPIs | **PARTIAL** | `POST tenants/:tenantId/peers/:endpointId/unregister` (TENANT_PEER_OPERATE) + status page action; CDR/KPIs pending |
 | 4 VM / MoH / conf / phonebooks | **PARTIAL** | Conferences/paging/phonebooks CRUD+UI; MoH CRUD+UI; voicemail inbox API+UI (list/mark read/delete); playback runtime pending |
-| 5 custom dest / webhooks / paging | **PARTIAL** | Safe custom destinations CRUD; answer webhook runtime pending |
+| 5 custom dest / webhooks / paging | **PARTIAL** | Safe custom destinations CRUD; `call.answered` webhook via BRIDGED NATS with caller/callee payload |
 | 6 campaigns / DNC / cron | **PARTIAL** | DNC lists API; campaigns schema+CRUD+UI (start/pause/stop stub); telephony cron jobs CRUD+UI; dialer runtime pending |
-| 7 BLF / fax / SMS | PENDING | Provisioning UI placeholder |
-| 8 docs / QA / isolation | PENDING | |
-| Entitlements (IVR/queue/hunt/campaign) | **IN** | `TenantLimitsService` asserts `max_ivrs`, `max_queues`, `max_ring_groups`, `max_campaigns` on create |  
+| 7 BLF / fax / SMS | **PARTIAL** | Button layouts CRUD+assign+UI; fax CRUD+UI; SMS messages stub; SMS campaign start warns when no provider |
+| 8 docs / QA / isolation | **PARTIAL** | Phase 7 isolation integration test (button layout + schedule cross-tenant) |
+| Entitlements (IVR/queue/hunt/campaign) | **IN** | `TenantLimitsService` asserts `max_ivrs`, `max_queues`, `max_ring_groups`, `max_campaigns`, `max_button_layouts` / `hardware_provisioning_enabled` on layout create |  
 **Source system:** `https://pbx6webserver.1com.co.il` (1com management UI / PBXM-class)  
 **Target:** canonical repo multi-tenant PBX (API + web + telephony-controller + Asterisk)  
 **Decision date:** 2026-09-17  
