@@ -6,30 +6,29 @@ import { api } from '@/lib/api-client';
 import { useI18n } from '@/lib/i18n';
 import { EmptyState, ErrorAlert, LoadingBlock, PageHeader } from '@/components/app-shell';
 
-type CampaignRow = {
+type CronJobRow = {
   id: string;
   name: string;
-  technology: string;
-  status: string;
-  maxConcurrent: number;
-  maxAttempts: number;
+  jobType: string;
+  enabled: boolean;
+  timezone: string;
 };
 
-export default function CampaignsPage() {
+export default function CronJobsPage() {
   const { tenantId } = useParams<{ tenantId: string }>();
   const { t } = useI18n();
-  const [rows, setRows] = useState<CampaignRow[]>([]);
+  const [rows, setRows] = useState<CronJobRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const [technology, setTechnology] = useState('voice');
+  const [jobType, setJobType] = useState('night_mode');
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.get<CampaignRow[]>(`tenants/${tenantId}/campaigns`, tenantId);
+      const data = await api.get<CronJobRow[]>(`tenants/${tenantId}/telephony-cron-jobs`, tenantId);
       setRows(Array.isArray(data) ? data : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load');
@@ -49,8 +48,14 @@ export default function CampaignsPage() {
     setError(null);
     try {
       await api.post(
-        `tenants/${tenantId}/campaigns`,
-        { name: name.trim(), technology, maxConcurrent: 1, maxAttempts: 3 },
+        `tenants/${tenantId}/telephony-cron-jobs`,
+        {
+          name: name.trim(),
+          jobType,
+          enabled: true,
+          schedule: { cron: '0 22 * * *' },
+          timezone: 'UTC',
+        },
         tenantId,
       );
       setName('');
@@ -62,24 +67,11 @@ export default function CampaignsPage() {
     }
   }
 
-  async function runAction(id: string, action: 'start' | 'pause' | 'stop') {
-    setBusy(true);
-    setError(null);
-    try {
-      await api.post(`tenants/${tenantId}/campaigns/${id}/${action}`, {}, tenantId);
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Action failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function onDelete(id: string) {
     setBusy(true);
     setError(null);
     try {
-      await api.delete(`tenants/${tenantId}/campaigns/${id}`, tenantId);
+      await api.delete(`tenants/${tenantId}/telephony-cron-jobs/${id}`, tenantId);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Delete failed');
@@ -90,7 +82,7 @@ export default function CampaignsPage() {
 
   return (
     <div>
-      <PageHeader title={t('callflow.campaignsTitle')} description={t('callflow.campaignsDescription')} />
+      <PageHeader title={t('callflow.cronTitle')} description={t('callflow.cronDescription')} />
       {error ? <ErrorAlert message={error} /> : null}
       <form className="card" onSubmit={onCreate} style={{ marginBottom: '1rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
         <input
@@ -100,11 +92,13 @@ export default function CampaignsPage() {
           placeholder={t('callflow.name')}
           aria-label={t('callflow.name')}
         />
-        <select className="input" value={technology} onChange={(e) => setTechnology(e.target.value)} aria-label={t('callflow.campaignTechnology')}>
-          <option value="voice">{t('callflow.campaignVoice')}</option>
-          <option value="sms">{t('callflow.campaignSms')}</option>
-          <option value="fax">{t('callflow.campaignFax')}</option>
-        </select>
+        <input
+          className="input"
+          value={jobType}
+          onChange={(e) => setJobType(e.target.value)}
+          placeholder={t('callflow.cronJobType')}
+          aria-label={t('callflow.cronJobType')}
+        />
         <button className="btn btn-primary" type="submit" disabled={busy}>
           {t('callflow.create')}
         </button>
@@ -119,8 +113,9 @@ export default function CampaignsPage() {
             <thead>
               <tr>
                 <th>{t('callflow.name')}</th>
-                <th>{t('callflow.campaignTechnology')}</th>
-                <th>{t('callflow.campaignStatus')}</th>
+                <th>{t('callflow.cronJobType')}</th>
+                <th>{t('callflow.cronEnabled')}</th>
+                <th>{t('callflow.cronTimezone')}</th>
                 <th>{t('callflow.actions')}</th>
               </tr>
             </thead>
@@ -128,24 +123,10 @@ export default function CampaignsPage() {
               {rows.map((row) => (
                 <tr key={row.id}>
                   <td>{row.name}</td>
-                  <td>{row.technology}</td>
-                  <td>{row.status}</td>
-                  <td style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {row.status !== 'running' && row.status !== 'completed' ? (
-                      <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void runAction(row.id, 'start')}>
-                        {t('callflow.campaignStart')}
-                      </button>
-                    ) : null}
-                    {row.status === 'running' ? (
-                      <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void runAction(row.id, 'pause')}>
-                        {t('callflow.campaignPause')}
-                      </button>
-                    ) : null}
-                    {row.status !== 'completed' ? (
-                      <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void runAction(row.id, 'stop')}>
-                        {t('callflow.campaignStop')}
-                      </button>
-                    ) : null}
+                  <td>{row.jobType}</td>
+                  <td>{row.enabled ? t('callflow.cronYes') : t('callflow.cronNo')}</td>
+                  <td>{row.timezone}</td>
+                  <td>
                     <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void onDelete(row.id)}>
                       {t('callflow.delete')}
                     </button>

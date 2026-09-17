@@ -113,8 +113,20 @@ export function tenantNavGroups(tenantId: string | undefined, user: SessionUser 
           show: !!tid && can(Permission.TENANT_MEDIA_MANAGE),
         },
         {
+          href: `/t/${tid}/callflows/voicemail`,
+          labelKey: 'nav.voicemail',
+          show:
+            !!tid &&
+            (can(Permission.TENANT_VOICEMAIL_MANAGE) || can(Permission.AGENT_VOICEMAIL_READ)),
+        },
+        {
           href: `/t/${tid}/callflows/blacklist`,
           labelKey: 'nav.blacklist',
+          show: !!tid && can(Permission.TENANT_CALLFLOW_MANAGE),
+        },
+        {
+          href: `/t/${tid}/callflows/cronjobs`,
+          labelKey: 'nav.cronJobs',
           show: !!tid && can(Permission.TENANT_CALLFLOW_MANAGE),
         },
         {
