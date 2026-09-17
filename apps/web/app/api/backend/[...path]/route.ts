@@ -2,14 +2,20 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { backendUrl, TOKEN_COOKIE } from '@/lib/server-config';
 
-function isRecordingContentPath(pathSegments: string[]): boolean {
+function isBinaryContentPath(pathSegments: string[]): boolean {
   const last = pathSegments.length - 1;
-  return last >= 1 && pathSegments[last] === 'content' && pathSegments[last - 1] === 'recordings';
+  if (last < 1 || pathSegments[last] !== 'content') return false;
+  const parent = pathSegments[last - 1];
+  return parent === 'recordings' || parent === 'media-files' || parent === 'voicemails';
 }
 
 function isBinaryContentType(contentType: string | null): boolean {
   if (!contentType) return false;
   return contentType.startsWith('audio/') || contentType === 'application/octet-stream';
+}
+
+function isMultipartRequest(contentType: string | null): boolean {
+  return Boolean(contentType?.includes('multipart/form-data'));
 }
 
 function passthroughHeaders(source: Headers): Headers {
@@ -49,13 +55,13 @@ async function proxy(request: Request, pathSegments: string[]) {
     cache: 'no-store',
   };
   if (request.method !== 'GET' && request.method !== 'HEAD') {
-    init.body = await request.text();
+    init.body = isMultipartRequest(contentType) ? await request.arrayBuffer() : await request.text();
   }
 
   const res = await fetch(target, init);
   const responseContentType = res.headers.get('content-type');
   const binary =
-    isRecordingContentPath(pathSegments) || isBinaryContentType(responseContentType);
+    isBinaryContentPath(pathSegments) || isBinaryContentType(responseContentType);
 
   if (binary) {
     const buffer = await res.arrayBuffer();

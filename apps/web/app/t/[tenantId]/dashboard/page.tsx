@@ -14,8 +14,16 @@ import {
 import { Breadcrumbs } from '@/components/telephony/breadcrumbs';
 import { CallsHourlyChart } from '@/components/telephony/calls-chart';
 import { KpiCard, KpiGrid } from '@/components/telephony/kpi-card';
+import { useI18n } from '@/lib/i18n';
 
 type DashboardSummary = {
+  kpis?: {
+    connectedExtensions: number;
+    disconnectedExtensions: number;
+    inboundToday: number;
+    outboundToday: number;
+    internalActive: number;
+  };
   calls: {
     active: number;
     todayTotal: number;
@@ -52,6 +60,7 @@ type DashboardSummary = {
 
 export default function TenantDashboardPage() {
   const { tenantId } = useParams<{ tenantId: string }>();
+  const { t } = useI18n();
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,21 +75,28 @@ export default function TenantDashboardPage() {
   if (!data) return <LoadingBlock />;
 
   const calls = data.calls;
+  const kpis = data.kpis ?? {
+    connectedExtensions: data.extensions.registered,
+    disconnectedExtensions: data.extensions.unregistered,
+    inboundToday: calls.todayInbound,
+    outboundToday: calls.todayOutbound,
+    internalActive: calls.liveInternal,
+  };
 
   return (
     <>
       <Breadcrumbs
         items={[
-          { label: 'Dashboard', href: `/t/${tenantId}/dashboard` },
-          { label: 'Overview' },
+          { label: t('nav.dashboard'), href: `/t/${tenantId}/dashboard` },
+          { label: t('dashboard.overview') },
         ]}
       />
       <PageHeader
-        title="Dashboard"
-        description="Today's call activity, live queue, and quick links."
+        title={t('dashboard.title')}
+        description={t('dashboard.description')}
         actions={
           <Link href={`/t/${tenantId}/statistics`} className="btn btn-secondary">
-            Statistics hub
+            {t('dashboard.statisticsHub')}
           </Link>
         }
       />
@@ -88,109 +104,109 @@ export default function TenantDashboardPage() {
 
       <KpiGrid>
         <KpiCard
-          label="Inbound today"
-          value={calls.todayInbound}
+          label={t('dashboard.inboundToday')}
+          value={kpis.inboundToday}
           tone="inbound"
           href={`/t/${tenantId}/calls?direction=inbound`}
         />
         <KpiCard
-          label="Outbound today"
-          value={calls.todayOutbound}
+          label={t('dashboard.outboundToday')}
+          value={kpis.outboundToday}
           tone="outbound"
           href={`/t/${tenantId}/calls?direction=outbound`}
         />
         <KpiCard
-          label="Local today"
-          value={calls.todayInternal}
+          label={t('dashboard.internalActive')}
+          value={kpis.internalActive}
           tone="local"
           href={`/t/${tenantId}/calls?direction=internal`}
         />
         <KpiCard
-          label="Missed today"
+          label={t('dashboard.missedToday')}
           value={calls.todayMissed}
           tone="missed"
           href={`/t/${tenantId}/calls?status=failed`}
         />
         <KpiCard
-          label="Live calls"
+          label={t('dashboard.liveCalls')}
           value={calls.active}
-          hint={`${calls.liveOnHold} on hold`}
+          hint={`${calls.liveOnHold} ${t('dashboard.onHold')}`}
           tone="live"
           href={`/t/${tenantId}/operator`}
         />
         <KpiCard
-          label="Extensions online"
-          value={data.extensions.registered}
-          hint={`${data.extensions.unregistered} offline`}
+          label={t('dashboard.connectedExtensions')}
+          value={kpis.connectedExtensions}
+          hint={`${kpis.disconnectedExtensions} ${t('dashboard.extensionsOffline')}`}
           href={`/t/${tenantId}/status`}
         />
       </KpiGrid>
 
       <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
         <section className="card">
-          <h2>Live breakdown</h2>
-          <p>Inbound: {calls.liveInbound}</p>
-          <p>Outbound: {calls.liveOutbound}</p>
-          <p>Local: {calls.liveInternal}</p>
-          <p>On hold: {calls.liveOnHold}</p>
-          <Link href={`/t/${tenantId}/operator`}>Open operator panel →</Link>
+          <h2>{t('dashboard.liveBreakdown')}</h2>
+          <p>{t('dashboard.inbound')}: {calls.liveInbound}</p>
+          <p>{t('dashboard.outbound')}: {calls.liveOutbound}</p>
+          <p>{t('dashboard.local')}: {calls.liveInternal}</p>
+          <p>{t('dashboard.onHoldLabel')}: {calls.liveOnHold}</p>
+          <Link href={`/t/${tenantId}/operator`}>{t('dashboard.operatorPanel')}</Link>
         </section>
         <section className="card">
-          <h2>Talk time today</h2>
-          <p>Total: {formatDuration(calls.totalTalkSecondsToday)}</p>
-          <p>Avg inbound answer: {formatDuration(Math.round(calls.avgInboundAnswerSeconds))}</p>
-          <p>Avg outbound answer: {formatDuration(Math.round(calls.avgOutboundAnswerSeconds))}</p>
+          <h2>{t('dashboard.talkTimeToday')}</h2>
+          <p>{t('dashboard.total')}: {formatDuration(calls.totalTalkSecondsToday)}</p>
+          <p>{t('dashboard.avgInboundAnswer')}: {formatDuration(Math.round(calls.avgInboundAnswerSeconds))}</p>
+          <p>{t('dashboard.avgOutboundAnswer')}: {formatDuration(Math.round(calls.avgOutboundAnswerSeconds))}</p>
         </section>
         <section className="card">
-          <h2>Usage summary</h2>
-          <p>Normalized events: {data.usage.normalizedEventCount}</p>
-          <p>Unrated events: {data.usage.unratedCount}</p>
-          <p className="muted">Provider cost — Unavailable</p>
+          <h2>{t('dashboard.usageSummary')}</h2>
+          <p>{t('dashboard.normalizedEvents')}: {data.usage.normalizedEventCount}</p>
+          <p>{t('dashboard.unratedEvents')}: {data.usage.unratedCount}</p>
+          <p className="muted">{t('dashboard.providerCostUnavailable')}</p>
         </section>
         <section className="card">
-          <h2>Billing preview</h2>
+          <h2>{t('dashboard.billingPreview')}</h2>
           {data.billing ? (
             <>
               <p>
-                Current period estimate:{' '}
+                {t('dashboard.currentPeriodEstimate')}:{' '}
                 {formatCurrency(data.billing.previewTotal, data.billing.currency)}
               </p>
-              <p className="muted">Payment integration — Disabled</p>
+              <p className="muted">{t('dashboard.paymentDisabled')}</p>
             </>
           ) : (
-            <p className="muted">Invoice preview unavailable</p>
+            <p className="muted">{t('dashboard.invoiceUnavailable')}</p>
           )}
           {data.subscription ? (
             <p>
-              Plan: {data.subscription.planName ?? 'Assigned'} —{' '}
+              {t('dashboard.plan')}: {data.subscription.planName ?? 'Assigned'} —{' '}
               {formatCurrency(data.subscription.monthlyAmount, data.subscription.currency)}/mo
             </p>
           ) : (
-            <p className="muted">No subscription assigned</p>
+            <p className="muted">{t('dashboard.noSubscription')}</p>
           )}
         </section>
       </div>
 
       <section className="card" style={{ marginTop: '1rem' }}>
-        <h2>Hourly volume (today)</h2>
+        <h2>{t('dashboard.hourlyVolume')}</h2>
         <CallsHourlyChart data={calls.hourlyChart} />
       </section>
 
       <section className="card" style={{ marginTop: '1rem' }} aria-labelledby="recent-calls-heading">
-        <h2 id="recent-calls-heading">Recent calls</h2>
+        <h2 id="recent-calls-heading">{t('dashboard.recentCalls')}</h2>
         {calls.recent.length === 0 ? (
-          <p className="muted">No calls yet.</p>
+          <p className="muted">{t('dashboard.noCalls')}</p>
         ) : (
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>When</th>
-                  <th>Direction</th>
-                  <th>From</th>
-                  <th>To</th>
-                  <th>Status</th>
-                  <th>Duration</th>
+                  <th>{t('dashboard.when')}</th>
+                  <th>{t('dashboard.direction')}</th>
+                  <th>{t('dashboard.from')}</th>
+                  <th>{t('dashboard.to')}</th>
+                  <th>{t('dashboard.status')}</th>
+                  <th>{t('dashboard.duration')}</th>
                 </tr>
               </thead>
               <tbody>

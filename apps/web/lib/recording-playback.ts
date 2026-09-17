@@ -20,7 +20,11 @@ export function isRecordingContentType(contentType: string): boolean {
   return contentType.startsWith('audio/') || contentType === 'application/octet-stream';
 }
 
-export async function fetchRecordingBlobUrl(path: string, tenantId: string): Promise<string> {
+export async function fetchAudioBlobUrl(
+  path: string,
+  tenantId: string,
+  options?: { validateWav?: boolean },
+): Promise<string> {
   const res = await fetch(`/api/backend/${path.replace(/^\//, '')}`, {
     headers: {
       Accept: 'audio/*',
@@ -37,21 +41,27 @@ export async function fetchRecordingBlobUrl(path: string, tenantId: string): Pro
   }
 
   if (!res.ok) {
-    throw new ApiError('REQUEST_FAILED', `Recording playback failed: ${res.status}`, res.status);
+    throw new ApiError('REQUEST_FAILED', `Audio playback failed: ${res.status}`, res.status);
   }
 
   const contentType = res.headers.get('content-type') ?? '';
   if (!isRecordingContentType(contentType)) {
     throw new ApiError(
       'INVALID_CONTENT',
-      `Unexpected recording content type: ${contentType || 'unknown'}`,
+      `Unexpected audio content type: ${contentType || 'unknown'}`,
       res.status,
     );
   }
 
   const buffer = await res.arrayBuffer();
-  validateWavBytes(new Uint8Array(buffer));
+  if (options?.validateWav ?? false) {
+    validateWavBytes(new Uint8Array(buffer));
+  }
 
-  const blob = new Blob([buffer], { type: 'audio/wav' });
+  const blob = new Blob([buffer], { type: contentType || 'application/octet-stream' });
   return URL.createObjectURL(blob);
+}
+
+export async function fetchRecordingBlobUrl(path: string, tenantId: string): Promise<string> {
+  return fetchAudioBlobUrl(path, tenantId, { validateWav: true });
 }

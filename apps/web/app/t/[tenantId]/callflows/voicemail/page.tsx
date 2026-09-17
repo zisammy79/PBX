@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { api } from '@/lib/api-client';
 import { useI18n } from '@/lib/i18n';
 import { EmptyState, ErrorAlert, LoadingBlock, PageHeader } from '@/components/app-shell';
+import { InlineAudioPlayer } from '@/components/telephony/inline-audio';
 
 type VoicemailRow = {
   id: string;
@@ -83,6 +84,7 @@ export default function VoicemailPage() {
                 <th>{t('callflow.voicemailDuration')}</th>
                 <th>{t('callflow.voicemailReceived')}</th>
                 <th>{t('callflow.voicemailStatus')}</th>
+                <th>{t('callflow.voicemailPlay')}</th>
                 <th>{t('callflow.actions')}</th>
               </tr>
             </thead>
@@ -93,6 +95,13 @@ export default function VoicemailPage() {
                   <td>{row.durationSeconds}s</td>
                   <td>{new Date(row.createdAt).toLocaleString()}</td>
                   <td>{row.isRead ? t('callflow.voicemailRead') : t('callflow.voicemailUnread')}</td>
+                  <td>
+                    <InlineAudioPlayer
+                      tenantId={tenantId}
+                      contentPath={`tenants/${tenantId}/voicemails/${row.id}/content`}
+                      label={t('callflow.voicemailPlay')}
+                    />
+                  </td>
                   <td style={{ display: 'flex', gap: '0.5rem' }}>
                     {!row.isRead ? (
                       <button

@@ -62,6 +62,19 @@ export default function CampaignsPage() {
     }
   }
 
+  async function tickCampaign(id: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`tenants/${tenantId}/campaigns/${id}/tick`, {}, tenantId);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tick failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function runAction(id: string, action: 'start' | 'pause' | 'stop') {
     setBusy(true);
     setError(null);
@@ -137,9 +150,16 @@ export default function CampaignsPage() {
                       </button>
                     ) : null}
                     {row.status === 'running' ? (
-                      <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void runAction(row.id, 'pause')}>
-                        {t('callflow.campaignPause')}
-                      </button>
+                      <>
+                        <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void runAction(row.id, 'pause')}>
+                          {t('callflow.campaignPause')}
+                        </button>
+                        {row.technology === 'voice' ? (
+                          <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void tickCampaign(row.id)}>
+                            {t('callflow.campaignTick')}
+                          </button>
+                        ) : null}
+                      </>
                     ) : null}
                     {row.status !== 'completed' ? (
                       <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void runAction(row.id, 'stop')}>
