@@ -73,6 +73,38 @@ export default function ProvisioningPage() {
     }
   }
 
+  async function onDownload(row: ButtonLayoutRow) {
+    setBusy(true);
+    setError(null);
+    try {
+      const vendor = encodeURIComponent(row.vendorTemplate || 'generic');
+      const res = await fetch(
+        `/api/backend/tenants/${tenantId}/button-layouts/${row.id}/provisioning-file?vendor=${vendor}`,
+        {
+          credentials: 'same-origin',
+          headers: { 'X-Tenant-Id': tenantId },
+        },
+      );
+      if (!res.ok) {
+        throw new Error(`Download failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') ?? '';
+      const match = /filename="([^"]+)"/.exec(disposition);
+      const filename = match?.[1] ?? `${row.name}.${row.vendorTemplate === 'generic' ? 'json' : 'xml'}`;
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Download failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onDelete(id: string) {
     setBusy(true);
     setError(null);
@@ -170,7 +202,15 @@ export default function ProvisioningPage() {
                   <td>
                     {row.lineStart}–{row.lineEnd}
                   </td>
-                  <td>
+                  <td style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={busy}
+                      onClick={() => void onDownload(row)}
+                    >
+                      {t('callflow.provisioningDownload')}
+                    </button>
                     <button
                       type="button"
                       className="btn btn-secondary btn-sm"

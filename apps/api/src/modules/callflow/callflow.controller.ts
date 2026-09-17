@@ -857,6 +857,24 @@ export class CallflowController {
     return this.callflowService.getButtonLayout(req.user!, tenantId, id);
   }
 
+  @Get('button-layouts/:id/provisioning-file')
+  @RequirePermissions(Permission.TENANT_PROVISIONING_MANAGE)
+  downloadButtonLayoutProvisioningFile(
+    @Req() req: RequestWithUser,
+    @Res() res: FastifyReply,
+    @Param('tenantId') tenantId: string,
+    @Param('id') id: string,
+    @Query('vendor') vendor?: string,
+  ) {
+    return this.callflowService.getButtonLayoutProvisioningFile(
+      req.user!,
+      tenantId,
+      id,
+      vendor ?? 'generic',
+      res,
+    );
+  }
+
   @Patch('button-layouts/:id')
   @RequirePermissions(Permission.TENANT_PROVISIONING_MANAGE)
   patchButtonLayout(

@@ -149,6 +149,7 @@
     "provisioningLineEnd": "Ligne fin",
     "provisioningLineRange": "Plage de lignes",
     "provisioningLineRangeError": "La ligne de fin doit être supérieure ou égale à la ligne de début.",
+    "provisioningDownload": "Télécharger le fichier de provisioning",
     "faxesTitle": "Boîte fax entrante et sortante",
     "faxesDescription": "Enregistrements fax (runtime T.38 à venir).",
     "faxesEmpty": "Aucun fax.",

@@ -149,6 +149,7 @@
     "provisioningLineEnd": "שורה סיום",
     "provisioningLineRange": "טווח שורות",
     "provisioningLineRangeError": "שורת הסיום חייבת להיות גדולה או שווה לשורת ההתחלה.",
+    "provisioningDownload": "הורד קובץ provisioning",
     "faxesTitle": "תיבת פקס נכנס ויוצא",
     "faxesDescription": "רשומות פקס (זמן ריצת T.38 בהמשך).",
     "faxesEmpty": "אין הודעות פקס.",

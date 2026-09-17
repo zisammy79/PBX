@@ -149,6 +149,7 @@
     "provisioningLineEnd": "Line end",
     "provisioningLineRange": "Line range",
     "provisioningLineRangeError": "Line end must be greater than or equal to line start.",
+    "provisioningDownload": "Download provisioning file",
     "faxesTitle": "Fax inbox & outbox",
     "faxesDescription": "Inbound and outbound fax records (T.38 runtime pending).",
     "faxesEmpty": "No fax messages yet.",
