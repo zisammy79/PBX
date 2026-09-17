@@ -10,6 +10,7 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
+import { extensions, sipDevices } from './telephony.js';
 import { tenants } from './tenants.js';
 
 export const mediaFiles = pgTable(
@@ -295,4 +296,84 @@ export const telephonyCronJobs = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('telephony_cron_jobs_tenant_idx').on(table.tenantId)],
+);
+
+export const buttonLayouts = pgTable(
+  'button_layouts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 255 }).notNull(),
+    vendorTemplate: varchar('vendor_template', { length: 64 }).notNull().default('generic'),
+    code: varchar('code', { length: 32 }),
+    lineStart: integer('line_start').notNull().default(1),
+    lineEnd: integer('line_end').notNull().default(10),
+    buttons: jsonb('buttons').notNull().default([]),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('button_layouts_tenant_name_uidx').on(table.tenantId, table.name),
+    index('button_layouts_tenant_idx').on(table.tenantId),
+  ],
+);
+
+export const buttonLayoutAssignments = pgTable(
+  'button_layout_assignments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    layoutId: uuid('layout_id')
+      .notNull()
+      .references(() => buttonLayouts.id, { onDelete: 'cascade' }),
+    deviceId: uuid('device_id').references(() => sipDevices.id, { onDelete: 'cascade' }),
+    extensionId: uuid('extension_id').references(() => extensions.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('button_layout_assignments_tenant_idx').on(table.tenantId),
+    index('button_layout_assignments_layout_idx').on(table.layoutId),
+  ],
+);
+
+export const faxes = pgTable(
+  'faxes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    direction: varchar('direction', { length: 16 }).notNull(),
+    remoteNumber: varchar('remote_number', { length: 64 }).notNull(),
+    localNumber: varchar('local_number', { length: 64 }).notNull(),
+    status: varchar('status', { length: 32 }).notNull().default('queued'),
+    pages: integer('pages').notNull().default(0),
+    storageKey: varchar('storage_key', { length: 512 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('faxes_tenant_idx').on(table.tenantId)],
+);
+
+export const smsMessages = pgTable(
+  'sms_messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    campaignId: uuid('campaign_id').references(() => campaigns.id, { onDelete: 'set null' }),
+    direction: varchar('direction', { length: 16 }).notNull(),
+    fromNumber: varchar('from_number', { length: 64 }).notNull(),
+    toNumber: varchar('to_number', { length: 64 }).notNull(),
+    body: text('body').notNull(),
+    status: varchar('status', { length: 32 }).notNull().default('queued'),
+    providerMessageId: varchar('provider_message_id', { length: 128 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('sms_messages_tenant_idx').on(table.tenantId)],
 );

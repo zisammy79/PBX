@@ -113,6 +113,13 @@
       "when": 1782300000000,
       "tag": "0017_campaigns_cron_voicemail_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1782400000000,
+      "tag": "0018_blf_fax_phase7",
+      "breakpoints": true
     }
   ]
 }
