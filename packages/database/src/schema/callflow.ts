@@ -234,3 +234,65 @@ export const platformHolidayTemplates = pgTable(
   },
   (table) => [index('platform_holiday_templates_name_idx').on(table.name)],
 );
+
+export const campaigns = pgTable(
+  'campaigns',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 255 }).notNull(),
+    technology: varchar('technology', { length: 16 }).notNull().default('voice'),
+    status: varchar('status', { length: 32 }).notNull().default('draft'),
+    maxConcurrent: integer('max_concurrent').notNull().default(1),
+    maxAttempts: integer('max_attempts').notNull().default(3),
+    startsAt: timestamp('starts_at', { withTimezone: true }),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('campaigns_tenant_idx').on(table.tenantId)],
+);
+
+export const campaignNumbers = pgTable(
+  'campaign_numbers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    campaignId: uuid('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    number: varchar('number', { length: 64 }).notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    lastStatus: varchar('last_status', { length: 32 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('campaign_numbers_campaign_number_uidx').on(table.campaignId, table.number),
+    index('campaign_numbers_tenant_idx').on(table.tenantId),
+    index('campaign_numbers_campaign_idx').on(table.campaignId),
+  ],
+);
+
+export const telephonyCronJobs = pgTable(
+  'telephony_cron_jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 255 }).notNull(),
+    jobType: varchar('job_type', { length: 64 }).notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    schedule: jsonb('schedule').notNull().default({}),
+    timezone: varchar('timezone', { length: 64 }).notNull().default('UTC'),
+    lastStartedAt: timestamp('last_started_at', { withTimezone: true }),
+    lastEndedAt: timestamp('last_ended_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('telephony_cron_jobs_tenant_idx').on(table.tenantId)],
+);

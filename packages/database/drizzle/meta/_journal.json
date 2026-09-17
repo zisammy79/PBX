@@ -106,6 +106,13 @@
       "when": 1782200000000,
       "tag": "0016_callflow_feature_import",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1782300000000,
+      "tag": "0017_campaigns_cron_voicemail_rls",
+      "breakpoints": true
     }
   ]
 }
